@@ -37,6 +37,7 @@ export const MODULES: ModuleDefinition[] = [
     basePath: "donnees",
     tabs: [
       { href: "", label: "Vue d'ensemble" },
+      { href: "/mots-cles", label: "Mots-clés" },
       { href: "/sites", label: "Sites web" },
       { href: "/connecteurs", label: "Connecteurs" },
     ],

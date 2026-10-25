@@ -145,3 +145,44 @@ export async function analyticsData(token: string, propertyId: string) {
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Historique par mot-clé (Search Console) : une ligne par jour et par requête.
+// ---------------------------------------------------------------------------
+
+export type QueryDay = { day: string; query: string; clicks: number; impressions: number; position: number };
+
+/**
+ * Récupère clics, impressions et position par jour et par requête sur `days` jours (pagination jusqu'à 100 000 lignes),
+ * puis complète avec les mots-clés suivis absents du résultat (Google ne renvoie que les requêtes les plus vues).
+ */
+export async function searchConsoleQueries(token: string, siteUrl: string, days: number, tracked: string[], onlyTracked = false): Promise<QueryDay[]> {
+  const end = new Date();
+  const range = { startDate: isoDay(new Date(end.getTime() - days * 86400_000)), endDate: isoDay(end) };
+  const rows: QueryDay[] = [];
+  const toRow = (r: GscRow, query?: string): QueryDay => ({
+    day: r.keys[0],
+    query: (query ?? r.keys[1]).toLowerCase().trim(),
+    clicks: r.clicks,
+    impressions: r.impressions,
+    position: Math.round(r.position * 100) / 100,
+  });
+
+  for (let page = 0; page < (onlyTracked ? 0 : 4); page++) {
+    const batch = await gscQuery(token, siteUrl, { ...range, dimensions: ["date", "query"], rowLimit: 25000, startRow: page * 25000 });
+    rows.push(...batch.map((r) => toRow(r)));
+    if (batch.length < 25000) break;
+  }
+
+  const seen = new Set(rows.map((r) => r.query));
+  for (const q of tracked.filter((t) => !seen.has(t)).slice(0, 50)) {
+    const batch = await gscQuery(token, siteUrl, {
+      ...range,
+      dimensions: ["date"],
+      dimensionFilterGroups: [{ filters: [{ dimension: "query", operator: "equals", expression: q }] }],
+      rowLimit: 1000,
+    });
+    rows.push(...batch.map((r) => toRow(r, q)));
+  }
+  return rows;
+}

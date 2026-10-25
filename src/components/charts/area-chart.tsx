@@ -9,7 +9,7 @@ type Point = { day: string; value: number };
  * Courbe lissée monotone (Fritsch-Carlson) : elle passe par chaque point sans jamais
  * dépasser les vraies valeurs (pas de creux ou de pics inventés entre deux jours).
  */
-function monotonePath(pts: [number, number][]) {
+export function monotonePath(pts: [number, number][]) {
   const n = pts.length;
   if (n < 3) return pts.map(([px, py], i) => `${i ? "L" : "M"}${px.toFixed(1)} ${py.toFixed(1)}`).join(" ");
   const dx = pts.slice(1).map((p, i) => p[0] - pts[i][0]);

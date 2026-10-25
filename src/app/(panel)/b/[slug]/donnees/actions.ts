@@ -79,3 +79,23 @@ export async function configureConnector(_prev: ConnectState, formData: FormData
   revalidatePath(`/b/${formData.get("slug")}`, "layout");
   return { ok: true, warning: res.warning };
 }
+
+/** Ajoute un mot-clé suivi, puis lance une synchronisation pour récupérer ses 90 jours d'historique. */
+export async function trackKeyword(formData: FormData) {
+  await requireAdmin();
+  const query = String(formData.get("query") ?? "").toLowerCase().replace(/\s+/g, " ").trim().slice(0, 200);
+  const businessId = String(formData.get("businessId"));
+  if (!query) return;
+  const supabase = await createClient();
+  await supabase.from("tracked_keywords").upsert({ business_id: businessId, query }, { onConflict: "business_id,query", ignoreDuplicates: true });
+  const { data: gsc } = await supabase.from("connectors").select("id").eq("business_id", businessId).eq("kind", "search_console").eq("status", "connected").maybeSingle();
+  if (gsc) await callEdgeFunction("connectors", { action: "sync", connector_id: gsc.id }, 45_000);
+  revalidatePath(`/b/${formData.get("slug")}`, "layout");
+}
+
+export async function untrackKeyword(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+  await supabase.from("tracked_keywords").delete().eq("business_id", String(formData.get("businessId"))).eq("query", String(formData.get("query")));
+  revalidatePath(`/b/${formData.get("slug")}`, "layout");
+}
