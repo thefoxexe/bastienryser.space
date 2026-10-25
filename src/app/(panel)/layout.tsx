@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { ShieldAlert } from "lucide-react";
 import { Sidebar } from "@/components/shell/sidebar";
+import { SplashGate } from "@/components/splash-gate";
 import { Button } from "@/components/ui";
 import { listAlerts } from "@/lib/alerts";
 import { getViewer } from "@/lib/auth";
@@ -48,7 +49,8 @@ export default async function PanelLayout({ children }: LayoutProps<"/">) {
           alerts: alerts.filter((a) => a.business_id === b.id).length,
         }))}
       />
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-0 flex-1 pb-[env(safe-area-inset-bottom)]">{children}</div>
+      <SplashGate />
     </div>
   );
 }

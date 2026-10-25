@@ -115,7 +115,7 @@ export function Sidebar({
   return (
     <>
       {/* Barre du haut sur mobile */}
-      <div className="material sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border px-4 lg:hidden">
+      <div className="material sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-3 border-b border-border px-4 pt-[env(safe-area-inset-top)] lg:hidden">
         <button type="button" onClick={() => setOpen(true)} className="grid size-9 place-items-center rounded-full" aria-label="Ouvrir le menu">
           <Menu className="size-[18px]" />
         </button>
@@ -133,10 +133,10 @@ export function Sidebar({
 
       {/* Tiroir mobile */}
       <div className={cn("fixed inset-0 z-40 lg:hidden", open ? "" : "pointer-events-none")} aria-hidden={!open}>
-        <div className={cn("absolute inset-0 bg-black/25 transition-opacity duration-300", open ? "opacity-100" : "opacity-0")} onClick={() => setOpen(false)} />
+        <div className={cn("absolute inset-0 bg-black/45 backdrop-blur-[2px] transition-opacity duration-300", open ? "opacity-100" : "opacity-0")} onClick={() => setOpen(false)} />
         <aside
           className={cn(
-            "material absolute inset-y-0 left-0 w-[284px] border-r border-border shadow-pop transition-transform duration-300 ease-[var(--ease-apple)]",
+            "absolute inset-y-0 left-0 w-[284px] max-w-[85vw] border-r border-border bg-bg pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] shadow-pop transition-transform duration-300 ease-[var(--ease-apple)]",
             open ? "translate-x-0" : "-translate-x-full",
           )}
         >

@@ -13,7 +13,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Tout, sauf les fichiers statiques de Next.js, le favicon et robots.txt.
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    // Tout, sauf les fichiers statiques : Next.js, favicon, robots.txt, et ce dont l'app installable a besoin sans être connecté.
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|manifest.webmanifest|sw.js|offline.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

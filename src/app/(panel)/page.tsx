@@ -72,7 +72,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       <div className="-mb-2 flex justify-end">
         <PeriodChips base="/" current={period} />
       </div>
-      <section aria-label="Chiffres clés" className="animate-rise grid grid-cols-2 gap-3 [animation-delay:40ms] md:grid-cols-3 xl:grid-cols-6">
+      <section aria-label="Chiffres clés" className="animate-rise grid grid-cols-2 gap-3 [animation-delay:40ms] md:grid-cols-3 2xl:grid-cols-6">
         <KpiTile label={`Visiteurs · ${periodShort(period)}`} value={overview.visitors ? formatValue(sum(overview.visitors)!, { kind: "number" }) : null} trend={overview.visitors?.map((p) => p.value)} empty="Connecter" href={connectHref} />
         <KpiTile
           label={`Encaissé · ${periodShort(period)}`}

@@ -362,7 +362,62 @@
   animation: notify 8s var(--ease-apple) 1.5s infinite both;
 }
 
+/* --- Écran de chargement ------------------------------------------------ */
+@keyframes splash-fly {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  18% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1);
+  }
+}
+.splash-fly {
+  opacity: 0;
+  animation: splash-fly 2.25s var(--ease-apple) infinite;
+}
+@keyframes splash-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--green-glow);
+    transform: scale(0.94);
+  }
+  50% {
+    box-shadow: 0 0 36px 6px var(--green-glow);
+    transform: scale(1.04);
+  }
+}
+.splash-ring {
+  animation: splash-ring 1.8s ease-in-out infinite;
+}
+@keyframes splash-progress {
+  0% {
+    transform: scaleX(0);
+  }
+  70% {
+    transform: scaleX(0.85);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+.splash-progress {
+  animation: splash-progress 1.9s var(--ease-apple) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .splash-fly,
+  .splash-ring,
+  .splash-progress {
+    animation: none;
+  }
   .animate-rise,
   .animate-float-in,
   .animate-draw,
