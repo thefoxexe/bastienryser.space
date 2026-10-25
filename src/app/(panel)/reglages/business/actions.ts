@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { logActivity } from "@/lib/activity";
 import { requireAdmin } from "@/lib/auth";
+import { downloadLogo, findSiteLogo, LOGO_TYPES, MAX_LOGO, type FoundLogo } from "@/lib/site-logo";
 import { createClient } from "@/lib/supabase/server";
 
 export type BusinessFormState = { error?: string; fieldErrors?: Record<string, string> };
@@ -26,7 +27,31 @@ const schema = z.object({
   data: z.string().optional(),
 });
 
-const LOGO_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+function parseWebsites(raw: string) {
+  return raw
+    .split(/[\n,]/)
+    .map((w) => w.trim())
+    .filter(Boolean)
+    .map((w) => (/^https?:\/\//.test(w) ? w : `https://${w}`));
+}
+
+export type LogoSearch = { url?: string; site?: string; error?: string };
+
+/** Cherche le logo sur les sites indiqués (dans l'ordre) ; renvoie l'adresse de l'image pour l'aperçu. */
+export async function findLogo(websites: string): Promise<LogoSearch> {
+  await requireAdmin();
+  const sites = parseWebsites(websites).filter((w) => URL.canParse(w));
+  if (!sites.length) return { error: "Ajoute d'abord l'adresse d'un site." };
+  for (const site of sites.slice(0, 3)) {
+    try {
+      const logo = await findSiteLogo(site);
+      return { url: logo.url, site: new URL(site).hostname };
+    } catch {
+      // Site suivant.
+    }
+  }
+  return { error: "Aucun logo trouvé sur ces sites : ajoute-le à la main." };
+}
 
 export async function saveBusiness(_prev: BusinessFormState, formData: FormData): Promise<BusinessFormState> {
   await requireAdmin();
@@ -38,11 +63,7 @@ export async function saveBusiness(_prev: BusinessFormState, formData: FormData)
   }
   const input = parsed.data;
 
-  const websites = (input.websites ?? "")
-    .split(/[\n,]/)
-    .map((w) => w.trim())
-    .filter(Boolean)
-    .map((w) => (/^https?:\/\//.test(w) ? w : `https://${w}`));
+  const websites = parseWebsites(input.websites ?? "");
   for (const w of websites) {
     if (!URL.canParse(w)) return { fieldErrors: { websites: `Adresse invalide : ${w}` } };
   }
@@ -73,13 +94,27 @@ export async function saveBusiness(_prev: BusinessFormState, formData: FormData)
     await logActivity(supabase, { business_id: businessId, kind: "business.created", message: `Business « ${row.name} » créé` });
   }
 
+  // Logo : fichier envoyé, sinon image trouvée sur le site (bouton « Trouver »), sinon recherche automatique à la création.
   const logo = formData.get("logo");
+  const logoUrl = String(formData.get("logoUrl") ?? "");
+  let upload: { body: Blob | Uint8Array; type: string } | null = null;
   if (logo instanceof File && logo.size > 0) {
     if (!LOGO_TYPES.includes(logo.type)) return { fieldErrors: { logo: "Format accepté : PNG, JPEG, WebP ou SVG." } };
-    if (logo.size > 3 * 1024 * 1024) return { fieldErrors: { logo: "3 Mo maximum." } };
-    const ext = logo.type.split("/")[1].replace("svg+xml", "svg").replace("jpeg", "jpg");
+    if (logo.size > MAX_LOGO) return { fieldErrors: { logo: "3 Mo maximum." } };
+    upload = { body: logo, type: logo.type };
+  } else if (logoUrl || (!input.id && websites.length)) {
+    let found: FoundLogo | null = null;
+    try {
+      found = logoUrl ? await downloadLogo(logoUrl) : await findSiteLogo(websites[0]);
+    } catch {
+      if (logoUrl) return { fieldErrors: { logo: "Le logo trouvé n'a pas pu être récupéré : ajoute-le à la main." } };
+    }
+    if (found) upload = { body: found.bytes, type: found.type };
+  }
+  if (upload) {
+    const ext = upload.type.split("/")[1].replace("svg+xml", "svg").replace("jpeg", "jpg");
     const path = `${businessId}/logo-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("logos").upload(path, logo, { contentType: logo.type });
+    const { error } = await supabase.storage.from("logos").upload(path, upload.body, { contentType: upload.type });
     if (error) return { error: "Le logo n'a pas pu être envoyé." };
     const { data: previous } = await supabase.from("businesses").select("logo_path").eq("id", businessId).single();
     await supabase.from("businesses").update({ logo_path: path }).eq("id", businessId);

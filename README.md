@@ -74,10 +74,9 @@ En résumé :
 
 ### 1. Supabase
 1. Nouveau projet (séparé de Cantia), région *Central EU (Zurich)*.
-2. Migrations de `supabase/migrations/` dans l'ordre, puis le secret `project_url` du Vault
-   (le secret des tâches automatiques est généré tout seul par la migration).
-3. Edge Functions déployées (`oauth`, `publish-due`, `refresh-tokens`, `fetch-metrics`, `health`) et secret `APP_URL`.
-4. Inscriptions désactivées, ton utilisateur créé et ajouté dans `admins`, *Site URL* réglée.
+2. `supabase/setup.sql` collé dans le *SQL Editor* : toute la base, l'adresse du projet et l'accès admin d'un coup.
+3. Edge Functions déployées (`supabase functions deploy`) et secret `APP_URL`.
+4. Inscriptions désactivées, ton utilisateur créé (il devient admin tout seul), *Site URL* réglée.
 
 ### 2. Vercel
 1. Projet importé depuis ce dépôt.

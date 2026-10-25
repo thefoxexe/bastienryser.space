@@ -1,15 +1,15 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import type { ComponentProps, ReactNode, SelectHTMLAttributes } from "react";
 import { cn } from "./cn";
 
 // Champs « remplis » façon Apple : fond discret, pas de bordure, anneau net au focus.
 const control =
   "w-full rounded-xl border-0 bg-[color-mix(in_oklab,var(--text)_5%,var(--surface))] px-3.5 text-[14px] text-text outline-none ring-1 ring-transparent transition-[box-shadow,background] duration-200 placeholder:text-faint hover:bg-[color-mix(in_oklab,var(--text)_7%,var(--surface))] focus:bg-surface focus:ring-[color-mix(in_oklab,var(--text)_30%,transparent)] focus:shadow-[0_0_0_4px_color-mix(in_oklab,var(--text)_7%,transparent)] disabled:opacity-50";
 
-export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+export function Input({ className, ...props }: ComponentProps<"input">) {
   return <input className={cn(control, "h-10", className)} {...props} />;
 }
 
-export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
   return <textarea className={cn(control, "min-h-28 resize-y py-3 leading-relaxed", className)} {...props} />;
 }
 

@@ -1,9 +1,21 @@
 # Installation sur un nouveau projet Supabase
 
-Procédure à suivre par Claude (connecteur Supabase branché sur le compte de Bastien) ou à la main.
+## Le plus simple : un seul fichier à coller
+
+1. Supabase > *SQL Editor* > *New query* : coller tout le contenu de **`supabase/setup.sql`**, puis *Run*.
+   Il crée toute la base (les 7 migrations), règle l'adresse du projet pour les tâches automatiques
+   et donne l'accès admin à `bastienryser20004@gmail.com` (tout de suite si l'utilisateur existe, sinon dès sa création).
+   À lancer une seule fois, sur un projet neuf. Après une nouvelle migration : `npm run setup:sql` pour le régénérer.
+2. *Authentication > Users > Add user* avec `bastienryser20004@gmail.com` (cocher *Auto Confirm User*).
+3. Edge Functions : `supabase login`, puis
+   `supabase functions deploy --project-ref cocfslavrraexyavnzmg` et
+   `supabase secrets set --project-ref cocfslavrraexyavnzmg APP_URL=https://bastienryser.space`.
+4. Les réglages des tableaux de bord ci-dessous (inscriptions, Site URL, Vercel, Google Cloud).
+
+Sinon, procédure à suivre par Claude (connecteur Supabase branché sur le compte de Bastien) ou à la main.
 Chaque étape est idempotente : on peut la relancer sans risque.
 
-## Ce que fait Claude
+## Ce que fait Claude (connecteur Supabase)
 
 1. **Organisation** : `list_organizations`, puis demander à Bastien laquelle utiliser s'il y en a plusieurs.
 2. **Projet** : `create_project` avec `name = "bastienryser.space"`, `region = "eu-central-2"` (Zurich).
@@ -15,6 +27,7 @@ Chaque étape est idempotente : on peut la relancer sans risque.
    4. `20261025000300_system_status` (suivi de santé, secret des tâches généré dans le Vault)
    5. `20261025000400_data_module` (surveillance des sites, connecteurs Stripe et Plausible, chiffres quotidiens)
    6. `20261025000500_google_connectors` (Search Console et Google Analytics 4)
+   7. `20261025000600_keywords` (historique quotidien des mots-clés, mots-clés suivis, classements)
 4. **Adresse du projet pour pg_cron** (pas un secret) avec `execute_sql` :
    ```sql
    select vault.create_secret('https://<ref>.supabase.co', 'project_url')

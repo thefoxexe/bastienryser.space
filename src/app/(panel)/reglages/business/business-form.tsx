@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
+import { Sparkles } from "lucide-react";
 import { BusinessMark } from "@/components/business-mark";
 import { Button, ButtonLink, Card, Field, FormError, Input, Textarea } from "@/components/ui";
 import type { BusinessWithLogo } from "@/lib/types";
-import { saveBusiness, type BusinessFormState } from "./actions";
+import { findLogo, saveBusiness, type BusinessFormState } from "./actions";
 
 const PALETTE = ["#0f766e", "#2563eb", "#7c3aed", "#db2777", "#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#0891b2", "#111110"];
 
@@ -25,7 +26,25 @@ export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
   const [slugTouched, setSlugTouched] = useState(Boolean(business));
   const [color, setColor] = useState(business?.color ?? PALETTE[1]);
   const [logoPreview, setLogoPreview] = useState<string | null>(business?.logo_url ?? null);
+  const [foundUrl, setFoundUrl] = useState("");
+  const [logoNote, setLogoNote] = useState<string | null>(null);
+  const [searching, startSearch] = useTransition();
+  const websitesRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const fe = state.fieldErrors ?? {};
+
+  function searchLogo() {
+    setLogoNote(null);
+    startSearch(async () => {
+      const res = await findLogo(websitesRef.current?.value ?? "");
+      if (res.url) {
+        setFoundUrl(res.url);
+        setLogoPreview(res.url);
+        if (fileRef.current) fileRef.current.value = "";
+        setLogoNote(`Logo trouvé sur ${res.site}. Il sera enregistré avec le business.`);
+      } else setLogoNote(res.error ?? "Aucun logo trouvé.");
+    });
+  }
 
   return (
     <form action={action} className="grid gap-6 lg:grid-cols-[1fr_300px]">
@@ -62,7 +81,7 @@ export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
             <Input id="description" name="description" defaultValue={business?.description ?? ""} placeholder="Une ligne pour s'y retrouver" />
           </Field>
           <Field label="Sites web" htmlFor="websites" hint={fe.websites ?? "Un par ligne."}>
-            <Textarea id="websites" name="websites" defaultValue={business?.websites.join("\n") ?? ""} className="min-h-24 font-mono text-[13px]" />
+            <Textarea ref={websitesRef} id="websites" name="websites" defaultValue={business?.websites.join("\n") ?? ""} className="min-h-24 font-mono text-[13px]" />
           </Field>
 
           <div className="flex flex-col gap-2">
@@ -86,18 +105,37 @@ export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
             <input type="hidden" name="color" value={color} />
           </div>
 
-          <Field label="Logo" htmlFor="logo" hint={fe.logo ?? "PNG, JPEG, WebP ou SVG, 3 Mo max. Carré de préférence."}>
-            <Input
-              id="logo"
-              name="logo"
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/svg+xml"
-              className="py-1.5 file:mr-3 file:h-7 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:text-[13px] file:text-text"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) setLogoPreview(URL.createObjectURL(f));
-              }}
-            />
+          <Field
+            label="Logo"
+            htmlFor="logo"
+            hint={
+              fe.logo ??
+              logoNote ??
+              (business ? "Trouvé sur le site, ou ton fichier (PNG, JPEG, WebP, SVG, 3 Mo max)." : "Sans fichier, il est cherché tout seul sur le premier site à la création.")
+            }
+          >
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                ref={fileRef}
+                id="logo"
+                name="logo"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="min-w-0 flex-1 py-1.5 file:mr-3 file:h-7 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:text-[13px] file:text-text"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    setLogoPreview(URL.createObjectURL(f));
+                    setFoundUrl("");
+                    setLogoNote(null);
+                  }
+                }}
+              />
+              <Button type="button" variant="secondary" onClick={searchLogo} disabled={searching} className="h-10">
+                <Sparkles className="size-4" /> {searching ? "Recherche…" : "Trouver depuis le site"}
+              </Button>
+            </div>
+            <input type="hidden" name="logoUrl" value={foundUrl} />
           </Field>
           {business?.logo_url ? (
             <label className="flex items-center gap-2 text-[13px] text-muted">
