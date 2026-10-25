@@ -6,10 +6,13 @@
 
 import { ConfigError, env, LINKEDIN_VERSION, META_GRAPH, optionalEnv, SUPABASE_URL } from "../_shared/env.ts";
 import { NetworkError } from "../_shared/errors.ts";
+import { ConnectorError } from "../_shared/connectors.ts";
+import { GOOGLE_SCOPES, listAnalyticsProperties, listSearchConsoleSites, type GoogleKind } from "../_shared/google.ts";
 import { metaGet } from "../_shared/meta.ts";
+import { syncConnector, type ConnectorRow } from "../_shared/sync.ts";
 import { adminClient, logActivity, storeToken } from "../_shared/supabase.ts";
 
-type Provider = "meta" | "linkedin" | "linkedin_page";
+type Provider = "meta" | "linkedin" | "linkedin_page" | "google";
 
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/oauth/callback`;
 
@@ -37,8 +40,8 @@ function appUrl() {
   return (optionalEnv("APP_URL") ?? "https://bastienryser.space").replace(/\/$/, "");
 }
 
-function backTo(slug: string | null, params: Record<string, string>) {
-  const url = new URL(slug ? `${appUrl()}/b/${slug}/reseaux/comptes` : `${appUrl()}/`);
+function backTo(slug: string | null, params: Record<string, string>, page = "reseaux/comptes") {
+  const url = new URL(slug ? `${appUrl()}/b/${slug}/${page}` : `${appUrl()}/`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   return Response.redirect(url.toString(), 303);
 }
@@ -51,18 +54,34 @@ Deno.serve(async (req) => {
 
   const { data: row } = await db
     .from("oauth_states")
-    .select("state, business_id, provider, created_at, used_at, businesses(slug, name)")
+    .select("state, business_id, provider, context, created_at, used_at, businesses(slug, name)")
     .eq("state", state)
     .maybeSingle();
   const business = row?.businesses as unknown as { slug: string; name: string } | undefined;
   const slug = business?.slug ?? null;
 
   const valid = row && !row.used_at && Date.now() - new Date(row.created_at).getTime() < 10 * 60_000;
-  if (!valid) return backTo(slug, { erreur: "expire" });
+  const isGoogle = row?.provider === "google";
+  const page = isGoogle ? "donnees/connecteurs" : "reseaux/comptes";
+  if (!valid) return backTo(slug, { erreur: "expire" }, page);
   const provider = row.provider as Provider;
+  const googleKind = ((row.context as { kind?: string })?.kind === "google_analytics" ? "google_analytics" : "search_console") as GoogleKind;
 
   try {
     if (action === "start") {
+      if (provider === "google") {
+        const auth = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+        auth.searchParams.set("client_id", env("GOOGLE_CLIENT_ID"));
+        auth.searchParams.set("redirect_uri", REDIRECT_URI);
+        auth.searchParams.set("response_type", "code");
+        auth.searchParams.set("scope", GOOGLE_SCOPES[googleKind]);
+        // offline + consent : Google renvoie un refresh token pour la synchronisation horaire.
+        auth.searchParams.set("access_type", "offline");
+        auth.searchParams.set("prompt", "consent");
+        auth.searchParams.set("include_granted_scopes", "true");
+        auth.searchParams.set("state", state);
+        return Response.redirect(auth.toString(), 302);
+      }
       if (provider === "meta") {
         const auth = new URL("https://www.facebook.com/v26.0/dialog/oauth");
         auth.searchParams.set("client_id", env("META_APP_ID"));
@@ -91,7 +110,13 @@ Deno.serve(async (req) => {
     await db.from("oauth_states").update({ used_at: new Date().toISOString() }).eq("state", state).is("used_at", null);
 
     const code = url.searchParams.get("code");
-    if (!code) return backTo(slug, { erreur: "refuse" });
+    if (!code) return backTo(slug, { erreur: "refuse" }, page);
+
+    if (provider === "google") {
+      const result = await connectGoogle(db, row.business_id, business!.name, code, googleKind);
+      if (result === "none") return backTo(slug, { erreur: "aucun_compte_google" }, page);
+      return backTo(slug, { google: result }, page);
+    }
 
     const count =
       provider === "meta"
@@ -102,7 +127,7 @@ Deno.serve(async (req) => {
     return backTo(slug, { connecte: provider, nombre: String(count) });
   } catch (e) {
     console.error("oauth", e instanceof NetworkError ? e.detail : e);
-    return backTo(slug, { erreur: e instanceof ConfigError ? "config" : "echec" });
+    return backTo(slug, { erreur: e instanceof ConfigError ? "config" : "echec" }, page);
   }
 });
 
@@ -315,4 +340,73 @@ async function connectLinkedIn(db: Db, businessId: string, businessName: string,
     });
   }
   return count;
+}
+
+// ---------------------------------------------------------------------------
+// Google : refresh token chiffré, liste des sites / propriétés, choix automatique quand c'est évident.
+// ---------------------------------------------------------------------------
+
+async function connectGoogle(db: Db, businessId: string, businessName: string, code: string, kind: GoogleKind): Promise<"ok" | "choisir" | "none"> {
+  const tokens = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: REDIRECT_URI,
+      client_id: env("GOOGLE_CLIENT_ID"),
+      client_secret: env("GOOGLE_CLIENT_SECRET"),
+    }),
+  }).then((r) => r.json());
+  if (!tokens.access_token) throw new NetworkError("Échange du code Google refusé.", false, true, JSON.stringify(tokens));
+  if (!tokens.refresh_token) throw new NetworkError("Google n'a pas fourni de jeton durable.", false, true, "refresh_token absent");
+
+  const { data: business } = await db.from("businesses").select("websites").eq("id", businessId).single();
+  const hosts = ((business?.websites ?? []) as string[]).map((w) => w.replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase());
+
+  let options: { value: string; label: string }[];
+  try {
+    if (kind === "search_console") {
+      const sites = await listSearchConsoleSites(tokens.access_token);
+      options = sites.map((s) => ({ value: s, label: s.replace(/^sc-domain:/, "").replace(/^https?:\/\//, "").replace(/\/$/, "") }));
+    } else {
+      const props = await listAnalyticsProperties(tokens.access_token);
+      options = props.map((p) => ({ value: p.id, label: p.name }));
+    }
+  } catch (e) {
+    throw new NetworkError(e instanceof ConnectorError ? e.message : "Lecture des propriétés Google impossible.", false, true, String(e));
+  }
+  if (!options.length) return "none";
+
+  // Choix automatique : une seule option, ou une seule qui correspond à un site du business.
+  const matching = options.filter((o) => {
+    const label = o.label.toLowerCase();
+    return kind === "search_console" ? hosts.some((h) => label === h || label === `www.${h}`) : label.includes(businessName.toLowerCase());
+  });
+  const chosen = options.length === 1 ? options[0] : matching.length === 1 ? matching[0] : null;
+  const name = kind === "search_console" ? "Search Console" : "Google Analytics";
+
+  const { data: existing } = await db.from("connectors").select("id, credential_ref").eq("business_id", businessId).eq("kind", kind).maybeSingle();
+  const credentialRef = await storeToken(db, tokens.refresh_token, `connector:${kind}:${businessId}`, existing?.credential_ref);
+  const row = {
+    business_id: businessId,
+    kind,
+    label: chosen ? `${name} · ${chosen.label}` : name,
+    config: { options, ...(chosen ? (kind === "search_console" ? { site_url: chosen.value } : { property_id: chosen.value }) : {}) },
+    credential_ref: credentialRef,
+    status: chosen ? "connected" : "pending",
+    last_error: null,
+  };
+  const { data: saved } = existing
+    ? await db.from("connectors").update(row).eq("id", existing.id).select("id, business_id, kind, label, config, credential_ref, status").single()
+    : await db.from("connectors").insert(row).select("id, business_id, kind, label, config, credential_ref, status").single();
+
+  await logActivity(db, {
+    business_id: businessId,
+    kind: existing ? "connector.refreshed" : "connector.connected",
+    message: `${existing ? "Connexion Google renouvelée" : "Connecteur ajouté"} : ${row.label} (${businessName})`,
+  });
+
+  if (chosen && saved) await syncConnector(db, saved as ConnectorRow);
+  return chosen ? "ok" : "choisir";
 }

@@ -2,6 +2,7 @@
 // La clé n'est jamais renvoyée ni journalisée.
 //   POST { action: "connect", business_id, kind, api_key, site_id?, base_url? }
 //   POST { action: "sync", connector_id }
+//   POST { action: "configure", connector_id, choice }   (choix du site Search Console ou de la propriété GA4)
 
 import { ConnectorError, plausibleTest, stripeTest } from "../_shared/connectors.ts";
 import { adminClient, isAdminRequest, json, logActivity, storeToken } from "../_shared/supabase.ts";
@@ -22,13 +23,31 @@ Deno.serve(async (req) => {
     return json(result.ok ? { ok: true, points: result.points } : { ok: false, error: result.error });
   }
 
+  if (body.action === "configure") {
+    const { data: c } = await db.from("connectors").select("id, business_id, kind, label, config, credential_ref, status").eq("id", body.connector_id).maybeSingle();
+    if (!c) return json({ ok: false, error: "Connecteur introuvable." }, 404);
+    const options = ((c.config as { options?: { value: string; label: string }[] }).options ?? []);
+    const choice = options.find((o) => o.value === body.choice);
+    if (!choice) return json({ ok: false, error: "Choix invalide." }, 400);
+    const config = c.kind === "search_console" ? { ...c.config, site_url: choice.value } : { ...c.config, property_id: choice.value };
+    const label = `${c.kind === "search_console" ? "Search Console" : "Google Analytics"} · ${choice.label}`;
+    const { data: saved } = await db
+      .from("connectors")
+      .update({ config, label, status: "connected", last_error: null })
+      .eq("id", c.id)
+      .select("id, business_id, kind, label, config, credential_ref, status")
+      .single();
+    const result = await syncConnector(db, saved as ConnectorRow);
+    return json(result.ok ? { ok: true, points: result.points } : { ok: true, warning: result.error });
+  }
+
   if (body.action !== "connect") return json({ ok: false, error: "Action inconnue." }, 400);
 
   const kind = body.kind as keyof typeof LABELS;
   const apiKey = String(body.api_key ?? "").trim();
   const siteId = String(body.site_id ?? "").trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
   const baseUrl = String(body.base_url ?? "").trim() || "https://plausible.io";
-  if (!(kind in LABELS)) return json({ ok: false, error: "Type de connecteur inconnu." }, 400);
+  if (!(kind in LABELS)) return json({ ok: false, error: "Ce connecteur se branche avec « Connecter avec Google »." }, 400);
   if (!apiKey) return json({ ok: false, error: "Colle la clé d'API." }, 400);
   if (kind === "plausible" && !URL.canParse(baseUrl)) return json({ ok: false, error: "Adresse Plausible invalide." }, 400);
 

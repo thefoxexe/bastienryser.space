@@ -1,13 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ConnectorError, plausibleDaily, stripeDaily, type DailyPoint } from "./connectors.ts";
+import { analyticsData, googleAccessToken, searchConsoleData } from "./google.ts";
 import { logActivity, readToken } from "./supabase.ts";
 
 export type ConnectorRow = {
   id: string;
   business_id: string;
-  kind: "stripe" | "plausible";
+  kind: "stripe" | "plausible" | "search_console" | "google_analytics";
   label: string;
-  config: { site_id?: string; base_url?: string };
+  config: { site_id?: string; base_url?: string; site_url?: string; property_id?: string };
   credential_ref: string | null;
   status: string;
 };
@@ -18,9 +19,19 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
     const key = await readToken(db, c.credential_ref);
     if (!key) throw new ConnectorError("Clé absente : reconnecte ce connecteur.", true);
 
+    // Compte Google connecté mais propriété pas encore choisie : rien à synchroniser.
+    if (c.status === "pending") return { ok: true, points: 0 };
+
     let points: DailyPoint[];
+    let snapshot: Record<string, unknown> | null = null;
     if (c.kind === "stripe") points = await stripeDaily(key);
-    else points = await plausibleDaily(key, c.config.site_id ?? "", c.config.base_url ?? "https://plausible.io");
+    else if (c.kind === "plausible") points = await plausibleDaily(key, c.config.site_id ?? "", c.config.base_url ?? "https://plausible.io");
+    else {
+      const token = await googleAccessToken(key);
+      const result = c.kind === "search_console" ? await searchConsoleData(token, c.config.site_url ?? "") : await analyticsData(token, c.config.property_id ?? "");
+      points = result.points;
+      snapshot = result.snapshot;
+    }
 
     if (points.length) {
       const now = new Date().toISOString();
@@ -31,7 +42,10 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
       if (error) throw new ConnectorError("Enregistrement des chiffres impossible.");
     }
 
-    await db.from("connectors").update({ status: "connected", last_error: null, last_sync_at: new Date().toISOString() }).eq("id", c.id);
+    await db
+      .from("connectors")
+      .update({ status: "connected", last_error: null, last_sync_at: new Date().toISOString(), ...(snapshot ? { snapshot } : {}) })
+      .eq("id", c.id);
     return { ok: true, points: points.length };
   } catch (e) {
     const message = e instanceof ConnectorError ? e.message : "Erreur inattendue pendant la synchronisation.";

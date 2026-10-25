@@ -139,6 +139,12 @@ export async function runSystemChecks(): Promise<CheckGroup[]> {
       fix: "Créer l'app sur linkedin.com/developers puis ajouter les secrets dans Supabase.",
     },
     {
+      label: "Google (Search Console et Analytics)",
+      status: secret("GOOGLE_CLIENT_ID") && secret("GOOGLE_CLIENT_SECRET") ? "ok" : "warning",
+      detail: secret("GOOGLE_CLIENT_ID") && secret("GOOGLE_CLIENT_SECRET") ? "Client OAuth Google configuré." : "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET manquants.",
+      fix: "Créer un client OAuth dans Google Cloud (voir docs/installation.md), puis ajouter les secrets dans Supabase.",
+    },
+    {
       label: "LinkedIn (page entreprise)",
       status: secret("LINKEDIN_PAGE_CLIENT_ID") || secret("LINKEDIN_CLIENT_ID") ? "ok" : "warning",
       detail: secret("LINKEDIN_PAGE_CLIENT_ID") ? "App dédiée configurée." : "Utilise l'app LinkedIn principale (Community Management API requise).",

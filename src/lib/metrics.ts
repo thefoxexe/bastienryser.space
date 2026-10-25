@@ -7,10 +7,16 @@ export type SeriesPoint = { day: string; value: number };
 export type Connector = {
   id: string;
   business_id: string;
-  kind: "stripe" | "plausible";
+  kind: "stripe" | "plausible" | "search_console" | "google_analytics";
   label: string;
-  config: { site_id?: string; base_url?: string };
-  status: "connected" | "error";
+  config: { site_id?: string; base_url?: string; site_url?: string; property_id?: string; options?: { value: string; label: string }[] };
+  snapshot: {
+    period?: string;
+    queries?: { key: string; clicks: number; impressions: number; position: number }[];
+    pages?: { key: string; clicks?: number; impressions?: number; position?: number; views?: number }[];
+    channels?: { key: string; sessions: number }[];
+  };
+  status: "connected" | "pending" | "error";
   last_sync_at: string | null;
   last_error: string | null;
   created_at: string;
@@ -35,7 +41,7 @@ export function lastDays(n: number, now = new Date()) {
 
 export async function listConnectors(businessId?: string): Promise<Connector[]> {
   const supabase = await createClient();
-  let q = supabase.from("connectors").select("id,business_id,kind,label,config,status,last_sync_at,last_error,created_at").order("kind");
+  let q = supabase.from("connectors").select("id,business_id,kind,label,config,snapshot,status,last_sync_at,last_error,created_at").order("kind");
   if (businessId) q = q.eq("business_id", businessId);
   const { data } = await q;
   return (data ?? []) as Connector[];
@@ -46,7 +52,14 @@ export async function listConnectors(businessId?: string): Promise<Connector[]> 
  * Plausible et Stripe n'envoient rien pour un jour sans visite ni paiement.
  * Renvoie null si aucune source n'alimente cette métrique (on n'affiche alors rien plutôt qu'un faux zéro).
  */
-export async function metricSeries(options: { businessId?: string; metric: string; unit?: string; days?: number }): Promise<SeriesPoint[] | null> {
+export async function metricSeries(options: {
+  businessId?: string;
+  metric: string;
+  unit?: string;
+  days?: number;
+  /** Coupe les derniers jours pas encore livrés par la source (Search Console : 2 à 3 jours de décalage). */
+  trimTrailing?: boolean;
+}): Promise<SeriesPoint[] | null> {
   const supabase = await createClient();
   const days = lastDays(options.days ?? 30);
   let q = supabase.from("metric_points").select("day,value,unit").eq("metric", options.metric).gte("day", days[0]);
@@ -54,13 +67,48 @@ export async function metricSeries(options: { businessId?: string; metric: strin
   if (options.unit !== undefined) q = q.eq("unit", options.unit);
   const { data } = await q;
 
-  const kind = options.metric === "revenue" || options.metric === "payments" ? "stripe" : "plausible";
+  const kind = sourceOf(options.metric);
   const sources = await listConnectors(options.businessId);
   if (!sources.some((c) => c.kind === kind)) return null;
 
   const byDay = new Map<string, number>();
   for (const p of data ?? []) byDay.set(p.day, (byDay.get(p.day) ?? 0) + Number(p.value));
-  return days.map((day) => ({ day, value: byDay.get(day) ?? 0 }));
+  let range = days;
+  if (options.trimTrailing) {
+    const lastKnown = [...byDay.keys()].sort().pop();
+    range = lastKnown ? days.filter((d) => d <= lastKnown) : [];
+  }
+  return range.map((day) => ({ day, value: byDay.get(day) ?? 0 }));
+}
+
+/** Connecteur qui alimente une métrique. */
+export function sourceOf(metric: string): Connector["kind"] {
+  if (metric === "revenue" || metric === "payments") return "stripe";
+  if (metric.startsWith("search_")) return "search_console";
+  if (metric.startsWith("ga_")) return "google_analytics";
+  return "plausible";
+}
+
+/** Position moyenne dans Google sur la période, pondérée par les impressions (comme dans la Search Console). */
+export async function searchPosition(businessId: string, days = 28): Promise<number | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("metric_points")
+    .select("metric,day,value")
+    .eq("business_id", businessId)
+    .in("metric", ["search_position", "search_impressions"])
+    .gte("day", lastDays(days)[0]);
+  const impressions = new Map<string, number>();
+  for (const p of data ?? []) if (p.metric === "search_impressions") impressions.set(p.day, Number(p.value));
+  let weighted = 0;
+  let total = 0;
+  for (const p of data ?? []) {
+    if (p.metric !== "search_position") continue;
+    const w = impressions.get(p.day) ?? 0;
+    weighted += Number(p.value) * w;
+    total += w;
+  }
+  return total ? Math.round((weighted / total) * 10) / 10 : null;
 }
 
 /** Devises présentes dans les revenus des 30 derniers jours, de la plus importante à la plus faible. */

@@ -1,4 +1,4 @@
-// Chaque heure : synchronise tous les connecteurs (Stripe, Plausible).
+// Chaque heure : synchronise tous les connecteurs (Stripe, Plausible, Search Console, Google Analytics).
 
 import { adminClient, authorize, heartbeat, json } from "../_shared/supabase.ts";
 import { syncConnector, type ConnectorRow } from "../_shared/sync.ts";

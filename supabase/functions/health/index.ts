@@ -12,6 +12,8 @@ const SECRETS = [
   "LINKEDIN_CLIENT_SECRET",
   "LINKEDIN_PAGE_CLIENT_ID",
   "LINKEDIN_PAGE_CLIENT_SECRET",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
 ] as const;
 
 Deno.serve(async (req) => {

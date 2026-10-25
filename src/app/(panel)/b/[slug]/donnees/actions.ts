@@ -1,9 +1,12 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { logActivity } from "@/lib/activity";
 import { requireAdmin } from "@/lib/auth";
 import { callEdgeFunction } from "@/lib/edge";
+import { supabaseUrl } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
 export type ConnectState = { ok?: boolean; error?: string; warning?: string };
@@ -50,4 +53,29 @@ export async function disconnectConnector(formData: FormData) {
   await logActivity(supabase, { business_id: data.business_id, kind: "connector.disconnected", message: `Connecteur retiré : ${data.label}` });
   revalidatePath(`/b/${formData.get("slug")}`, "layout");
   revalidatePath("/");
+}
+
+/** « Connecter avec Google » : flux OAuth officiel, géré par l'Edge Function `oauth` (refresh token chiffré dans Vault). */
+export async function startGoogleConnect(formData: FormData) {
+  await requireAdmin();
+  const kind = formData.get("kind") === "google_analytics" ? "google_analytics" : "search_console";
+  const supabase = await createClient();
+  const state = randomBytes(32).toString("base64url");
+  const { error } = await supabase.from("oauth_states").insert({ state, business_id: formData.get("businessId"), provider: "google", context: { kind } });
+  if (error) throw new Error("Impossible de démarrer la connexion Google.");
+  redirect(`${supabaseUrl}/functions/v1/oauth/start?state=${encodeURIComponent(state)}`);
+}
+
+/** Choix du site Search Console ou de la propriété GA4 quand le compte Google en a plusieurs. */
+export async function configureConnector(_prev: ConnectState, formData: FormData): Promise<ConnectState> {
+  await requireAdmin();
+  const res = await callEdgeFunction<{ ok: boolean; error?: string; warning?: string }>(
+    "connectors",
+    { action: "configure", connector_id: formData.get("connectorId"), choice: formData.get("choice") },
+    45_000,
+  );
+  if (!res) return { error: "Le serveur ne répond pas. Réessaie dans un instant." };
+  if (!res.ok) return { error: res.error ?? "Enregistrement impossible." };
+  revalidatePath(`/b/${formData.get("slug")}`, "layout");
+  return { ok: true, warning: res.warning };
 }

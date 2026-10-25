@@ -14,6 +14,7 @@ Chaque étape est idempotente : on peut la relancer sans risque.
    3. `20261025000200_cron` (tâches pg_cron)
    4. `20261025000300_system_status` (suivi de santé, secret des tâches généré dans le Vault)
    5. `20261025000400_data_module` (surveillance des sites, connecteurs Stripe et Plausible, chiffres quotidiens)
+   6. `20261025000500_google_connectors` (Search Console et Google Analytics 4)
 4. **Adresse du projet pour pg_cron** (pas un secret) avec `execute_sql` :
    ```sql
    select vault.create_secret('https://<ref>.supabase.co', 'project_url')
@@ -46,7 +47,20 @@ Bastien les saisit lui-même dans Supabase et Vercel.
 - *Authentication > Users > Add user* : créer son utilisateur (cocher *Auto Confirm User*), puis prévenir Claude (étape 9).
 - *Authentication > URL Configuration* : *Site URL* = adresse du panel.
 - Plus tard, *Edge Functions > Secrets* : `META_APP_ID`, `META_APP_SECRET`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`
-  (et `LINKEDIN_PAGE_*` pour la page entreprise).
+  (et `LINKEDIN_PAGE_*` pour la page entreprise), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
+
+**Google Cloud** (une fois, pour Search Console et Google Analytics)
+1. console.cloud.google.com → nouveau projet (ex. « bastienryser »).
+2. *API et services > Bibliothèque* : activer **Google Search Console API**, **Google Analytics Data API**
+   et **Google Analytics Admin API**.
+3. *Écran de consentement OAuth* : type **Externe**, ton e-mail comme contact, ajouter les champs d'application
+   `webmasters.readonly` et `analytics.readonly`.
+4. **Publier l'application** (statut « En production ») : en mode « Test », Google coupe la connexion au bout de 7 jours.
+   Sans validation Google, un avertissement « application non validée » s'affiche à la connexion : c'est normal
+   pour un outil privé, clique sur *Paramètres avancés > Continuer*.
+5. *Identifiants > Créer > ID client OAuth* : type **Application Web**, URI de redirection autorisé :
+   `https://<ref>.supabase.co/functions/v1/oauth/callback`.
+6. Copier l'ID client et le code secret dans les secrets Supabase (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`).
 
 **Vercel** (*Settings > Environment Variables*, puis *Deployments > Redeploy* : obligatoire, ces valeurs sont figées au build)
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ANTHROPIC_API_KEY`.
@@ -66,6 +80,8 @@ double authentification, clé Claude.
 *Business > Données > Connecteurs* : la clé est testée, chiffrée dans le Vault, puis une première synchronisation est lancée.
 - **Stripe** : clé restreinte avec uniquement *Charges : lecture*.
 - **Plausible** : clé *Stats API* et domaine du site tel qu'il apparaît dans Plausible.
+- **Search Console** et **Google Analytics 4** : bouton *Connecter avec Google* (lecture seule). Si le compte voit
+  plusieurs sites ou propriétés, le panel demande lequel suivre.
 
 ## Bon à savoir
 
