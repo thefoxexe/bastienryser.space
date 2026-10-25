@@ -39,6 +39,9 @@ Chaque étape est idempotente : on peut la relancer sans risque.
    `monitor-sites`, `sync-connectors`, `connectors`,
    avec `verify_jwt: false` (chaque fonction vérifie elle-même l'appelant). Fichiers à envoyer pour chacune :
    `<nom>/index.ts`, les fichiers de `_shared/` utilisés (chemins `../_shared/…`) et `deno.json`.
+   Variante sans recopier le code (dépôt public) : déployer pour chaque fonction un `index.ts` d'une ligne,
+   `import "https://raw.githubusercontent.com/thefoxexe/bastienryser.space/<commit>/supabase/functions/<nom>/index.ts";`,
+   avec `deno.json` comme import map. Supabase récupère alors le code exact de ce commit.
 6. **Secret `APP_URL`** des Edge Functions : `create_edge_function_secret` avec l'adresse du panel
    (`https://bastienryser.space`, ou l'adresse Vercel tant que le domaine n'est pas branché).
 7. **Contrôle** : `get_advisors` (security puis performance) et corriger ce qui ressort.
