@@ -1,55 +1,107 @@
 # bastienryser.space — panel de gestion privé
 
 Panel privé, réservé à Bastien, qui réunit ses business (Cantia en premier) et leurs outils.
+Premier outil : publier sur Instagram, Facebook et LinkedIn en une fois, programmer, et suivre les résultats.
 
-- **Next.js 16** (App Router, TypeScript) + **Tailwind CSS 4**
-- **Supabase** (Auth, Postgres avec RLS, plus tard Storage, Edge Functions et pg_cron)
-- Hébergement **Netlify**, domaine `bastienryser.space`
+- **Next.js 16** (App Router, TypeScript, Server Actions) + **Tailwind CSS 4**, hébergé sur **Vercel**
+- **Supabase** : Auth (mot de passe + TOTP), Postgres avec RLS, Storage, Vault, Edge Functions, pg_cron
+- **Claude** (`claude-opus-5-5`) pour adapter les descriptions par réseau et traduire en allemand / italien
 
-## Sécurité, en bref
+## Ce que fait le panel
 
-- Toutes les pages sauf `/connexion` passent par `src/proxy.ts` (le « middleware » de Next.js 16), qui
-  vérifie la session côté serveur et redirige vers `/connexion` sinon.
-- Aucune page d'inscription. Les comptes se créent uniquement dans le tableau de bord Supabase.
-- La table `admins` liste les comptes autorisés. La fonction SQL `public.is_admin()` sert de base à
-  toutes les règles RLS ; elle exige en plus le code TOTP (`aal2`) dès que la double authentification est active.
-- Session en cookies `httpOnly` : le navigateur ne lit jamais les jetons.
-- `robots.txt` (`Disallow: /`), balise `noindex` et en-tête `X-Robots-Tag` sur toutes les réponses.
-- Aucun secret dans Git : `.env*` est ignoré, sauf `.env.example` qui ne contient que des noms de variables.
+| Page | Contenu |
+|---|---|
+| `/connexion` | E-mail + mot de passe, puis code TOTP si la double authentification est active |
+| `/` | Tableau de bord : à traiter, cartes par business, 14 prochains jours, chiffres 30 jours, journal |
+| `/b/[slug]` | Aperçu d'un business |
+| `/b/[slug]/reseaux` | Composer (images, carrousel, PDF LinkedIn, description par réseau, aperçus, IA, programmation) |
+| `/b/[slug]/reseaux/calendrier` · `historique` · `comptes` | Calendrier mensuel, historique avec chiffres, comptes connectés |
+| `/reglages` | Profil, double authentification, gestion des business |
+
+## Sécurité
+
+- `src/proxy.ts` (le « middleware » de Next.js 16) vérifie la session côté serveur sur toutes les pages sauf `/connexion`.
+- Aucune inscription possible. Les comptes se créent dans Supabase, et seuls ceux listés dans `admins` ont accès.
+- `public.is_admin()` sert de base à **toutes** les règles RLS et exige le code TOTP (`aal2`) dès que la 2FA est active.
+- Session en cookies `httpOnly` ; toute l'authentification passe par le serveur.
+- Les tokens des réseaux sont chiffrés dans **Supabase Vault** et lus uniquement par les Edge Functions.
+  Le site Next.js ne les voit jamais, même côté serveur.
+- `robots.txt` (`Disallow: /`), balise `noindex`, en-tête `X-Robots-Tag` et en-têtes de sécurité sur toutes les réponses.
+- Aucun secret dans Git (`.env*` ignoré, sauf les modèles `.env.example`).
+
+## Architecture
+
+```
+src/
+  proxy.ts                     protection des pages
+  app/connexion                connexion + TOTP
+  app/(panel)/...              pages du panel (vérifient is_admin)
+  components/composer          compositeur de posts (glisser-déposer, aperçus, IA)
+  lib/social/networks.ts       limites par réseau (caractères, hashtags, images)
+  modules/registry.ts          modules activables par business
+supabase/
+  migrations/                  schéma, RLS, Vault, Storage, verrou de publication, pg_cron
+  functions/oauth              connexion Meta / LinkedIn (tokens → Vault)
+  functions/publish-due        publication chaque minute (verrou, 3 essais, statuts)
+  functions/refresh-tokens     renouvellement quotidien et alertes d'expiration
+  functions/fetch-metrics      statistiques réelles quotidiennes
+```
+
+**Ajouter un module** : le déclarer dans `src/modules/registry.ts`, créer ses tables (RLS `is_admin()`)
+et ses pages sous `src/app/(panel)/b/[slug]/<module>`.
 
 ## Développement local
 
 ```bash
-cp .env.example .env.local   # puis remplir les deux valeurs
+cp .env.example .env.local   # puis remplir
 npm install
 npm run dev
 ```
 
-## Base de données
-
-Les migrations SQL sont dans `supabase/migrations/`. Pour les appliquer : coller le fichier dans
-Supabase > SQL Editor, ou utiliser la CLI Supabase (`supabase db push`).
+Vérifications : `npm run lint`, `npx tsc --noEmit`, `npm run build`, et pour les Edge Functions
+`cd supabase/functions && deno check --config deno.json */index.ts`.
 
 ## Mise en route (à faire par Bastien)
 
-1. **Projet Supabase** : créer un nouveau projet (séparé de Cantia), région *Central EU (Zurich)*.
-2. **Désactiver les inscriptions** : Authentication > Sign In / Providers > décocher *Allow new users to sign up*.
-3. **Appliquer la migration** `supabase/migrations/20261025000000_socle.sql` (SQL Editor > coller > Run).
-4. **Créer ton utilisateur** : Authentication > Users > *Add user* > *Create new user*
-   (e-mail + mot de passe fort, cocher *Auto Confirm User*).
-5. **T'ajouter dans `admins`** (SQL Editor) :
+### 1. Supabase
+1. Créer un **nouveau projet** (séparé de Cantia), région *Central EU (Zurich)*.
+   Le plan gratuit est limité à 2 projets actifs : mettre un projet inutilisé en pause ou passer au plan Pro.
+2. *Authentication > Sign In / Providers* : décocher **Allow new users to sign up**.
+3. Appliquer les migrations de `supabase/migrations/` dans l'ordre (SQL Editor, ou `supabase db push`).
+4. *Authentication > Users > Add user* : créer ton utilisateur (cocher *Auto Confirm User*).
+5. Dans le SQL Editor :
    ```sql
-   insert into public.admins (user_id)
-   select id from auth.users where email = 'ton-email@exemple.ch';
+   insert into public.admins (user_id) select id from auth.users where email = 'ton-email@exemple.ch';
+   select vault.create_secret('https://<ref>.supabase.co', 'project_url');
+   select vault.create_secret('<une longue valeur aléatoire>', 'cron_secret');
    ```
-6. **Netlify** : *Add new site* > *Import from GitHub* > ce dépôt. Les réglages de build sont lus dans `netlify.toml`.
-   Dans *Site configuration > Environment variables*, ajouter :
-   - `NEXT_PUBLIC_SUPABASE_URL` (Supabase > Project Settings > API > Project URL)
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Supabase > Project Settings > API Keys > *Publishable key*)
-7. **Domaine** : Netlify > *Domain management* > ajouter `bastienryser.space`, puis suivre les instructions DNS.
-8. **Supabase > Authentication > URL Configuration** : *Site URL* = `https://bastienryser.space`.
-9. Se connecter, puis activer la double authentification dans **Réglages**.
+6. *Authentication > URL Configuration* : Site URL = `https://bastienryser.space`.
+7. Déployer les Edge Functions : `supabase functions deploy --project-ref <ref>` (lit `supabase/config.toml`).
+8. *Edge Functions > Secrets* : renseigner les variables de `supabase/functions/.env.example`
+   (`CRON_SECRET` = la même valeur que dans le Vault).
 
-La clé *publishable* peut être publique : sans session admin, la RLS ne laisse rien lire.
-Les clés secrètes (Meta, LinkedIn, Claude, `service_role`) n'iront jamais dans Netlify côté client ni dans Git :
-elles seront stockées dans les secrets des Edge Functions Supabase.
+### 2. Vercel
+1. *Add New > Project* > importer ce dépôt GitHub (framework détecté : Next.js).
+2. *Settings > Environment Variables* : `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ANTHROPIC_API_KEY`.
+3. *Settings > Domains* : ajouter `bastienryser.space` et suivre les instructions DNS.
+
+### 3. Réseaux sociaux
+- **Meta** : passer Instagram Cantia en compte professionnel relié à la Page Facebook. Créer une app sur
+  developers.facebook.com (cas d'usage « Gérer tout sur votre Page » + API Instagram avec Facebook Login).
+  URL de redirection OAuth : `https://<ref>.supabase.co/functions/v1/oauth/callback`.
+  En usage privé, l'app peut rester en mode développement avec toi comme administrateur.
+- **LinkedIn** : créer une app sur linkedin.com/developers avec « Sign In with LinkedIn using OpenID Connect »
+  et « Share on LinkedIn ». Même URL de redirection. Pour la page Cantia, demander la « Community Management API »
+  (idéalement sur une app séparée : variables `LINKEDIN_PAGE_*`).
+- Dans le panel : *Cantia > Réseaux sociaux > Comptes connectés > Connecter*.
+
+### 4. Premier lancement
+Se connecter, activer la double authentification dans **Réglages**, puis composer un premier post.
+
+## Limites connues (APIs officielles, octobre 2026)
+
+- Instagram via API : carrousel de **10 images** maximum, JPEG uniquement (conversion automatique dans le navigateur).
+- LinkedIn profil personnel : pas de statistiques détaillées via l'API ouverte (rien n'est inventé, « — » s'affiche).
+- Meta : les chiffres peuvent arriver avec jusqu'à 48 h de délai ; l'accès doit être réautorisé environ tous les 90 jours
+  (alerte 7 jours avant sur le tableau de bord).
+- Vidéos, Threads, TikTok et YouTube : prévus plus tard.

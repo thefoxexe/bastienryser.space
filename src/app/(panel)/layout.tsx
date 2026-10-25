@@ -1,20 +1,27 @@
-import Link from "next/link";
+import { cookies } from "next/headers";
+import { ShieldAlert } from "lucide-react";
+import { Sidebar } from "@/components/shell/sidebar";
 import { Button } from "@/components/ui";
+import { listAlerts } from "@/lib/alerts";
 import { getViewer } from "@/lib/auth";
+import { listBusinesses } from "@/lib/data";
 
 export default async function PanelLayout({ children }: LayoutProps<"/">) {
   const viewer = await getViewer();
 
   if (!viewer.isAdmin) {
     return (
-      <main className="flex flex-1 items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-6">
-          <h1 className="text-lg font-semibold">Accès refusé</h1>
-          <p className="mt-2 text-sm text-muted">
+      <main className="login-backdrop flex flex-1 items-center justify-center px-4 py-12">
+        <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-7 shadow-pop">
+          <div className="mb-4 grid size-10 place-items-center rounded-xl bg-[color-mix(in_oklab,var(--danger)_10%,transparent)] text-danger">
+            <ShieldAlert className="size-5" />
+          </div>
+          <h1 className="text-lg font-semibold tracking-tight">Accès refusé</h1>
+          <p className="mt-1.5 text-sm text-muted">
             Ce compte n&apos;est pas autorisé. Si la double authentification est active, reconnecte-toi avec ton code.
           </p>
-          <form action="/deconnexion" method="post" className="mt-5">
-            <Button type="submit" className="w-full">
+          <form action="/deconnexion" method="post" className="mt-6">
+            <Button type="submit" variant="brand" className="w-full">
               Se déconnecter
             </Button>
           </form>
@@ -23,29 +30,25 @@ export default async function PanelLayout({ children }: LayoutProps<"/">) {
     );
   }
 
+  const [businesses, alerts, cookieStore] = await Promise.all([listBusinesses(), listAlerts(), cookies()]);
+  const themeCookie = cookieStore.get("theme")?.value;
+  const theme = themeCookie === "light" || themeCookie === "dark" ? themeCookie : "system";
+
   return (
-    <div className="flex flex-1 flex-col">
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4">
-          <Link href="/" className="font-semibold tracking-tight">
-            Panel
-          </Link>
-          <nav className="flex flex-1 items-center gap-4 text-sm text-muted">
-            <Link href="/" className="hover:text-text">
-              Tableau de bord
-            </Link>
-            <Link href="/reglages" className="hover:text-text">
-              Réglages
-            </Link>
-          </nav>
-          <form action="/deconnexion" method="post">
-            <button type="submit" className="text-sm text-muted hover:text-text">
-              Déconnexion
-            </button>
-          </form>
-        </div>
-      </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
+    <div className="flex min-h-dvh flex-1 flex-col lg:flex-row">
+      <Sidebar
+        email={viewer.email}
+        theme={theme}
+        alerts={alerts.length}
+        businesses={businesses.map((b) => ({
+          slug: b.slug,
+          name: b.name,
+          color: b.color,
+          logo_url: b.logo_url,
+          alerts: alerts.filter((a) => a.business_id === b.id).length,
+        }))}
+      />
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }

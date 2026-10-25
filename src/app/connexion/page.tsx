@@ -11,10 +11,14 @@ export default async function LoginPage() {
   const initialStep = data?.claims ? "totp" : "password";
 
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm">
-        <h1 className="mb-6 text-xl font-semibold tracking-tight">Connexion</h1>
-        <div className="rounded-lg border border-border bg-surface p-6">
+    <main className="login-backdrop flex flex-1 flex-col items-center justify-center px-4 py-12">
+      <div className="w-full max-w-[380px]">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <span className="mb-5 grid size-11 place-items-center rounded-2xl bg-text text-lg font-bold text-bg shadow-pop">B</span>
+          <h1 className="text-xl font-semibold tracking-tight">Connexion au panel</h1>
+          <p className="mt-1 text-sm text-muted">Espace privé.</p>
+        </div>
+        <div className="rounded-2xl border border-border bg-surface p-6 shadow-pop sm:p-7">
           <LoginForm initialStep={initialStep} />
         </div>
       </div>

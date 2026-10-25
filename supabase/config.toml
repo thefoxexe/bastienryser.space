@@ -1,0 +1,15 @@
+# Configuration minimale pour la CLI Supabase (déploiement des Edge Functions).
+# Les fonctions vérifient elles-mêmes l'appelant (secret de cron ou session admin),
+# d'où verify_jwt = false.
+
+[functions.oauth]
+verify_jwt = false
+
+[functions.publish-due]
+verify_jwt = false
+
+[functions.refresh-tokens]
+verify_jwt = false
+
+[functions.fetch-metrics]
+verify_jwt = false

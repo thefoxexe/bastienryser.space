@@ -13,6 +13,7 @@ export function TwoFactorSetup() {
       <div className="flex flex-col items-start gap-3">
         <FormError message={started.status === "idle" ? started.error : null} />
         <Button
+          variant="brand"
           disabled={starting}
           onClick={() => startTransition(async () => setStarted(await startEnroll()))}
         >
@@ -49,7 +50,7 @@ function ConfirmStep({ initial }: { initial: Extract<EnrollState, { status: "pen
           <Input id="code" name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={7} required />
         </Field>
         <FormError message={state.error} />
-        <Button type="submit" disabled={pending} className="self-start">
+        <Button type="submit" variant="brand" disabled={pending} className="self-start">
           {pending ? "Vérification…" : "Confirmer"}
         </Button>
       </div>

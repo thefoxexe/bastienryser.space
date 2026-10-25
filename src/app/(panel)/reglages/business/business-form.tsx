@@ -1,0 +1,146 @@
+"use client";
+
+import { useActionState, useState } from "react";
+import { BusinessMark } from "@/components/business-mark";
+import { Button, ButtonLink, Card, Field, FormError, Input, Textarea } from "@/components/ui";
+import type { BusinessWithLogo } from "@/lib/types";
+import { saveBusiness, type BusinessFormState } from "./actions";
+
+const PALETTE = ["#0f766e", "#2563eb", "#7c3aed", "#db2777", "#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#0891b2", "#111110"];
+
+function slugify(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+}
+
+export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
+  const [state, action, pending] = useActionState<BusinessFormState, FormData>(saveBusiness, {});
+  const [name, setName] = useState(business?.name ?? "");
+  const [slug, setSlug] = useState(business?.slug ?? "");
+  const [slugTouched, setSlugTouched] = useState(Boolean(business));
+  const [color, setColor] = useState(business?.color ?? PALETTE[1]);
+  const [logoPreview, setLogoPreview] = useState<string | null>(business?.logo_url ?? null);
+  const fe = state.fieldErrors ?? {};
+
+  return (
+    <form action={action} className="grid gap-6 lg:grid-cols-[1fr_300px]">
+      <Card className="p-5 sm:p-6">
+        <input type="hidden" name="id" value={business?.id ?? ""} />
+        <div className="grid gap-5">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="Nom" htmlFor="name" hint={fe.name}>
+              <Input
+                id="name"
+                name="name"
+                value={name}
+                required
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (!slugTouched) setSlug(slugify(e.target.value));
+                }}
+              />
+            </Field>
+            <Field label="Adresse dans le panel" htmlFor="slug" hint={fe.slug ?? `/b/${slug || "…"}`}>
+              <Input
+                id="slug"
+                name="slug"
+                value={slug}
+                required
+                onChange={(e) => {
+                  setSlugTouched(true);
+                  setSlug(slugify(e.target.value));
+                }}
+              />
+            </Field>
+          </div>
+          <Field label="Description" htmlFor="description" hint={fe.description}>
+            <Input id="description" name="description" defaultValue={business?.description ?? ""} placeholder="Une ligne pour s'y retrouver" />
+          </Field>
+          <Field label="Sites web" htmlFor="websites" hint={fe.websites ?? "Un par ligne."}>
+            <Textarea id="websites" name="websites" defaultValue={business?.websites.join("\n") ?? ""} className="min-h-24 font-mono text-[13px]" />
+          </Field>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-[13px] font-medium">Couleur</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {PALETTE.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  className="size-8 rounded-full ring-offset-2 ring-offset-surface transition"
+                  style={{ background: c, boxShadow: color === c ? `0 0 0 2px var(--surface), 0 0 0 4px ${c}` : undefined }}
+                  aria-label={`Couleur ${c}`}
+                />
+              ))}
+              <label className="relative ml-1 flex h-8 items-center gap-2 rounded-full border border-border px-3 text-[13px] text-muted">
+                <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="size-4 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0" />
+                <span className="font-mono">{color}</span>
+              </label>
+            </div>
+            <input type="hidden" name="color" value={color} />
+          </div>
+
+          <Field label="Logo" htmlFor="logo" hint={fe.logo ?? "PNG, JPEG, WebP ou SVG, 3 Mo max. Carré de préférence."}>
+            <Input
+              id="logo"
+              name="logo"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="py-1.5 file:mr-3 file:h-7 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:text-[13px] file:text-text"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) setLogoPreview(URL.createObjectURL(f));
+              }}
+            />
+          </Field>
+          {business?.logo_url ? (
+            <label className="flex items-center gap-2 text-[13px] text-muted">
+              <input type="checkbox" name="removeLogo" className="accent-[var(--accent)]" /> Retirer le logo actuel
+            </label>
+          ) : null}
+
+          <div className="rounded-xl border border-border bg-surface-2 p-4">
+            <span className="text-[13px] font-medium">Modules</span>
+            <label className="mt-3 flex items-start gap-3 text-sm">
+              <input type="checkbox" name="social" defaultChecked={business ? business.modules.includes("social") : true} className="mt-0.5 accent-[var(--accent)]" />
+              <span>
+                Réseaux sociaux
+                <span className="block text-[13px] text-muted">Publication multi-réseaux, calendrier et statistiques.</span>
+              </span>
+            </label>
+          </div>
+
+          <FormError message={state.error} />
+          <div className="flex gap-2">
+            <Button type="submit" disabled={pending} style={{ background: color }} className="text-white">
+              {pending ? "Enregistrement…" : business ? "Enregistrer" : "Créer le business"}
+            </Button>
+            <ButtonLink href={business ? `/b/${business.slug}` : "/reglages"} variant="ghost">
+              Annuler
+            </ButtonLink>
+          </div>
+        </div>
+      </Card>
+
+      <div className="hidden lg:block">
+        <div className="sticky top-10">
+          <p className="mb-2 text-[12px] font-medium uppercase tracking-wide text-faint">Aperçu</p>
+          <Card className="overflow-hidden">
+            <div className="h-16" style={{ background: `linear-gradient(135deg, ${color}, color-mix(in oklab, ${color} 55%, black))` }} />
+            <div className="-mt-6 px-5 pb-5">
+              <BusinessMark name={name || "?"} color={color} logoUrl={logoPreview} size="lg" className="ring-4 ring-surface" />
+              <p className="mt-3 font-semibold tracking-tight">{name || "Nom du business"}</p>
+              <p className="text-[13px] text-muted">/b/{slug || "…"}</p>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </form>
+  );
+}

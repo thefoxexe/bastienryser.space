@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,23 +15,28 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: { default: "Panel", template: "%s · Panel" },
-  robots: { index: false, follow: false, nocache: true },
+  robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f6f4" },
-    { media: "(prefers-color-scheme: dark)", color: "#111110" },
+    { media: "(prefers-color-scheme: light)", color: "#f7f7f5" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0c0b" },
   ],
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Thème choisi dans le panel (sinon celui du système), lu côté serveur pour éviter tout flash.
+  const theme = (await cookies()).get("theme")?.value;
+  const dataTheme = theme === "light" || theme === "dark" ? theme : undefined;
+
   return (
     <html
       lang="fr"
+      data-theme={dataTheme}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="flex min-h-full flex-col font-sans">{children}</body>
     </html>
   );
 }
