@@ -19,6 +19,8 @@ const JOBS = [
   { name: "publish-due", label: "Publication automatique", maxAgeMin: 5 },
   { name: "refresh-tokens", label: "Renouvellement des connexions", maxAgeMin: 26 * 60 },
   { name: "fetch-metrics", label: "Récupération des statistiques", maxAgeMin: 26 * 60 },
+  { name: "monitor-sites", label: "Surveillance des sites", maxAgeMin: 15 },
+  { name: "sync-connectors", label: "Synchronisation des connecteurs", maxAgeMin: 2 * 60 + 10 },
 ];
 
 function ago(iso: string) {

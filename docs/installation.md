@@ -13,12 +13,14 @@ Chaque étape est idempotente : on peut la relancer sans risque.
    2. `20261025000100_panel` (business, réseaux, Vault, Storage, verrou de publication, Cantia)
    3. `20261025000200_cron` (tâches pg_cron)
    4. `20261025000300_system_status` (suivi de santé, secret des tâches généré dans le Vault)
+   5. `20261025000400_data_module` (surveillance des sites, connecteurs Stripe et Plausible, chiffres quotidiens)
 4. **Adresse du projet pour pg_cron** (pas un secret) avec `execute_sql` :
    ```sql
    select vault.create_secret('https://<ref>.supabase.co', 'project_url')
    where not exists (select 1 from vault.secrets where name = 'project_url');
    ```
 5. **Edge Functions** : `deploy_edge_function` pour `oauth`, `publish-due`, `refresh-tokens`, `fetch-metrics`, `health`,
+   `monitor-sites`, `sync-connectors`, `connectors`,
    avec `verify_jwt: false` (chaque fonction vérifie elle-même l'appelant). Fichiers à envoyer pour chacune :
    `<nom>/index.ts`, les fichiers de `_shared/` utilisés (chemins `../_shared/…`) et `deno.json`.
 6. **Secret `APP_URL`** des Edge Functions : `create_edge_function_secret` avec l'adresse du panel
@@ -56,7 +58,14 @@ schéma, admins, secrets du Vault, tâches automatiques (dernier passage), Edge 
 double authentification, clé Claude.
 
 - *Publication automatique* doit afficher un passage de moins de 5 minutes.
+- *Surveillance des sites* : toutes les 5 minutes. *Synchronisation des connecteurs* : chaque heure (à :07).
 - *Renouvellement des connexions* et *statistiques* passent une fois par jour (3 h 17 et 4 h 43 UTC).
+
+## Connecteurs de données (dans le panel)
+
+*Business > Données > Connecteurs* : la clé est testée, chiffrée dans le Vault, puis une première synchronisation est lancée.
+- **Stripe** : clé restreinte avec uniquement *Charges : lecture*.
+- **Plausible** : clé *Stats API* et domaine du site tel qu'il apparaît dans Plausible.
 
 ## Bon à savoir
 

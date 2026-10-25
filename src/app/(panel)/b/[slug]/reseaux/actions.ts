@@ -7,7 +7,7 @@ import { z } from "zod";
 import { logActivity } from "@/lib/activity";
 import { requireAdmin } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
-import { triggerPublishNow } from "@/lib/publish";
+import { triggerPublishNow } from "@/lib/edge";
 import { checkTarget, NETWORKS } from "@/lib/social/networks";
 import { supabaseUrl } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";

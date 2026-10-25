@@ -114,6 +114,13 @@ export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
                 <span className="block text-[13px] text-muted">Publication multi-réseaux, calendrier et statistiques.</span>
               </span>
             </label>
+            <label className="mt-3 flex items-start gap-3 text-sm">
+              <input type="checkbox" name="data" defaultChecked={business ? business.modules.includes("data") : true} className="mt-0.5 accent-[var(--accent)]" />
+              <span>
+                Données
+                <span className="block text-[13px] text-muted">Surveillance des sites, visiteurs (Plausible) et revenus (Stripe).</span>
+              </span>
+            </label>
           </div>
 
           <FormError message={state.error} />

@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Megaphone } from "lucide-react";
+import { Activity, Megaphone } from "lucide-react";
 
 export type ModuleTab = { href: string; label: string };
 
@@ -27,6 +27,18 @@ export const MODULES: ModuleDefinition[] = [
       { href: "/calendrier", label: "Calendrier" },
       { href: "/historique", label: "Historique" },
       { href: "/comptes", label: "Comptes connectés" },
+    ],
+  },
+  {
+    id: "data",
+    label: "Données",
+    description: "Disponibilité des sites, visiteurs et revenus, à partir des vraies sources.",
+    icon: Activity,
+    basePath: "donnees",
+    tabs: [
+      { href: "", label: "Vue d'ensemble" },
+      { href: "/sites", label: "Sites web" },
+      { href: "/connecteurs", label: "Connecteurs" },
     ],
   },
 ];

@@ -16,3 +16,12 @@ verify_jwt = false
 
 [functions.health]
 verify_jwt = false
+
+[functions.monitor-sites]
+verify_jwt = false
+
+[functions.sync-connectors]
+verify_jwt = false
+
+[functions.connectors]
+verify_jwt = false

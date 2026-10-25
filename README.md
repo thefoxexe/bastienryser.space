@@ -16,6 +16,8 @@ Premier outil : publier sur Instagram, Facebook et LinkedIn en une fois, program
 | `/b/[slug]` | Aperçu d'un business |
 | `/b/[slug]/reseaux` | Composer (images, carrousel, PDF LinkedIn, description par réseau, aperçus, IA, programmation) |
 | `/b/[slug]/reseaux/calendrier` · `historique` · `comptes` | Calendrier mensuel, historique avec chiffres, comptes connectés |
+| `/b/[slug]/donnees` · `sites` · `connecteurs` | Visiteurs, revenus, disponibilité des sites ; connecteurs Stripe et Plausible |
+| `/reglages/systeme` | État du système : base, tâches automatiques, fonctions, clés |
 | `/reglages` | Profil, double authentification, gestion des business |
 
 ## Sécurité
@@ -46,6 +48,9 @@ supabase/
   functions/refresh-tokens     renouvellement quotidien et alertes d'expiration
   functions/fetch-metrics      statistiques réelles quotidiennes
   functions/health             diagnostic pour la page « État du système »
+  functions/monitor-sites      disponibilité des sites toutes les 5 minutes (alerte après 2 échecs)
+  functions/sync-connectors    chiffres Stripe et Plausible chaque heure
+  functions/connectors         branchement d'un connecteur (clé testée puis chiffrée dans Vault)
 ```
 
 **Ajouter un module** : le déclarer dans `src/modules/registry.ts`, créer ses tables (RLS `is_admin()`)

@@ -5,21 +5,18 @@ export function adminClient(): SupabaseClient {
   return createClient(SUPABASE_URL, secretKey(), { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-/**
- * Autorise l'appel si :
- * - il vient de pg_cron avec le secret partagé (en-tête x-cron-secret), ou
- * - il porte la session d'un admin (vérifiée par is_admin(), double authentification comprise).
- */
-export async function authorize(req: Request): Promise<boolean> {
+/** Appel de pg_cron, signé avec le secret des tâches (Vault, ou CRON_SECRET s'il est défini). */
+export async function isCronRequest(req: Request): Promise<boolean> {
   const provided = req.headers.get("x-cron-secret");
-  if (provided) {
-    // Secret facultatif en variable d'environnement, sinon celui du Vault (généré par la migration).
-    const cronSecret = Deno.env.get("CRON_SECRET");
-    if (cronSecret) return timingSafeEqual(provided, cronSecret);
-    const { data, error } = await adminClient().rpc("check_cron_secret", { p_secret: provided });
-    return !error && data === true;
-  }
+  if (!provided) return false;
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  if (cronSecret) return timingSafeEqual(provided, cronSecret);
+  const { data, error } = await adminClient().rpc("check_cron_secret", { p_secret: provided });
+  return !error && data === true;
+}
 
+/** Appel portant la session d'un admin (vérifiée par is_admin(), double authentification comprise). */
+export async function isAdminRequest(req: Request): Promise<boolean> {
   const auth = req.headers.get("Authorization");
   if (!auth?.startsWith("Bearer ")) return false;
   const userClient = createClient(SUPABASE_URL, publishableKey(), {
@@ -28,6 +25,11 @@ export async function authorize(req: Request): Promise<boolean> {
   });
   const { data, error } = await userClient.rpc("is_admin");
   return !error && data === true;
+}
+
+/** Autorise pg_cron ou un admin connecté. */
+export async function authorize(req: Request): Promise<boolean> {
+  return (await isCronRequest(req)) || (await isAdminRequest(req));
 }
 
 function timingSafeEqual(a: string, b: string) {

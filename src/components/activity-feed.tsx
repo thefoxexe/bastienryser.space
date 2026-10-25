@@ -3,7 +3,8 @@ import type { ActivityEntry } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 
 function iconFor(kind: string) {
-  if (kind.endsWith(".failed") || kind.includes("error")) return <AlertTriangle className="text-danger" />;
+  if (kind.endsWith(".failed") || kind.includes("error") || kind === "site.down") return <AlertTriangle className="text-danger" />;
+  if (kind === "site.up") return <CheckCircle2 className="text-text" />;
   if (kind.endsWith(".published")) return <CheckCircle2 className="text-text" />;
   if (kind.endsWith(".scheduled")) return <Clock className="text-muted" />;
   if (kind.includes("refreshed") || kind.includes("retry")) return <RefreshCw className="text-muted" />;

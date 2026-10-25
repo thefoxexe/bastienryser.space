@@ -9,7 +9,10 @@ import { Page } from "@/components/shell/page";
 import { Button, ButtonLink, Card, CardHeader, EmptyState, PageHeader } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { listAlerts } from "@/lib/alerts";
+import { SiteDot } from "@/components/charts/site-dot";
+import { formatValue } from "@/components/charts/format";
 import { listActivity, listBusinesses, listPosts, metricsLast30Days, type PostSummary } from "@/lib/data";
+import { siteStatuses } from "@/lib/metrics";
 import { formatDate, formatNumber, formatTime, TIME_ZONE, zurichDayKey } from "@/lib/format";
 import { NETWORKS } from "@/lib/social/networks";
 import { retryTarget } from "./b/[slug]/reseaux/actions";
@@ -27,6 +30,7 @@ export default async function DashboardPage() {
     metricsLast30Days(),
     listActivity({ limit: 15 }),
   ]);
+  const sites = await siteStatuses(businesses);
 
   const byId = new Map(businesses.map((b) => [b.id, b]));
   const bizMap = new Map(businesses.map((b) => [b.id, { name: b.name, color: b.color }]));
@@ -156,6 +160,42 @@ export default async function DashboardPage() {
           </Card>
         )}
       </section>
+
+      {/* Sites web */}
+      {sites.length ? (
+        <Card>
+          <CardHeader
+            title="Sites web"
+            description={
+              sites.some((s) => s.last && !s.last.ok)
+                ? (() => {
+                    const n = sites.filter((s) => s.last && !s.last.ok).length;
+                    return `${n} site${n > 1 ? "s" : ""} injoignable${n > 1 ? "s" : ""} en ce moment`;
+                  })()
+                : sites.some((s) => s.last)
+                  ? "Tous les sites répondent"
+                  : "Vérifiés toutes les 5 minutes"
+            }
+          />
+          <ul className="grid gap-x-6 p-2 pt-3 sm:grid-cols-2 lg:grid-cols-3">
+            {sites.map((s) => {
+              const b = byId.get(s.business_id);
+              return (
+                <li key={s.url}>
+                  <Link href={b ? `/b/${b.slug}/donnees/sites` : "#"} className="flex items-center gap-3 rounded-[12px] px-3 py-2.5 transition-colors hover:bg-fill">
+                    <SiteDot ok={s.last ? s.last.ok : null} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14px] font-medium">{s.host}</span>
+                      <span className="block truncate text-[12px] text-muted">{b?.name}</span>
+                    </span>
+                    <span className="tabular text-[13px] text-muted">{s.uptime30d !== null ? formatValue(s.uptime30d, { kind: "percent" }) : "—"}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      ) : null}
 
       {/* Calendrier 14 jours */}
       <Card>

@@ -23,6 +23,7 @@ const schema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Couleur invalide."),
   websites: z.string().optional(),
   social: z.string().optional(),
+  data: z.string().optional(),
 });
 
 const LOGO_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
@@ -53,7 +54,7 @@ export async function saveBusiness(_prev: BusinessFormState, formData: FormData)
     description: input.description || null,
     color: input.color.toLowerCase(),
     websites,
-    modules: input.social === "on" ? ["social"] : [],
+    modules: [input.social === "on" && "social", input.data === "on" && "data"].filter((m): m is string => Boolean(m)),
   };
 
   let businessId = input.id || null;
