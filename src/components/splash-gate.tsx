@@ -29,12 +29,22 @@ export function SplashGate() {
 
   useEffect(() => {
     const seen = !isFirstOfSession();
+    // Les chiffres animés attendent la fin de l'écran de lancement.
+    document.documentElement.dataset.splash = "on";
+    const done = () => {
+      delete document.documentElement.dataset.splash;
+      window.dispatchEvent(new Event("br:splash-done"));
+    };
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const t1 = setTimeout(() => setPhase("leave"), seen || reduce ? 150 : 1900);
+    const t1 = setTimeout(() => {
+      setPhase("leave");
+      done();
+    }, seen || reduce ? 150 : 1900);
     const t2 = setTimeout(() => setPhase("gone"), seen || reduce ? 450 : 2300);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
+      done();
     };
   }, []);
 

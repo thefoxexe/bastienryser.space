@@ -20,7 +20,8 @@ export default async function FinancesPage({ params, searchParams }: PageProps<"
   const business = await getBusiness(slug);
   const base = `/b/${business.slug}/donnees`;
   const [summary, entries] = await Promise.all([financeSummary(business.id, period), listEntries(business.id, period)]);
-  const money = (v: number) => formatValue(v, { kind: "currency", currency: summary.currency });
+  const cur = { kind: "currency", currency: summary.currency } as const;
+  const money = (v: number) => formatValue(v, cur);
   const t = summary.totals;
   const today = lastDays(1)[0];
   // 12 mois : une valeur par semaine, sinon une par jour.
@@ -38,12 +39,13 @@ export default async function FinancesPage({ params, searchParams }: PageProps<"
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiTile label={`Encaissé · ${periodShort(period)}`} value={empty ? null : money(t.income)} trend={summary.income.map((p) => p.value)} empty="Connecter Stripe" href={`${base}/connecteurs`} />
-        <KpiTile label={`Charges · ${periodShort(period)}`} value={empty ? null : money(t.expenses)} hint={t.fees ? `dont ${money(t.fees)} de frais Stripe` : undefined} empty="Saisir une charge" href="#saisie" />
-        <KpiTile label={`Résultat · ${periodShort(period)}`} value={empty ? null : money(t.net)} trend={summary.net.map((p) => p.value)} empty="Saisir un revenu" href="#saisie" />
+        <KpiTile label={`Encaissé · ${periodShort(period)}`} amount={empty ? null : t.income} format={cur} trend={summary.income.map((p) => p.value)} empty="Connecter Stripe" href={`${base}/connecteurs`} />
+        <KpiTile label={`Charges · ${periodShort(period)}`} amount={empty ? null : t.expenses} format={cur} hint={t.fees ? `dont ${money(t.fees)} de frais Stripe` : undefined} empty="Saisir une charge" href="#saisie" />
+        <KpiTile label={`Résultat · ${periodShort(period)}`} amount={empty ? null : t.net} format={cur} trend={summary.net.map((p) => p.value)} empty="Saisir un revenu" href="#saisie" />
         <KpiTile
           label={`Remboursé · ${periodShort(period)}`}
-          value={summary.hasStripe ? money(t.refunds) : null}
+          amount={summary.hasStripe ? t.refunds : null}
+          format={cur}
           hint={`${t.payments} paiement${t.payments > 1 ? "s" : ""} Stripe`}
           empty="Stripe non connecté"
           href={`${base}/connecteurs`}

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import type { ValueFormat } from "@/components/charts/format";
 import { Sparkline } from "@/components/charts/sparkline";
+import { CountUp } from "@/components/count-up";
 import { Card } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 
@@ -20,6 +22,8 @@ export function halfDelta(values?: number[]) {
 export function KpiTile({
   label,
   value,
+  amount,
+  format,
   hint,
   trend,
   empty,
@@ -27,7 +31,10 @@ export function KpiTile({
   alert,
 }: {
   label: string;
-  value: string | null;
+  /** Texte déjà formaté, ou bien `amount` + `format` pour un chiffre animé. */
+  value?: string | null;
+  amount?: number | null;
+  format?: ValueFormat;
   hint?: string;
   trend?: number[];
   empty: string;
@@ -35,12 +42,19 @@ export function KpiTile({
   alert?: boolean;
 }) {
   const delta = halfDelta(trend);
+  const numeric = amount !== undefined && amount !== null && format;
+  const present = numeric || (value !== undefined && value !== null);
   return (
-    <Card className="flex min-h-[132px] flex-col justify-between gap-3 p-4 sm:p-5">
-      <span className="text-[13px] text-muted">{label}</span>
-      {value !== null ? (
+    <Card className="@container flex min-h-[132px] min-w-0 flex-col justify-between gap-3 p-4 sm:p-5">
+      <span className="truncate text-[13px] text-muted" title={label}>
+        {label}
+      </span>
+      {present ? (
         <>
-          <span className="tabular font-[family-name:var(--font-display)] text-[26px] font-semibold leading-none tracking-[-0.035em] sm:text-[30px]">{value}</span>
+          {/* Taille relative à la tuile : le chiffre tient toujours, du téléphone au grand écran. */}
+          <span className="tabular whitespace-nowrap font-[family-name:var(--font-display)] text-[clamp(18px,14cqw,30px)] font-semibold leading-none tracking-[-0.035em]">
+            {numeric ? <CountUp value={amount} format={format} /> : value}
+          </span>
           <div className="flex items-end justify-between gap-2">
             {delta && !hint && !alert ? (
               <span
@@ -51,7 +65,7 @@ export function KpiTile({
                 {Math.abs(delta.pct).toLocaleString("fr-CH", { maximumFractionDigits: Math.abs(delta.pct) >= 10 ? 0 : 1 })} %
               </span>
             ) : (
-              <span className={cn("min-w-0 truncate text-[12px]", alert ? "font-medium text-danger" : "text-faint")} title={hint}>
+              <span className={cn("line-clamp-2 min-w-0 text-[12px] leading-snug", alert ? "font-medium text-danger" : "text-faint")} title={hint}>
                 {hint ?? ""}
               </span>
             )}

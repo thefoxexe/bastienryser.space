@@ -73,21 +73,23 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
         <PeriodChips base="/" current={period} />
       </div>
       <section aria-label="Chiffres clés" className="animate-rise grid grid-cols-2 gap-3 [animation-delay:40ms] md:grid-cols-3 2xl:grid-cols-6">
-        <KpiTile label={`Visiteurs · ${periodShort(period)}`} value={overview.visitors ? formatValue(sum(overview.visitors)!, { kind: "number" }) : null} trend={overview.visitors?.map((p) => p.value)} empty="Connecter" href={connectHref} />
+        <KpiTile label={`Visiteurs · ${periodShort(period)}`} amount={overview.visitors ? sum(overview.visitors) : null} format={{ kind: "number" }} trend={overview.visitors?.map((p) => p.value)} empty="Connecter" href={connectHref} />
         <KpiTile
-          label={`Encaissé · ${periodShort(period)}`}
-          value={overview.hasMoney ? formatValue(overview.finance.totals.income, { kind: "currency", currency: overview.finance.currency }) : null}
-          hint={overview.finance.totals.expenses ? `Résultat : ${formatValue(overview.finance.totals.net, { kind: "currency", currency: overview.finance.currency })}` : undefined}
-          trend={overview.finance.income.map((p) => p.value)}
+          label={`Résultat · ${periodShort(period)}`}
+          amount={overview.hasMoney ? overview.finance.totals.net : null}
+          format={{ kind: "currency", currency: overview.finance.currency }}
+          hint={`Encaissé : ${formatValue(overview.finance.totals.income, { kind: "currency", currency: overview.finance.currency })}`}
+          trend={overview.finance.net.map((p) => p.value)}
           empty="Stripe ou saisie"
           href={businesses[0] ? `/b/${businesses[0].slug}/donnees/finances` : "/"}
         />
-        <KpiTile label={`Clics Google · ${periodShort(period)}`} value={overview.clicks ? formatValue(sum(overview.clicks)!, { kind: "number" }) : null} trend={overview.clicks?.map((p) => p.value)} empty="Connecter" href={connectHref} />
-        <KpiTile label="Portée réseaux · 30 j" value={reach !== null ? formatValue(reach, { kind: "number" }) : null} hint={`${published} publication${published > 1 ? "s" : ""}`} empty="Aucune statistique" href={businesses[0] ? `/b/${businesses[0].slug}/reseaux/comptes` : "/"} />
-        <KpiTile label="Posts prévus · 14 j" value={String(upcoming.length)} hint={upcoming[0]?.scheduled_at ? `Prochain : ${new Intl.DateTimeFormat("fr-CH", { timeZone: TIME_ZONE, weekday: "short", day: "numeric", month: "short" }).format(new Date(upcoming[0].scheduled_at))}` : "Rien de programmé"} empty="" href="/" />
+        <KpiTile label={`Clics Google · ${periodShort(period)}`} amount={overview.clicks ? sum(overview.clicks) : null} format={{ kind: "number" }} trend={overview.clicks?.map((p) => p.value)} empty="Connecter" href={connectHref} />
+        <KpiTile label="Portée réseaux · 30 j" amount={reach} format={{ kind: "number" }} hint={`${published} publication${published > 1 ? "s" : ""}`} empty="Aucune statistique" href={businesses[0] ? `/b/${businesses[0].slug}/reseaux/comptes` : "/"} />
+        <KpiTile label="Posts prévus · 14 j" amount={upcoming.length} format={{ kind: "number" }} hint={upcoming[0]?.scheduled_at ? `Prochain : ${new Intl.DateTimeFormat("fr-CH", { timeZone: TIME_ZONE, weekday: "short", day: "numeric", month: "short" }).format(new Date(upcoming[0].scheduled_at))}` : "Rien de programmé"} empty="" href="/" />
         <KpiTile
           label="Disponibilité · 30 j"
-          value={uptime !== null ? formatValue(uptime, { kind: "percent" }) : null}
+          amount={uptime}
+          format={{ kind: "percent" }}
           hint={sitesDown ? `${sitesDown} site${sitesDown > 1 ? "s" : ""} injoignable${sitesDown > 1 ? "s" : ""}` : `${measured.length} site${measured.length > 1 ? "s" : ""} surveillé${measured.length > 1 ? "s" : ""}`}
           alert={sitesDown > 0}
           empty="Ajouter un site"

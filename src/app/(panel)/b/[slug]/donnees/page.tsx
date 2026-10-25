@@ -58,29 +58,33 @@ export default async function DataOverview({ params, searchParams }: PageProps<"
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiTile
           label={`Visiteurs · ${periodShort(period)}`}
-          value={visitors ? formatValue(sum(visitors)!, { kind: "number" }) : null}
+          amount={visitors ? sum(visitors) : null}
+          format={{ kind: "number" }}
           trend={visitors?.map((p) => p.value)}
           empty="Connecter une source"
           href={`${base}/connecteurs`}
         />
         <KpiTile
           label={`Pages vues · ${periodShort(period)}`}
-          value={pageviews ? formatValue(sum(pageviews)!, { kind: "number" }) : null}
+          amount={pageviews ? sum(pageviews) : null}
+          format={{ kind: "number" }}
           trend={pageviews?.map((p) => p.value)}
           empty="Connecter une source"
           href={`${base}/connecteurs`}
         />
         <KpiTile
-          label={`Encaissé · ${periodShort(period)}`}
-          value={hasMoney ? formatValue(finance.totals.income, money) : null}
-          hint={finance.totals.expenses ? `Résultat : ${formatValue(finance.totals.net, money)}` : undefined}
-          trend={finance.income.map((p) => p.value)}
+          label={`Résultat · ${periodShort(period)}`}
+          amount={hasMoney ? finance.totals.net : null}
+          format={money}
+          hint={`Encaissé : ${formatValue(finance.totals.income, money)}`}
+          trend={finance.net.map((p) => p.value)}
           empty="Stripe ou saisie"
           href={`${base}/finances`}
         />
         <KpiTile
           label="Disponibilité · 30 j"
-          value={uptime !== null ? formatValue(uptime, { kind: "percent" }) : null}
+          amount={uptime}
+          format={{ kind: "percent" }}
           hint={down.length ? `${down.length} site${down.length > 1 ? "s" : ""} injoignable${down.length > 1 ? "s" : ""}` : measured.length ? "Tous les sites répondent" : undefined}
           alert={down.length > 0}
           empty={business.websites.length ? "Première mesure sous 5 min" : "Ajouter un site web"}
