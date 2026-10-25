@@ -2,9 +2,10 @@
 export function Sparkline({ values, className }: { values: number[]; className?: string }) {
   if (values.length < 2) return null;
   const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
   const W = 120;
   const H = 32;
-  const d = values.map((v, i) => `${i ? "L" : "M"}${((i / (values.length - 1)) * W).toFixed(1)} ${(H - 2 - (v / max) * (H - 4)).toFixed(1)}`).join(" ");
+  const d = values.map((v, i) => `${i ? "L" : "M"}${((i / (values.length - 1)) * W).toFixed(1)} ${(H - 2 - ((v - min) / (max - min)) * (H - 4)).toFixed(1)}`).join(" ");
   return (
     <span className={`relative block ${className ?? ""}`} aria-hidden>
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible opacity-50 blur-[4px]">

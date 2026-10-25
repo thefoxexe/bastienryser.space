@@ -80,9 +80,9 @@ async function gscQuery(token: string, siteUrl: string, body: Record<string, unk
   return res.rows ?? [];
 }
 
-export async function searchConsoleData(token: string, siteUrl: string) {
+export async function searchConsoleData(token: string, siteUrl: string, days = 40) {
   const end = new Date();
-  const start = new Date(end.getTime() - 35 * 86400_000);
+  const start = new Date(end.getTime() - days * 86400_000);
   const range = { startDate: isoDay(start), endDate: isoDay(end) };
   const last28 = { startDate: isoDay(new Date(end.getTime() - 28 * 86400_000)), endDate: isoDay(end) };
 
@@ -121,8 +121,8 @@ async function ga4Report(token: string, propertyId: string, body: Record<string,
   return res.rows ?? [];
 }
 
-export async function analyticsData(token: string, propertyId: string) {
-  const range = [{ startDate: "35daysAgo", endDate: "today" }];
+export async function analyticsData(token: string, propertyId: string, days = 40) {
+  const range = [{ startDate: `${days}daysAgo`, endDate: "today" }];
   const last30 = [{ startDate: "30daysAgo", endDate: "today" }];
   const [daily, pages, channels] = await Promise.all([
     ga4Report(token, propertyId, { dateRanges: range, dimensions: [{ name: "date" }], metrics: [{ name: "activeUsers" }, { name: "sessions" }, { name: "screenPageViews" }] }),

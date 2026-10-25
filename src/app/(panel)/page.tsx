@@ -12,7 +12,9 @@ import { listAlerts } from "@/lib/alerts";
 import { SiteDot } from "@/components/charts/site-dot";
 import { formatValue } from "@/components/charts/format";
 import { listActivity, listBusinesses, listPosts, metricsLast30Days, type PostSummary } from "@/lib/data";
-import { metricSeries, revenueCurrencies, siteStatuses, type SeriesPoint } from "@/lib/metrics";
+import { metricSeries, siteStatuses, type SeriesPoint } from "@/lib/metrics";
+import { financeSummary, periodFrom, periodShort } from "@/lib/finance";
+import { PeriodChips } from "@/components/period-chips";
 import { KpiTile } from "@/components/kpi-tile";
 import { formatDate, formatNumber, formatTime, TIME_ZONE, zurichDayKey } from "@/lib/format";
 import { NETWORKS } from "@/lib/social/networks";
@@ -20,7 +22,8 @@ import { retryTarget } from "./b/[slug]/reseaux/actions";
 
 export const metadata: Metadata = { title: "Tableau de bord" };
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: PageProps<"/">) {
+  const period = periodFrom((await searchParams).periode, 30);
   const now = new Date();
   const in14 = new Date(now.getTime() + 14 * 86400_000);
   const [businesses, alerts, upcoming, recent, metrics, activity] = await Promise.all([
@@ -31,7 +34,7 @@ export default async function DashboardPage() {
     metricsLast30Days(),
     listActivity({ limit: 15 }),
   ]);
-  const [sites, overview] = await Promise.all([siteStatuses(businesses), overviewSeries(businesses.map((b) => b.id))]);
+  const [sites, overview] = await Promise.all([siteStatuses(businesses), overviewSeries(businesses.map((b) => b.id), period)]);
   const sum = (s: SeriesPoint[] | null) => (s ? s.reduce((a, p) => a + p.value, 0) : null);
   const measured = sites.filter((s) => s.uptime30d !== null);
   const uptime = measured.length ? measured.reduce((a, s) => a + (s.uptime30d ?? 0), 0) / measured.length : null;
@@ -66,16 +69,20 @@ export default async function DashboardPage() {
       />
 
       {/* Chiffres clés, tous business confondus */}
+      <div className="-mb-2 flex justify-end">
+        <PeriodChips base="/" current={period} />
+      </div>
       <section aria-label="Chiffres clés" className="animate-rise grid grid-cols-2 gap-3 [animation-delay:40ms] md:grid-cols-3 xl:grid-cols-6">
-        <KpiTile label="Visiteurs · 30 j" value={overview.visitors ? formatValue(sum(overview.visitors)!, { kind: "number" }) : null} trend={overview.visitors?.map((p) => p.value)} empty="Connecter" href={connectHref} />
+        <KpiTile label={`Visiteurs · ${periodShort(period)}`} value={overview.visitors ? formatValue(sum(overview.visitors)!, { kind: "number" }) : null} trend={overview.visitors?.map((p) => p.value)} empty="Connecter" href={connectHref} />
         <KpiTile
-          label="Revenus · 30 j"
-          value={overview.revenue ? formatValue(sum(overview.revenue)!, overview.currency ? { kind: "currency", currency: overview.currency } : { kind: "number" }) : null}
-          trend={overview.revenue?.map((p) => p.value)}
-          empty="Connecter Stripe"
-          href={connectHref}
+          label={`Encaissé · ${periodShort(period)}`}
+          value={overview.hasMoney ? formatValue(overview.finance.totals.income, { kind: "currency", currency: overview.finance.currency }) : null}
+          hint={overview.finance.totals.expenses ? `Résultat : ${formatValue(overview.finance.totals.net, { kind: "currency", currency: overview.finance.currency })}` : undefined}
+          trend={overview.finance.income.map((p) => p.value)}
+          empty="Stripe ou saisie"
+          href={businesses[0] ? `/b/${businesses[0].slug}/donnees/finances` : "/"}
         />
-        <KpiTile label="Clics Google · 28 j" value={overview.clicks ? formatValue(sum(overview.clicks)!, { kind: "number" }) : null} trend={overview.clicks?.map((p) => p.value)} empty="Connecter" href={connectHref} />
+        <KpiTile label={`Clics Google · ${periodShort(period)}`} value={overview.clicks ? formatValue(sum(overview.clicks)!, { kind: "number" }) : null} trend={overview.clicks?.map((p) => p.value)} empty="Connecter" href={connectHref} />
         <KpiTile label="Portée réseaux · 30 j" value={reach !== null ? formatValue(reach, { kind: "number" }) : null} hint={`${published} publication${published > 1 ? "s" : ""}`} empty="Aucune statistique" href={businesses[0] ? `/b/${businesses[0].slug}/reseaux/comptes` : "/"} />
         <KpiTile label="Posts prévus · 14 j" value={String(upcoming.length)} hint={upcoming[0]?.scheduled_at ? `Prochain : ${new Intl.DateTimeFormat("fr-CH", { timeZone: TIME_ZONE, weekday: "short", day: "numeric", month: "short" }).format(new Date(upcoming[0].scheduled_at))}` : "Rien de programmé"} empty="" href="/" />
         <KpiTile
@@ -377,16 +384,12 @@ function FourteenDays({
 }
 
 /** Séries de l'accueil, tous business confondus. Visiteurs : Plausible si le business l'a, sinon Google Analytics (jamais les deux). */
-async function overviewSeries(businessIds: string[]) {
+async function overviewSeries(businessIds: string[], days: number) {
   const perBusiness = await Promise.all(
-    businessIds.map(async (businessId) => (await metricSeries({ businessId, metric: "visitors" })) ?? (await metricSeries({ businessId, metric: "ga_users" }))),
+    businessIds.map(async (businessId) => (await metricSeries({ businessId, metric: "visitors", days })) ?? (await metricSeries({ businessId, metric: "ga_users", days }))),
   );
   const present = perBusiness.filter((s): s is SeriesPoint[] => s !== null);
   const visitors = present.length ? present[0].map((p, i) => ({ day: p.day, value: present.reduce((a, s) => a + (s[i]?.value ?? 0), 0) })) : null;
-  const currency = (await revenueCurrencies())[0]?.unit;
-  const [revenue, clicks] = await Promise.all([
-    currency ? metricSeries({ metric: "revenue", unit: currency }) : Promise.resolve(null),
-    metricSeries({ metric: "search_clicks", trimTrailing: true }),
-  ]);
-  return { visitors, revenue, currency, clicks };
+  const [finance, clicks] = await Promise.all([financeSummary(undefined, days), metricSeries({ metric: "search_clicks", trimTrailing: true, days })]);
+  return { visitors, finance, hasMoney: finance.hasStripe || finance.hasEntries, clicks };
 }

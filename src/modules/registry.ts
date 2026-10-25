@@ -32,11 +32,12 @@ export const MODULES: ModuleDefinition[] = [
   {
     id: "data",
     label: "Données",
-    description: "Disponibilité des sites, visiteurs et revenus, à partir des vraies sources.",
+    description: "Disponibilité des sites, visiteurs, finances et mots-clés, à partir des vraies sources.",
     icon: Activity,
     basePath: "donnees",
     tabs: [
       { href: "", label: "Vue d'ensemble" },
+      { href: "/finances", label: "Finances" },
       { href: "/mots-cles", label: "Mots-clés" },
       { href: "/sites", label: "Sites web" },
       { href: "/connecteurs", label: "Connecteurs" },

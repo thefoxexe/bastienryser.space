@@ -1,6 +1,6 @@
 -- Installation complète de bastienryser.space (généré par supabase/scripts/build-setup.mjs, ne pas modifier à la main).
 -- À coller en une fois dans Supabase > SQL Editor > New query, puis Run, sur un projet neuf.
--- Contient 9 migrations, l'adresse du projet pour les tâches automatiques et l'accès admin.
+-- Contient 10 migrations, l'adresse du projet pour les tâches automatiques et l'accès admin.
 
 -- ===========================================================================
 -- 20261025000000_socle.sql
@@ -995,6 +995,34 @@ revoke execute on function public.set_pinterest_board(uuid, text) from public, a
 grant execute on function public.set_pinterest_board(uuid, text) to authenticated;
 
 -- ===========================================================================
+-- 20261025000900_finances.sql
+-- ===========================================================================
+
+-- Finances : écritures saisies à la main (factures encaissées, charges), en plus des chiffres Stripe.
+
+create table public.ledger_entries (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid not null references public.businesses (id) on delete cascade,
+  day date not null,
+  kind text not null check (kind in ('income', 'expense')),
+  -- Toujours positif : le sens vient de `kind` (revenu ou charge).
+  amount numeric(12, 2) not null check (amount > 0),
+  currency text not null default 'chf' check (currency ~ '^[a-z]{3}$'),
+  label text not null check (length(btrim(label)) between 1 and 160),
+  category text check (category is null or length(category) <= 60),
+  -- Numéro de facture ou de pièce, facultatif.
+  reference text check (reference is null or length(reference) <= 60),
+  created_at timestamptz not null default now()
+);
+
+create index on public.ledger_entries (business_id, day);
+
+alter table public.ledger_entries enable row level security;
+create policy ledger_entries_admin_all on public.ledger_entries
+  for all to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+revoke all on public.ledger_entries from anon;
+
+-- ===========================================================================
 -- Configuration du projet
 -- ===========================================================================
 
@@ -1010,7 +1038,8 @@ insert into supabase_migrations.schema_migrations (version, name) values
   ('20261025000500', 'google_connectors'),
   ('20261025000600', 'keywords'),
   ('20261025000700', 'hardening'),
-  ('20261025000800', 'more_networks')
+  ('20261025000800', 'more_networks'),
+  ('20261025000900', 'finances')
 on conflict do nothing;
 
 -- Adresse du projet, lue par pg_cron pour appeler les Edge Functions (pas un secret).

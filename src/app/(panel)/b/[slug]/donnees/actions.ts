@@ -3,6 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { logActivity } from "@/lib/activity";
 import { requireAdmin } from "@/lib/auth";
 import { callEdgeFunction } from "@/lib/edge";
@@ -98,4 +99,54 @@ export async function untrackKeyword(formData: FormData) {
   const supabase = await createClient();
   await supabase.from("tracked_keywords").delete().eq("business_id", String(formData.get("businessId"))).eq("query", String(formData.get("query")));
   revalidatePath(`/b/${formData.get("slug")}`, "layout");
+}
+
+// ---------------------------------------------------------------------------
+// Finances : écritures saisies à la main
+// ---------------------------------------------------------------------------
+
+export type EntryState = { ok?: boolean; error?: string; nonce?: number };
+
+const entrySchema = z.object({
+  businessId: z.string().uuid(),
+  slug: z.string().min(1),
+  kind: z.enum(["income", "expense"]),
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide."),
+  // Virgule ou point, apostrophes de milliers acceptées (1'250,50).
+  amount: z
+    .string()
+    .transform((v) => Number(v.replace(/['\s]/g, "").replace(",", ".")))
+    .refine((v) => Number.isFinite(v) && v > 0 && v < 1e10, "Montant invalide."),
+  label: z.string().trim().min(1, "Indique un libellé.").max(160),
+  category: z.string().trim().max(60).optional(),
+  reference: z.string().trim().max(60).optional(),
+});
+
+export async function addEntry(_prev: EntryState, formData: FormData): Promise<EntryState> {
+  await requireAdmin();
+  const parsed = entrySchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Saisie invalide." };
+  const e = parsed.data;
+  const supabase = await createClient();
+  const { error } = await supabase.from("ledger_entries").insert({
+    business_id: e.businessId,
+    kind: e.kind,
+    day: e.day,
+    amount: Math.round(e.amount * 100) / 100,
+    label: e.label,
+    category: e.category || null,
+    reference: e.reference || null,
+  });
+  if (error) return { error: "Enregistrement impossible." };
+  revalidatePath(`/b/${e.slug}/donnees`, "layout");
+  revalidatePath("/");
+  return { ok: true, nonce: Date.now() };
+}
+
+export async function deleteEntry(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+  await supabase.from("ledger_entries").delete().eq("id", String(formData.get("id")));
+  revalidatePath(`/b/${String(formData.get("slug"))}/donnees`, "layout");
+  revalidatePath("/");
 }

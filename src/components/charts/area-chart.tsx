@@ -42,11 +42,16 @@ export function AreaChart({ points, format, label, height = 200 }: { points: Poi
   const gradient = `fade-${useId().replace(/:/g, "")}`;
   if (!points.length) return null;
 
-  const max = niceMax(Math.max(...points.map((p) => p.value)));
+  // Échelle qui descend sous zéro quand une valeur est négative (remboursements, résultat en perte).
+  const values = points.map((p) => p.value);
+  const max = niceMax(Math.max(...values, 0));
+  const lowest = Math.min(...values, 0);
+  const min = lowest < 0 ? -niceMax(-lowest) : 0;
   const x = (i: number) => (points.length === 1 ? W / 2 : (i / (points.length - 1)) * W);
-  const y = (v: number) => PAD_TOP + (1 - v / max) * (H - PAD_TOP);
+  const y = (v: number) => PAD_TOP + ((max - v) / (max - min)) * (H - PAD_TOP);
   const line = monotonePath(points.map((p, i) => [x(i), y(p.value)]));
-  const area = `${line} L${W} ${H} L0 ${H} Z`;
+  const area = `${line} L${W} ${y(0)} L0 ${y(0)} Z`;
+  const ticks = min < 0 ? [max, 0, min] : [max, max / 2, 0];
   const last = points.length - 1;
   const active = hover ?? last;
   const pct = (i: number) => `${(x(i) / W) * 100}%`;
@@ -72,8 +77,8 @@ export function AreaChart({ points, format, label, height = 200 }: { points: Poi
           aria-label={`${label} : ${formatValue(points[last].value, format)} le ${formatDay(points[last].day)}`}
         >
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible">
-            {[0, 0.5, 1].map((t) => (
-              <line key={t} x1={0} x2={W} y1={y(max * t)} y2={y(max * t)} stroke="var(--border)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+            {ticks.map((t) => (
+              <line key={t} x1={0} x2={W} y1={y(t)} y2={y(t)} stroke={t === 0 && min < 0 ? "var(--border-strong)" : "var(--border)"} strokeWidth={1} vectorEffect="non-scaling-stroke" />
             ))}
             <defs>
               <linearGradient id={gradient} x1="0" x2="0" y1="0" y2="1">
@@ -107,9 +112,9 @@ export function AreaChart({ points, format, label, height = 200 }: { points: Poi
           ) : null}
         </div>
         <div className="tabular relative ml-3 w-12 shrink-0 text-[11px] text-faint" style={{ height }}>
-          {[1, 0.5, 0].map((t) => (
-            <span key={t} className="absolute right-0 -translate-y-1/2" style={{ top: top(max * t) }}>
-              {formatValue(max * t, format, true)}
+          {ticks.map((t) => (
+            <span key={t} className="absolute right-0 -translate-y-1/2" style={{ top: top(t) }}>
+              {formatValue(t, format, true)}
             </span>
           ))}
         </div>

@@ -30,6 +30,7 @@ Chaque étape est idempotente : on peut la relancer sans risque.
    7. `20261025000600_keywords` (historique quotidien des mots-clés, mots-clés suivis, classements)
    8. `20261025000700_hardening` (durcissement relevé par les contrôles de sécurité Supabase)
    9. `20261025000800_more_networks` (YouTube, TikTok, Bluesky, Pinterest, X ; Threads disponible)
+   10. `20261025000900_finances` (écritures saisies à la main : factures encaissées et charges)
 4. **Adresse du projet pour pg_cron** (pas un secret) avec `execute_sql` :
    ```sql
    select vault.create_secret('https://<ref>.supabase.co', 'project_url')
@@ -115,7 +116,7 @@ double authentification, clé Claude.
 ## Connecteurs de données (dans le panel)
 
 *Business > Données > Connecteurs* : la clé est testée, chiffrée dans le Vault, puis une première synchronisation est lancée.
-- **Stripe** : clé restreinte avec uniquement *Charges : lecture*.
+- **Stripe** : clé restreinte avec *Balance : lecture* et *Charges : lecture* (remboursements et frais à leur vraie date).
 - **Plausible** : clé *Stats API* et domaine du site tel qu'il apparaît dans Plausible.
 - **Search Console** et **Google Analytics 4** : bouton *Connecter avec Google* (lecture seule). Si le compte voit
   plusieurs sites ou propriétés, le panel demande lequel suivre.

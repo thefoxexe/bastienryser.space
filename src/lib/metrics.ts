@@ -83,7 +83,7 @@ export async function metricSeries(options: {
 
 /** Connecteur qui alimente une métrique. */
 export function sourceOf(metric: string): Connector["kind"] {
-  if (metric === "revenue" || metric === "payments") return "stripe";
+  if (["revenue", "payments", "refunds", "fees"].includes(metric)) return "stripe";
   if (metric.startsWith("search_")) return "search_console";
   if (metric.startsWith("ga_")) return "google_analytics";
   return "plausible";

@@ -3,30 +3,34 @@ import { ArrowUpRight, Globe, PlugZap, Search } from "lucide-react";
 import { AreaChart } from "@/components/charts/area-chart";
 import { formatValue } from "@/components/charts/format";
 import { KpiTile } from "@/components/kpi-tile";
+import { PeriodChips } from "@/components/period-chips";
 import { ButtonLink, Card, CardHeader, EmptyState } from "@/components/ui";
 import { SiteDot } from "@/components/charts/site-dot";
 import { getBusiness } from "@/lib/data";
-import { listConnectors, metricSeries, revenueCurrencies, searchPosition, siteStatuses, type SeriesPoint } from "@/lib/metrics";
+import { financeSummary, periodFrom, periodShort, weekly } from "@/lib/finance";
+import { listConnectors, metricSeries, searchPosition, siteStatuses, type SeriesPoint } from "@/lib/metrics";
 
 export const metadata: Metadata = { title: "Données" };
 
 const sum = (s: SeriesPoint[] | null) => (s ? s.reduce((a, p) => a + p.value, 0) : null);
 
-export default async function DataOverview({ params }: PageProps<"/b/[slug]/donnees">) {
+export default async function DataOverview({ params, searchParams }: PageProps<"/b/[slug]/donnees">) {
   const { slug } = await params;
+  const period = periodFrom((await searchParams).periode, 30);
   const business = await getBusiness(slug);
   const base = `/b/${business.slug}/donnees`;
+  const days = period;
 
-  const [connectors, plVisitors, plPageviews, gaUsers, gaPageviews, clicks, impressions, position, currencies, sites] = await Promise.all([
+  const [connectors, plVisitors, plPageviews, gaUsers, gaPageviews, clicks, impressions, position, finance, sites] = await Promise.all([
     listConnectors(business.id),
-    metricSeries({ businessId: business.id, metric: "visitors" }),
-    metricSeries({ businessId: business.id, metric: "pageviews" }),
-    metricSeries({ businessId: business.id, metric: "ga_users" }),
-    metricSeries({ businessId: business.id, metric: "ga_pageviews" }),
-    metricSeries({ businessId: business.id, metric: "search_clicks", trimTrailing: true }),
-    metricSeries({ businessId: business.id, metric: "search_impressions", trimTrailing: true }),
-    searchPosition(business.id),
-    revenueCurrencies(business.id),
+    metricSeries({ businessId: business.id, metric: "visitors", days }),
+    metricSeries({ businessId: business.id, metric: "pageviews", days }),
+    metricSeries({ businessId: business.id, metric: "ga_users", days }),
+    metricSeries({ businessId: business.id, metric: "ga_pageviews", days }),
+    metricSeries({ businessId: business.id, metric: "search_clicks", trimTrailing: true, days: Math.max(days, 28) }),
+    metricSeries({ businessId: business.id, metric: "search_impressions", trimTrailing: true, days: Math.max(days, 28) }),
+    searchPosition(business.id, Math.max(days, 28)),
+    financeSummary(business.id, period),
     siteStatuses([{ id: business.id, websites: business.websites }], business.id),
   ]);
   // Plausible en priorité pour la fréquentation, sinon Google Analytics (jamais additionnés : ce seraient les mêmes visiteurs).
@@ -37,12 +41,10 @@ export default async function DataOverview({ params }: PageProps<"/b/[slug]/donn
   const ga = connectors.find((c) => c.kind === "google_analytics" && c.status === "connected");
   const totalClicks = sum(clicks);
   const totalImpressions = sum(impressions);
-  const mainCurrency = currencies[0]?.unit;
-  const revenue = mainCurrency
-    ? await metricSeries({ businessId: business.id, metric: "revenue", unit: mainCurrency })
-    : connectors.some((c) => c.kind === "stripe")
-      ? await metricSeries({ businessId: business.id, metric: "revenue" })
-      : null;
+  // Encaissements : Stripe (remboursements déduits) + factures saisies dans Finances.
+  const hasMoney = finance.hasStripe || finance.hasEntries;
+  const money = { kind: "currency", currency: finance.currency } as const;
+  const long = period > 90;
 
   const measured = sites.filter((s) => s.uptime30d !== null);
   const uptime = measured.length ? measured.reduce((a, s) => a + (s.uptime30d ?? 0), 0) / measured.length : null;
@@ -50,28 +52,31 @@ export default async function DataOverview({ params }: PageProps<"/b/[slug]/donn
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex justify-end">
+        <PeriodChips base={base} current={period} />
+      </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiTile
-          label="Visiteurs · 30 j"
+          label={`Visiteurs · ${periodShort(period)}`}
           value={visitors ? formatValue(sum(visitors)!, { kind: "number" }) : null}
           trend={visitors?.map((p) => p.value)}
           empty="Connecter une source"
           href={`${base}/connecteurs`}
         />
         <KpiTile
-          label="Pages vues · 30 j"
+          label={`Pages vues · ${periodShort(period)}`}
           value={pageviews ? formatValue(sum(pageviews)!, { kind: "number" }) : null}
           trend={pageviews?.map((p) => p.value)}
           empty="Connecter une source"
           href={`${base}/connecteurs`}
         />
         <KpiTile
-          label="Revenus · 30 j"
-          value={revenue ? formatValue(sum(revenue)!, mainCurrency ? { kind: "currency", currency: mainCurrency } : { kind: "number" }) : null}
-          hint={currencies.length > 1 ? `+ ${currencies.slice(1).map((c) => formatValue(c.total, { kind: "currency", currency: c.unit })).join(", ")}` : undefined}
-          trend={revenue?.map((p) => p.value)}
-          empty="Connecter Stripe"
-          href={`${base}/connecteurs`}
+          label={`Encaissé · ${periodShort(period)}`}
+          value={hasMoney ? formatValue(finance.totals.income, money) : null}
+          hint={finance.totals.expenses ? `Résultat : ${formatValue(finance.totals.net, money)}` : undefined}
+          trend={finance.income.map((p) => p.value)}
+          empty="Stripe ou saisie"
+          href={`${base}/finances`}
         />
         <KpiTile
           label="Disponibilité · 30 j"
@@ -85,22 +90,31 @@ export default async function DataOverview({ params }: PageProps<"/b/[slug]/donn
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader title="Visiteurs" description={`Visiteurs uniques par jour, d'après ${visitorsSource}.`} />
+          <CardHeader title="Visiteurs" description={`Visiteurs uniques par ${long ? "semaine" : "jour"}, d'après ${visitorsSource}.`} />
           <div className="p-5 pt-6 sm:p-6">
             {visitors ? (
-              <AreaChart points={visitors} format={{ kind: "number" }} label="Visiteurs par jour" />
+              <AreaChart points={long ? weekly(visitors) : visitors} format={{ kind: "number" }} label={long ? "Visiteurs par semaine" : "Visiteurs par jour"} />
             ) : (
               <EmptyState icon={<PlugZap />} title="Aucune source de visites" description="Connecte Google Analytics ou Plausible pour suivre la fréquentation de ton site." action={<ButtonLink href={`${base}/connecteurs`} size="sm">Connecter</ButtonLink>} />
             )}
           </div>
         </Card>
         <Card>
-          <CardHeader title="Revenus" description={mainCurrency ? `Paiements encaissés par jour (${mainCurrency.toUpperCase()}), remboursements déduits.` : "Paiements encaissés par jour, d'après Stripe."} />
+          <CardHeader
+            title="Encaissements"
+            description={`Stripe (remboursements déduits) et factures saisies, par ${long ? "semaine" : "jour"}, en ${finance.currency.toUpperCase()}.`}
+            action={<ButtonLink href={`${base}/finances?periode=${period}`} variant="ghost" size="sm">Finances</ButtonLink>}
+          />
           <div className="p-5 pt-6 sm:p-6">
-            {revenue ? (
-              <AreaChart points={revenue} format={mainCurrency ? { kind: "currency", currency: mainCurrency } : { kind: "number" }} label="Revenus par jour" />
+            {hasMoney ? (
+              <AreaChart points={long ? weekly(finance.income) : finance.income} format={money} label="Encaissements" />
             ) : (
-              <EmptyState icon={<PlugZap />} title="Aucune source de revenus" description="Connecte Stripe (clé en lecture seule) pour suivre les paiements." action={<ButtonLink href={`${base}/connecteurs`} size="sm">Connecter</ButtonLink>} />
+              <EmptyState
+                icon={<PlugZap />}
+                title="Aucun revenu"
+                description="Connecte Stripe ou saisis tes factures dans Finances."
+                action={<ButtonLink href={`${base}/finances`} size="sm">Ouvrir Finances</ButtonLink>}
+              />
             )}
           </div>
         </Card>
@@ -110,7 +124,7 @@ export default async function DataOverview({ params }: PageProps<"/b/[slug]/donn
       <Card>
         <CardHeader
           title="Recherche Google"
-          description={gsc ? `${gsc.label.replace("Search Console · ", "")} · 28 derniers jours, d'après la Search Console (2 à 3 jours de décalage).` : "Ce que Google montre de ton site, et ce qu'on y clique."}
+          description={gsc ? `${gsc.label.replace("Search Console · ", "")} · ${Math.max(period, 28)} derniers jours, d'après la Search Console (2 à 3 jours de décalage).` : "Ce que Google montre de ton site, et ce qu'on y clique."}
         />
         {clicks && gsc ? (
           <div className="flex flex-col gap-8 p-5 pt-6 sm:p-6">
@@ -120,7 +134,9 @@ export default async function DataOverview({ params }: PageProps<"/b/[slug]/donn
               <Figure label="CTR moyen" value={totalImpressions ? formatValue(((totalClicks ?? 0) / totalImpressions) * 100, { kind: "percent" }) : "—"} />
               <Figure label="Position moyenne" value={position !== null ? position.toLocaleString("fr-CH") : "—"} />
             </dl>
-            {clicks.length > 1 ? <AreaChart points={clicks} format={{ kind: "number" }} label="Clics depuis Google par jour" height={160} /> : null}
+            {clicks.length > 1 ? (
+              <AreaChart points={long ? weekly(clicks) : clicks} format={{ kind: "number" }} label={long ? "Clics depuis Google par semaine" : "Clics depuis Google par jour"} height={160} />
+            ) : null}
             <div className="grid gap-8 lg:grid-cols-2">
               <Ranking
                 title="Requêtes"

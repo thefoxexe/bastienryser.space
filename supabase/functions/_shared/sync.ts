@@ -8,7 +8,7 @@ export type ConnectorRow = {
   business_id: string;
   kind: "stripe" | "plausible" | "search_console" | "google_analytics";
   label: string;
-  config: { site_id?: string; base_url?: string; site_url?: string; property_id?: string };
+  config: { site_id?: string; base_url?: string; site_url?: string; property_id?: string; backfilled?: boolean };
   credential_ref: string | null;
   status: string;
 };
@@ -22,17 +22,30 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
     // Compte Google connecté mais propriété pas encore choisie : rien à synchroniser.
     if (c.status === "pending") return { ok: true, points: 0 };
 
+    // Premier passage : environ 13 mois d'historique ; ensuite les 40 derniers jours (corrections tardives comprises).
+    const days = c.config.backfilled ? 40 : 400;
     let points: DailyPoint[];
     let snapshot: Record<string, unknown> | null = null;
-    if (c.kind === "stripe") points = await stripeDaily(key);
-    else if (c.kind === "plausible") points = await plausibleDaily(key, c.config.site_id ?? "", c.config.base_url ?? "https://plausible.io");
+    if (c.kind === "stripe") points = await stripeDaily(key, days);
+    else if (c.kind === "plausible") points = await plausibleDaily(key, c.config.site_id ?? "", c.config.base_url ?? "https://plausible.io", days);
     else {
       const token = await googleAccessToken(key);
-      const result = c.kind === "search_console" ? await searchConsoleData(token, c.config.site_url ?? "") : await analyticsData(token, c.config.property_id ?? "");
+      const result =
+        c.kind === "search_console" ? await searchConsoleData(token, c.config.site_url ?? "", days) : await analyticsData(token, c.config.property_id ?? "", days);
       points = result.points;
       snapshot = result.snapshot;
       if (c.kind === "search_console") await syncKeywords(db, c, token);
     }
+
+    // La période synchronisée est remplacée en entier : un remboursement peut ramener un jour déjà compté à zéro.
+    const since = new Date(Date.now() - (days - 1) * 86400_000).toISOString().slice(0, 10);
+    const minDay = points.reduce<string | null>((m, p) => (m === null || p.day < m ? p.day : m), null);
+    const { error: clearError } = await db
+      .from("metric_points")
+      .delete()
+      .eq("connector_id", c.id)
+      .gte("day", c.kind === "stripe" ? since : (minDay ?? "9999-12-31"));
+    if (clearError) throw new ConnectorError("Mise à jour des chiffres impossible.");
 
     if (points.length) {
       const now = new Date().toISOString();
@@ -45,7 +58,13 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
 
     await db
       .from("connectors")
-      .update({ status: "connected", last_error: null, last_sync_at: new Date().toISOString(), ...(snapshot ? { snapshot } : {}) })
+      .update({
+        status: "connected",
+        last_error: null,
+        last_sync_at: new Date().toISOString(),
+        ...(snapshot ? { snapshot } : {}),
+        ...(c.config.backfilled ? {} : { config: { ...c.config, backfilled: true } }),
+      })
       .eq("id", c.id);
     return { ok: true, points: points.length };
   } catch (e) {
