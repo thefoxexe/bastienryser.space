@@ -3,8 +3,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { hardenCookie, supabaseKey, supabaseUrl } from "./config";
 
 const LOGIN_PATH = "/connexion";
+// Pages publiques exigées par TikTok, Google et LinkedIn pour valider les apps de connexion.
+const PUBLIC_PATHS = new Set(["/confidentialite", "/conditions"]);
 
 export async function updateSession(request: NextRequest) {
+  if (PUBLIC_PATHS.has(request.nextUrl.pathname)) return NextResponse.next({ request });
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {

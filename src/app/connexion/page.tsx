@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Lock } from "lucide-react";
 import { LogoMark } from "@/components/logo";
 import { createClient } from "@/lib/supabase/server";
@@ -37,8 +38,16 @@ export default async function LoginPage() {
           <LoginForm initialStep={initialStep} />
         </div>
       </div>
-      <p className="absolute bottom-8 flex items-center gap-1.5 text-[12px] text-faint">
-        <Lock className="size-3" /> Accès privé · double authentification
+      <p className="absolute bottom-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-5 text-[12px] text-faint">
+        <span className="flex items-center gap-1.5">
+          <Lock className="size-3" /> Accès privé · double authentification
+        </span>
+        <Link href="/confidentialite" className="transition hover:text-text">
+          Confidentialité
+        </Link>
+        <Link href="/conditions" className="transition hover:text-text">
+          Conditions
+        </Link>
       </p>
     </main>
   );
