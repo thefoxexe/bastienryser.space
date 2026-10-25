@@ -4,7 +4,7 @@
 
 import { liFetch } from "../_shared/linkedin.ts";
 import { insightsValues, metaGet } from "../_shared/meta.ts";
-import { adminClient, authorize, json, readToken } from "../_shared/supabase.ts";
+import { adminClient, authorize, heartbeat, json, readToken } from "../_shared/supabase.ts";
 
 type Metrics = { impressions?: number; reach?: number; likes?: number; comments?: number; shares?: number; saves?: number };
 
@@ -121,5 +121,6 @@ Deno.serve(async (req) => {
     }
   }
 
+  await heartbeat(db, "fetch-metrics", true, `${posts} post(s) et ${accountsDone} compte(s) mis à jour`);
   return json({ posts, accounts: accountsDone });
 });

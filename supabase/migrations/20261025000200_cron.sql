@@ -1,7 +1,6 @@
--- Tâches programmées. Elles lisent deux secrets du Vault, à créer une fois :
---   select vault.create_secret('https://<ref>.supabase.co', 'project_url');
---   select vault.create_secret('<une longue valeur aléatoire>', 'cron_secret');
--- La même valeur de cron_secret doit être mise dans les secrets des Edge Functions (CRON_SECRET).
+-- Tâches programmées. Elles lisent deux secrets du Vault :
+--   project_url : à créer une fois par projet → select vault.create_secret('https://<ref>.supabase.co', 'project_url');
+--   cron_secret : généré automatiquement par la migration 20261025000300 (vérifié par les Edge Functions).
 
 create or replace function public.call_edge_function(p_name text)
 returns bigint

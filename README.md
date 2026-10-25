@@ -45,6 +45,7 @@ supabase/
   functions/publish-due        publication chaque minute (verrou, 3 essais, statuts)
   functions/refresh-tokens     renouvellement quotidien et alertes d'expiration
   functions/fetch-metrics      statistiques réelles quotidiennes
+  functions/health             diagnostic pour la page « État du système »
 ```
 
 **Ajouter un module** : le déclarer dans `src/modules/registry.ts`, créer ses tables (RLS `is_admin()`)
@@ -61,29 +62,23 @@ npm run dev
 Vérifications : `npm run lint`, `npx tsc --noEmit`, `npm run build`, et pour les Edge Functions
 `cd supabase/functions && deno check --config deno.json */index.ts`.
 
-## Mise en route (à faire par Bastien)
+## Mise en route
+
+La procédure complète, étape par étape, est dans **[docs/installation.md](docs/installation.md)**.
+En résumé :
 
 ### 1. Supabase
-1. Créer un **nouveau projet** (séparé de Cantia), région *Central EU (Zurich)*.
-   Le plan gratuit est limité à 2 projets actifs : mettre un projet inutilisé en pause ou passer au plan Pro.
-2. *Authentication > Sign In / Providers* : décocher **Allow new users to sign up**.
-3. Appliquer les migrations de `supabase/migrations/` dans l'ordre (SQL Editor, ou `supabase db push`).
-4. *Authentication > Users > Add user* : créer ton utilisateur (cocher *Auto Confirm User*).
-5. Dans le SQL Editor :
-   ```sql
-   insert into public.admins (user_id) select id from auth.users where email = 'ton-email@exemple.ch';
-   select vault.create_secret('https://<ref>.supabase.co', 'project_url');
-   select vault.create_secret('<une longue valeur aléatoire>', 'cron_secret');
-   ```
-6. *Authentication > URL Configuration* : Site URL = `https://bastienryser.space`.
-7. Déployer les Edge Functions : `supabase functions deploy --project-ref <ref>` (lit `supabase/config.toml`).
-8. *Edge Functions > Secrets* : renseigner les variables de `supabase/functions/.env.example`
-   (`CRON_SECRET` = la même valeur que dans le Vault).
+1. Nouveau projet (séparé de Cantia), région *Central EU (Zurich)*.
+2. Migrations de `supabase/migrations/` dans l'ordre, puis le secret `project_url` du Vault
+   (le secret des tâches automatiques est généré tout seul par la migration).
+3. Edge Functions déployées (`oauth`, `publish-due`, `refresh-tokens`, `fetch-metrics`, `health`) et secret `APP_URL`.
+4. Inscriptions désactivées, ton utilisateur créé et ajouté dans `admins`, *Site URL* réglée.
 
 ### 2. Vercel
-1. *Add New > Project* > importer ce dépôt GitHub (framework détecté : Next.js).
-2. *Settings > Environment Variables* : `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ANTHROPIC_API_KEY`.
-3. *Settings > Domains* : ajouter `bastienryser.space` et suivre les instructions DNS.
+1. Projet importé depuis ce dépôt.
+2. Variables `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ANTHROPIC_API_KEY`, puis **Redeploy**.
+   Sans les deux premières, le site affiche une page « Presque prêt » au lieu d'une erreur.
+3. Domaine `bastienryser.space`.
 
 ### 3. Réseaux sociaux
 - **Meta** : passer Instagram Cantia en compte professionnel relié à la Page Facebook. Créer une app sur
@@ -96,7 +91,8 @@ Vérifications : `npm run lint`, `npx tsc --noEmit`, `npm run build`, et pour le
 - Dans le panel : *Cantia > Réseaux sociaux > Comptes connectés > Connecter*.
 
 ### 4. Premier lancement
-Se connecter, activer la double authentification dans **Réglages**, puis composer un premier post.
+Se connecter, activer la double authentification dans **Réglages**, ouvrir **Réglages > État du système**
+pour vérifier que tout est vert, puis composer un premier post.
 
 ## Limites connues (APIs officielles, octobre 2026)
 

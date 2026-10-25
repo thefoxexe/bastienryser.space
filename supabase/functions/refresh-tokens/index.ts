@@ -4,7 +4,7 @@
 //   environ tous les 90 jours ; on vérifie le jeton et on prévient 7 jours avant.
 
 import { env, META_GRAPH, optionalEnv } from "../_shared/env.ts";
-import { adminClient, authorize, json, logActivity, readToken, storeToken } from "../_shared/supabase.ts";
+import { adminClient, authorize, heartbeat, json, logActivity, readToken, storeToken } from "../_shared/supabase.ts";
 
 const DAY = 86400_000;
 
@@ -88,5 +88,7 @@ Deno.serve(async (req) => {
       report.push({ id: a.id, result: "error" });
     }
   }
+  const errors = report.filter((r) => r.result === "error" || r.result === "refresh_failed").length;
+  await heartbeat(db, "refresh-tokens", errors === 0, `${report.length} compte(s) vérifié(s), ${errors} problème(s)`);
   return json({ accounts: report.length, report });
 });

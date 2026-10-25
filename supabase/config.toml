@@ -13,3 +13,6 @@ verify_jwt = false
 
 [functions.fetch-metrics]
 verify_jwt = false
+
+[functions.health]
+verify_jwt = false

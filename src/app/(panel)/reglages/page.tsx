@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Archive, ArchiveRestore, Pencil, Plus, ShieldCheck } from "lucide-react";
+import { Activity, Archive, ArchiveRestore, ChevronRight, Pencil, Plus, ShieldCheck } from "lucide-react";
 import { BusinessMark } from "@/components/business-mark";
 import { Page } from "@/components/shell/page";
 import { Badge, Button, ButtonLink, Card, CardHeader, PageHeader } from "@/components/ui";
@@ -31,9 +31,21 @@ export default async function SettingsPage() {
           <a href="#profil" className="rounded-lg px-3 py-1.5 text-muted hover:bg-surface-2 hover:text-text">Profil</a>
           <a href="#securite" className="rounded-lg px-3 py-1.5 text-muted hover:bg-surface-2 hover:text-text">Sécurité</a>
           <a href="#business" className="rounded-lg px-3 py-1.5 text-muted hover:bg-surface-2 hover:text-text">Business</a>
+          <Link href="/reglages/systeme" className="rounded-lg px-3 py-1.5 text-muted hover:bg-surface-2 hover:text-text">État du système</Link>
         </nav>
 
         <div className="flex min-w-0 flex-col gap-6">
+          <Link href="/reglages/systeme" className="group flex items-center gap-4 rounded-2xl bg-surface p-5 shadow-card transition-shadow hover:shadow-pop sm:p-6">
+            <span className="grid size-10 place-items-center rounded-full bg-ink text-ink-text">
+              <Activity className="size-[18px]" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[17px] font-semibold tracking-[-0.02em]">État du système</span>
+              <span className="block text-[13px] text-muted">Base de données, tâches automatiques, connexions et clés : tout vérifier d&apos;un coup d&apos;œil.</span>
+            </span>
+            <ChevronRight className="size-4 text-faint transition group-hover:translate-x-0.5 group-hover:text-text" />
+          </Link>
+
           <Card>
             <CardHeader title={<span id="profil">Profil</span>} description="Le compte se gère dans Supabase : aucune inscription n'est possible ici." />
             <div className="flex items-center gap-4 p-5">

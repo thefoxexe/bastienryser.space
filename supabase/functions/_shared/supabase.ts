@@ -11,9 +11,14 @@ export function adminClient(): SupabaseClient {
  * - il porte la session d'un admin (vérifiée par is_admin(), double authentification comprise).
  */
 export async function authorize(req: Request): Promise<boolean> {
-  const cronSecret = Deno.env.get("CRON_SECRET");
   const provided = req.headers.get("x-cron-secret");
-  if (cronSecret && provided && timingSafeEqual(provided, cronSecret)) return true;
+  if (provided) {
+    // Secret facultatif en variable d'environnement, sinon celui du Vault (généré par la migration).
+    const cronSecret = Deno.env.get("CRON_SECRET");
+    if (cronSecret) return timingSafeEqual(provided, cronSecret);
+    const { data, error } = await adminClient().rpc("check_cron_secret", { p_secret: provided });
+    return !error && data === true;
+  }
 
   const auth = req.headers.get("Authorization");
   if (!auth?.startsWith("Bearer ")) return false;
@@ -55,6 +60,15 @@ export async function logActivity(
   entry: { business_id: string | null; kind: string; message: string; meta?: Record<string, unknown> },
 ) {
   await db.from("activity_log").insert({ ...entry, meta: entry.meta ?? {} });
+}
+
+/** Trace la dernière exécution d'une tâche (page « État du système »). Ne fait jamais échouer l'appelant. */
+export async function heartbeat(db: SupabaseClient, job: string, ok: boolean, detail?: string) {
+  try {
+    await db.rpc("record_heartbeat", { p_job: job, p_ok: ok, p_detail: detail ?? null });
+  } catch {
+    // Le suivi est secondaire : on ne bloque pas une publication pour lui.
+  }
 }
 
 export function json(body: unknown, status = 200) {

@@ -7,7 +7,7 @@
 import { asNetworkError, NetworkError } from "../_shared/errors.ts";
 import { publishLinkedIn, type LinkedInMedia } from "../_shared/linkedin.ts";
 import { publishFacebook, publishInstagram } from "../_shared/meta.ts";
-import { adminClient, authorize, json, logActivity, readToken } from "../_shared/supabase.ts";
+import { adminClient, authorize, heartbeat, json, logActivity, readToken } from "../_shared/supabase.ts";
 
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAYS_MIN = [2, 10]; // après le 1er puis le 2e échec
@@ -38,6 +38,7 @@ Deno.serve(async (req) => {
   const { data: claimed, error } = await db.rpc("claim_due_targets", { p_limit: BATCH });
   if (error) {
     console.error("claim", error);
+    await heartbeat(db, "publish-due", false, "Impossible de lire les publications dues.");
     return json({ error: "claim_failed" }, 500);
   }
 
@@ -45,6 +46,8 @@ Deno.serve(async (req) => {
   for (const target of (claimed ?? []) as Target[]) {
     results.push(await processTarget(db, target));
   }
+  const failed = results.filter((r) => r.status === "failed").length;
+  await heartbeat(db, "publish-due", true, results.length ? `${results.length} cible(s) traitée(s), ${failed} échec(s)` : "Rien à publier");
   return json({ processed: results.length, results });
 });
 

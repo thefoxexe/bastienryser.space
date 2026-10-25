@@ -2,6 +2,9 @@
 
 - Réponds toujours en français.
 - Le cahier des charges est dans `docs/brief.md` : le relire avant toute nouvelle étape. Hébergement : **Vercel** (et non Netlify).
+- Installer sur un nouveau projet Supabase : suivre `docs/installation.md` à la lettre.
+- Identité visuelle : monogramme « br » (`src/components/logo.tsx`, masters dans `docs/brand/`), palette monochrome,
+  police système Apple. Pas de couleurs vives hors statuts, pas de bordures épaisses, pas d'emojis dans l'interface.
 - Next.js 16 : lire `AGENTS.md` et la doc dans `node_modules/next/dist/docs/` avant d'écrire du code
   (le middleware s'appelle désormais `proxy.ts`).
 - Chaque table a la RLS activée, avec des règles basées sur `public.is_admin()`.
