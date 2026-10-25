@@ -85,7 +85,7 @@ create table public.businesses (
   slug text not null unique check (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length(slug) between 2 and 40),
   name text not null check (length(name) between 1 and 80),
   description text,
-  color text not null default '#2563eb' check (color ~ '^#[0-9a-fA-F]{6}$'),
+  color text not null default '#1d1d1f' check (color ~ '^#[0-9a-fA-F]{6}$'),
   logo_path text,
   websites text[] not null default '{}',
   -- Modules activés, ex. {social}. Chaque module a ses propres tables et onglets.
@@ -479,7 +479,7 @@ values (
   'cantia',
   'Cantia',
   'Comptabilité et partenaires',
-  '#0f766e',
+  '#1d1d1f',
   array['https://cantia.ch', 'https://accounting.cantia.ch', 'https://partners.cantia.ch'],
   array['social'],
   0

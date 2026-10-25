@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { formatDay, formatValue, niceMax, type ValueFormat } from "./format";
 
 type Point = { day: string; value: number };
@@ -33,12 +33,13 @@ const H = 200;
 const PAD_TOP = 12;
 
 /**
- * Courbe d'une seule série sur une période : trait 2 px, aire à 10 %, grille fine, valeur finale indiquée.
+ * Courbe d'une seule série sur une période : trait vert 2 px avec halo flou, aire en dégradé, grille fine.
  * Survol : ligne de repère et info-bulle avec la date et la valeur exacte. Tableau caché pour les lecteurs d'écran.
  */
 export function AreaChart({ points, format, label, height = 200 }: { points: Point[]; format: ValueFormat; label: string; height?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
+  const gradient = `fade-${useId().replace(/:/g, "")}`;
   if (!points.length) return null;
 
   const max = niceMax(Math.max(...points.map((p) => p.value)));
@@ -74,13 +75,25 @@ export function AreaChart({ points, format, label, height = 200 }: { points: Poi
             {[0, 0.5, 1].map((t) => (
               <line key={t} x1={0} x2={W} y1={y(max * t)} y2={y(max * t)} stroke="var(--border)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
             ))}
-            <path d={area} fill="var(--ink)" opacity={0.08} />
-            <path d={line} fill="none" stroke="var(--ink)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            <defs>
+              <linearGradient id={gradient} x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stopColor="var(--green)" stopOpacity={0.22} />
+                <stop offset="1" stopColor="var(--green)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <path d={area} fill={`url(#${gradient})`} />
+          </svg>
+          {/* Halo : la même courbe, épaisse et floutée (flou CSS, non déformé par l'étirement du SVG). */}
+          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="pointer-events-none absolute inset-0 size-full overflow-visible opacity-60 blur-[7px]" aria-hidden>
+            <path d={line} fill="none" stroke="var(--green)" strokeWidth={6} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          </svg>
+          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="pointer-events-none absolute inset-0 size-full overflow-visible" aria-hidden>
+            <path d={line} fill="none" stroke="var(--green)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           </svg>
 
           {hover !== null ? <div className="pointer-events-none absolute inset-y-0 w-px bg-border-strong" style={{ left: pct(hover) }} /> : null}
           <div
-            className="pointer-events-none absolute size-[10px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink shadow-[0_0_0_2px_var(--surface)] transition-[left,top] duration-75"
+            className="dot-glow pointer-events-none absolute size-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full transition-[left,top] duration-75"
             style={{ left: pct(active), top: top(points[active].value) }}
           />
           {hover !== null ? (

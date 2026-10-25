@@ -6,8 +6,8 @@ type Day = { day: string; checks: number; okChecks: number; avgMs: number | null
 function tone(d: Day) {
   if (!d.checks) return "bg-fill";
   const pct = (d.okChecks / d.checks) * 100;
-  if (pct >= 99.5) return "bg-success";
-  if (pct >= 95) return "bg-warning";
+  if (pct >= 99.5) return "bg-green/80";
+  if (pct >= 95) return "bg-green/40";
   return "bg-danger";
 }
 
@@ -22,7 +22,7 @@ function describe(d: Day) {
 export function UptimeBars({ days, className }: { days: Day[]; className?: string }) {
   return (
     <div className={className}>
-      <ol className="flex h-9 items-stretch gap-[2px]" aria-label="Disponibilité par jour">
+      <ol className="flex h-8 items-stretch gap-[3px]" aria-label="Disponibilité par jour">
         {days.map((d) => (
           <li key={d.day} className="group relative flex-1">
             <span className={cn("block h-full rounded-[3px] transition-opacity group-hover:opacity-70", tone(d))} />
@@ -39,8 +39,8 @@ export function UptimeBars({ days, className }: { days: Day[]; className?: strin
       <div className="mt-2 flex justify-between text-[11px] text-faint">
         <span>{formatDay(days[0]?.day ?? "")}</span>
         <span className="hidden items-center gap-3 sm:flex">
-          <Legend className="bg-success" label="≥ 99,5 %" />
-          <Legend className="bg-warning" label="≥ 95 %" />
+          <Legend className="bg-green/80" label="≥ 99,5 %" />
+          <Legend className="bg-green/40" label="≥ 95 %" />
           <Legend className="bg-danger" label="Incident" />
           <Legend className="bg-fill-strong" label="Pas de mesure" />
         </span>

@@ -91,11 +91,11 @@ export default async function KeywordsPage({ params, searchParams }: PageProps<"
         <Card className="flex flex-col justify-between gap-3 p-4 sm:p-5">
           <span className="text-[13px] text-muted">Évolution</span>
           <span className="flex items-baseline gap-4 font-[family-name:var(--font-display)] text-[26px] font-semibold leading-none tracking-[-0.03em]">
-            <span className="flex items-center gap-1 text-success">
+            <span className="text-glow flex items-center gap-1">
               <ArrowUp className="size-5" />
               {up}
             </span>
-            <span className="flex items-center gap-1 text-danger">
+            <span className="flex items-center gap-1 text-faint">
               <ArrowDown className="size-5" />
               {down}
             </span>
@@ -179,12 +179,12 @@ export default async function KeywordsPage({ params, searchParams }: PageProps<"
                         <Link href={`${base}/mots-cles/${encodeURIComponent(k.query)}`} className="block truncate font-medium hover:underline">
                           {k.query}
                         </Link>
-                        {k.prev_impressions === 0 && k.impressions > 0 ? <span className="text-[12px] text-success">Nouveau</span> : null}
+                        {k.prev_impressions === 0 && k.impressions > 0 ? <span className="text-glow text-[12px]">Nouveau</span> : null}
                       </td>
                       <td className="tabular px-3 py-2.5 text-right">
                         <span className="font-semibold">{k.position !== null ? k.position.toLocaleString("fr-CH") : "—"}</span>
                         {gain !== null && Math.abs(gain) >= 0.5 ? (
-                          <span className={cn("ml-1.5 inline-flex items-center text-[12px]", gain > 0 ? "text-success" : "text-danger")}>
+                          <span className={cn("ml-1.5 inline-flex items-center text-[12px]", gain > 0 ? "text-glow" : "text-faint")}>
                             {gain > 0 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
                             {Math.abs(gain).toLocaleString("fr-CH")}
                           </span>
@@ -196,7 +196,7 @@ export default async function KeywordsPage({ params, searchParams }: PageProps<"
                       <td className="tabular px-3 py-2.5 text-right">
                         {formatValue(k.clicks, { kind: "number" })}
                         {clicksDelta !== 0 && k.prev_impressions > 0 ? (
-                          <span className={cn("ml-1 text-[12px]", clicksDelta > 0 ? "text-success" : "text-danger")}>
+                          <span className={cn("ml-1 text-[12px]", clicksDelta > 0 ? "text-glow" : "text-faint")}>
                             {clicksDelta > 0 ? "+" : "−"}
                             {Math.abs(clicksDelta)}
                           </span>

@@ -174,7 +174,7 @@ function NavLink({
       {icon}
       <span className="flex-1">{children}</span>
       {badge ? (
-        <span className="grid h-5 min-w-5 place-items-center rounded-full bg-danger px-1.5 text-[11px] font-semibold text-white">{badge}</span>
+        <span className="grid h-5 min-w-5 place-items-center rounded-full bg-ink px-1.5 text-[11px] font-semibold text-ink-text">{badge}</span>
       ) : null}
     </Link>
   );

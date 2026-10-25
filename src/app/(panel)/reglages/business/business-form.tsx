@@ -7,7 +7,8 @@ import { Button, ButtonLink, Card, Field, FormError, Input, Textarea } from "@/c
 import type { BusinessWithLogo } from "@/lib/types";
 import { findLogo, saveBusiness, type BusinessFormState } from "./actions";
 
-const PALETTE = ["#0f766e", "#2563eb", "#7c3aed", "#db2777", "#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#0891b2", "#111110"];
+// Noir, gris et le vert de la charte (une autre teinte reste possible avec le sélecteur).
+const PALETTE = ["#1d1d1f", "#3a3a3c", "#636366", "#8e8e93", "#c7c7cc", "#28c157"];
 
 function slugify(value: string) {
   return value
@@ -24,7 +25,7 @@ export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
   const [name, setName] = useState(business?.name ?? "");
   const [slug, setSlug] = useState(business?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(business));
-  const [color, setColor] = useState(business?.color ?? PALETTE[1]);
+  const [color, setColor] = useState(business?.color ?? PALETTE[0]);
   const [logoPreview, setLogoPreview] = useState<string | null>(business?.logo_url ?? null);
   const [foundUrl, setFoundUrl] = useState("");
   const [logoNote, setLogoNote] = useState<string | null>(null);

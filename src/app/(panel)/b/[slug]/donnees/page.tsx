@@ -14,6 +14,16 @@ export const metadata: Metadata = { title: "Données" };
 
 const sum = (s: SeriesPoint[] | null) => (s ? s.reduce((a, p) => a + p.value, 0) : null);
 
+/** Variation réelle entre les deux moitiés de la période (ex. 15 derniers jours contre les 15 d'avant). */
+function halfDelta(values?: number[]) {
+  if (!values || values.length < 4) return null;
+  const half = Math.floor(values.length / 2);
+  const before = values.slice(0, half).reduce((a, v) => a + v, 0);
+  const after = values.slice(-half).reduce((a, v) => a + v, 0);
+  if (before <= 0) return null;
+  return { pct: ((after - before) / before) * 100, days: half };
+}
+
 export default async function DataOverview({ params }: PageProps<"/b/[slug]/donnees">) {
   const { slug } = await params;
   const business = await getBusiness(slug);
@@ -199,14 +209,25 @@ function Tile({
   href: string;
   alert?: boolean;
 }) {
+  const delta = halfDelta(trend);
   return (
     <Card className="flex flex-col justify-between gap-3 p-4 sm:p-5">
       <span className="text-[13px] text-muted">{label}</span>
       {value !== null ? (
         <>
-          <span className="font-[family-name:var(--font-display)] text-[26px] font-semibold leading-none tracking-[-0.03em] sm:text-[30px]">{value}</span>
+          <span className="tabular font-[family-name:var(--font-display)] text-[26px] font-semibold leading-none tracking-[-0.03em] sm:text-[30px]">{value}</span>
           <div className="flex items-end justify-between gap-2">
-            <span className={cn("text-[12px]", alert ? "font-medium text-danger" : "text-faint")}>{hint ?? ""}</span>
+            {delta && !hint && !alert ? (
+              <span className="text-[12px] text-faint" title={`${delta.days} derniers jours, comparés aux ${delta.days} précédents`}>
+                <span className={cn("tabular font-medium", delta.pct >= 0.5 ? "text-glow" : "text-muted")}>
+                  {delta.pct >= 0 ? "+" : "−"}
+                  {formatValue(Math.abs(delta.pct), { kind: "percent" })}
+                </span>{" "}
+                sur {delta.days} j
+              </span>
+            ) : (
+              <span className={cn("text-[12px]", alert ? "font-medium text-danger" : "text-faint")}>{hint ?? ""}</span>
+            )}
             {trend ? <Sparkline values={trend} className="h-7 w-20 shrink-0" /> : null}
           </div>
         </>
@@ -305,7 +326,7 @@ function Bars({ title, rows, unit }: { title: string; rows: { key: string; value
               </span>
             </div>
             <div className="h-1.5 rounded-full bg-fill">
-              <div className="h-full rounded-full bg-ink" style={{ width: `${Math.max(2, (r.value / max) * 100)}%` }} />
+              <div className="h-full rounded-full bg-green shadow-[0_0_10px_var(--green-glow)]" style={{ width: `${Math.max(2, (r.value / max) * 100)}%` }} />
             </div>
           </li>
         ))}

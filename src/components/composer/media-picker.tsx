@@ -161,7 +161,7 @@ function SortableTile({ item, index, onRemove }: { item: MediaItem; index: numbe
         {offRatio && item.status === "ready" ? (
           <span
             title={`Ratio ${item.width}×${item.height} : Instagram recadrera. Conseillé 4:5 (1080 × 1350).`}
-            className="absolute bottom-1.5 right-1.5 rounded-md bg-amber-500/90 px-1.5 text-[10px] font-semibold text-black"
+            className="absolute bottom-1.5 right-1.5 rounded-md bg-black/70 px-1.5 text-[10px] font-semibold text-white backdrop-blur"
           >
             {item.width}×{item.height}
           </span>

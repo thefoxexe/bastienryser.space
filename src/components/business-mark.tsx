@@ -23,7 +23,7 @@ export function BusinessMark({
   }
   return (
     <span
-      className={cn(dims, "grid shrink-0 place-items-center font-semibold tracking-[-0.02em] shadow-[inset_0_0_0_0.5px_rgb(0_0_0/0.12)]", className)}
+      className={cn(dims, "grid shrink-0 place-items-center font-semibold tracking-[-0.02em] shadow-[inset_0_0_0_0.5px_var(--border-strong)]", className)}
       style={{ background: color, color: readableOn(color) }}
       aria-hidden
     >

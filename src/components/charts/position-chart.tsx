@@ -58,23 +58,40 @@ export function PositionChart({ points, height = 220 }: { points: Point[]; heigh
           aria-label={`Position dans Google : ${points[lastKnown].position} le ${formatDay(points[lastKnown].day)}`}
         >
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible">
+            <defs>
+              <linearGradient id="top10-band" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stopColor="var(--green)" stopOpacity={0.14} />
+                <stop offset="1" stopColor="var(--green)" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
             {/* Zone du top 10 (première page de Google). */}
-            <rect x={0} y={y(1) - 8} width={W} height={y(Math.min(10, max)) - y(1) + 8} fill="var(--success)" opacity={0.06} />
+            <rect x={0} y={y(1) - 8} width={W} height={y(Math.min(10, max)) - y(1) + 8} fill="url(#top10-band)" />
             {ticks.map((t) => (
               <line key={t} x1={0} x2={W} y1={y(t)} y2={y(t)} stroke="var(--border)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
             ))}
-            {segments.map((seg, i) =>
-              seg.length === 1 ? (
-                <circle key={i} cx={seg[0][0]} cy={seg[0][1]} r={2.5} fill="var(--ink)" />
-              ) : (
-                <path key={i} d={monotonePath(seg)} fill="none" stroke="var(--ink)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-              ),
-            )}
           </svg>
+          {/* Halo flou, puis trait net. */}
+          {[true, false].map((glow) => (
+            <svg
+              key={String(glow)}
+              viewBox={`0 0 ${W} ${H}`}
+              preserveAspectRatio="none"
+              className={glow ? "pointer-events-none absolute inset-0 size-full overflow-visible opacity-60 blur-[7px]" : "pointer-events-none absolute inset-0 size-full overflow-visible"}
+              aria-hidden
+            >
+              {segments.map((seg, i) =>
+                seg.length === 1 ? (
+                  <circle key={i} cx={seg[0][0]} cy={seg[0][1]} r={glow ? 4 : 2.5} fill="var(--green)" />
+                ) : (
+                  <path key={i} d={monotonePath(seg)} fill="none" stroke="var(--green)" strokeWidth={glow ? 6 : 2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                ),
+              )}
+            </svg>
+          ))}
           {hover !== null ? <div className="pointer-events-none absolute inset-y-0 w-px bg-border-strong" style={{ left: pct(hover) }} /> : null}
           {active !== null ? (
             <div
-              className="pointer-events-none absolute size-[10px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink shadow-[0_0_0_2px_var(--surface)]"
+              className="dot-glow pointer-events-none absolute size-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full"
               style={{ left: pct(active), top: top(points[active].position!) }}
             />
           ) : null}
@@ -114,7 +131,7 @@ export function PositionChart({ points, height = 220 }: { points: Point[]; heigh
   );
 }
 
-/** Mini-courbe de position (inversée, interrompue les jours sans donnée). */
+/** Mini-courbe de position (inversée, interrompue les jours sans donnée) : verte si le mot-clé monte, grise sinon. */
 export function PositionSparkline({ values, className }: { values: (number | null)[]; className?: string }) {
   const known = values.filter((v): v is number => v !== null);
   if (known.length < 2) return <span className={className} />;
@@ -137,10 +154,11 @@ export function PositionSparkline({ values, className }: { values: (number | nul
     d += `${d ? "L" : "M"}${px.toFixed(1)} ${py.toFixed(1)}`;
   });
   if (d) segs.push(d);
+  const rising = known.at(-1)! < known[0];
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className={className} aria-hidden>
       {segs.map((s, i) => (
-        <path key={i} d={s} fill="none" stroke="var(--muted)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        <path key={i} d={s} fill="none" stroke={rising ? "var(--green)" : "var(--faint)"} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       ))}
     </svg>
   );

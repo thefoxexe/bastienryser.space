@@ -14,7 +14,7 @@ export function KeywordStar({ query, tracked, businessId, slug }: { query: strin
         title={tracked ? "Ne plus suivre" : "Suivre ce mot-clé"}
         className="grid size-7 place-items-center rounded-full text-faint transition hover:bg-fill hover:text-text"
       >
-        <Star className={cn("size-[15px]", tracked && "fill-[#ff9f0a] text-[#ff9f0a]")} />
+        <Star className={cn("size-[15px]", tracked && "fill-ink text-ink")} />
         <span className="sr-only">{tracked ? "Ne plus suivre" : "Suivre"}</span>
       </button>
     </form>

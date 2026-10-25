@@ -3,8 +3,9 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /*
- * Palette monochrome, inspirée des valeurs système d'Apple.
- * Une seule « couleur » : l'encre (#1d1d1f / #f5f5f7). Les couleurs de statut sont les couleurs système.
+ * Direction artistique : noir et blanc, valeurs système d'Apple.
+ * Une seule couleur, le vert (`--green`), réservée aux courbes, aux chiffres qui montent et à ce qui fonctionne,
+ * toujours avec un halo flou (`--green-glow`). Le rouge ne sert qu'aux vraies pannes ; les avertissements restent gris.
  */
 :root {
   --bg: #f5f5f7;
@@ -18,10 +19,14 @@
   --faint: #a1a1a6;
   --ink: #1d1d1f;
   --ink-text: #ffffff;
-  --success: #248a3d;
-  --warning: #c25e00;
+  --green: #28c157;
+  --green-text: #1a9446;
+  --green-soft: rgb(40 193 87 / 0.12);
+  --green-glow: rgb(40 193 87 / 0.45);
+  --success: var(--green-text);
+  --warning: #86868b;
   --danger: #d70015;
-  --info: #0066cc;
+  --info: var(--ink);
   --material: rgb(245 245 247 / 0.72);
   --shadow: 0 0 0 0.5px rgb(0 0 0 / 0.04), 0 1px 2px rgb(0 0 0 / 0.04);
   --shadow-lg: 0 0 0 0.5px rgb(0 0 0 / 0.05), 0 8px 28px rgb(0 0 0 / 0.08), 0 2px 6px rgb(0 0 0 / 0.04);
@@ -43,10 +48,14 @@
     --faint: #6e6e73;
     --ink: #f5f5f7;
     --ink-text: #000000;
-    --success: #30d158;
-    --warning: #ff9f0a;
+    --green: #30d158;
+    --green-text: #30d158;
+    --green-soft: rgb(48 209 88 / 0.14);
+    --green-glow: rgb(48 209 88 / 0.55);
+    --success: var(--green-text);
+    --warning: #8e8e93;
     --danger: #ff453a;
-    --info: #2997ff;
+    --info: var(--ink);
     --material: rgb(0 0 0 / 0.66);
     --shadow: 0 0 0 0.5px rgb(255 255 255 / 0.06);
     --shadow-lg: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 12px 40px rgb(0 0 0 / 0.6);
@@ -66,10 +75,14 @@
   --faint: #6e6e73;
   --ink: #f5f5f7;
   --ink-text: #000000;
-  --success: #30d158;
-  --warning: #ff9f0a;
+  --green: #30d158;
+  --green-text: #30d158;
+  --green-soft: rgb(48 209 88 / 0.14);
+  --green-glow: rgb(48 209 88 / 0.55);
+  --success: var(--green-text);
+  --warning: #8e8e93;
   --danger: #ff453a;
-  --info: #2997ff;
+  --info: var(--ink);
   --material: rgb(0 0 0 / 0.66);
   --shadow: 0 0 0 0.5px rgb(255 255 255 / 0.06);
   --shadow-lg: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 12px 40px rgb(0 0 0 / 0.6);
@@ -97,6 +110,9 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-info: var(--info);
+  --color-green: var(--green);
+  --color-green-text: var(--green-text);
+  --color-green-soft: var(--green-soft);
   --shadow-card: var(--shadow);
   --shadow-pop: var(--shadow-lg);
   /* San Francisco sur les appareils Apple, Inter ailleurs. */
@@ -147,6 +163,16 @@
   background: var(--material);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Vert lumineux : chiffres qui montent, points actifs. */
+.text-glow {
+  color: var(--green-text);
+  text-shadow: 0 0 18px var(--green-glow);
+}
+.dot-glow {
+  background: var(--green);
+  box-shadow: 0 0 0 3px var(--green-soft), 0 0 10px var(--green-glow);
 }
 
 .scrollbar-none {

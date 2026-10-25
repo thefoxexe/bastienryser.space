@@ -62,7 +62,7 @@ export default async function DashboardPage() {
         <Card className="animate-rise overflow-hidden [animation-delay:60ms]">
           <div className="flex items-center gap-2.5 px-5 pb-2 pt-5 sm:px-6">
             <h2 className="text-[17px] font-semibold">À traiter</h2>
-            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-danger px-1.5 text-[11px] font-semibold text-white">{alerts.length}</span>
+            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-ink px-1.5 text-[11px] font-semibold text-ink-text">{alerts.length}</span>
           </div>
           <ul className="divide-y divide-border px-1 pb-1">
             {alerts.map((a) => {
