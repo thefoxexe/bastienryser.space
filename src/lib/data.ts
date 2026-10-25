@@ -14,7 +14,7 @@ import type {
 } from "@/lib/types";
 
 const ACCOUNT_COLUMNS =
-  "id,business_id,network,display_name,username,avatar_url,external_id,token_expires_at,status,last_error,connected_at";
+  "id,business_id,network,display_name,username,avatar_url,external_id,token_expires_at,status,last_error,connected_at,meta";
 
 async function signLogos(businesses: Business[]): Promise<BusinessWithLogo[]> {
   const supabase = await createClient();

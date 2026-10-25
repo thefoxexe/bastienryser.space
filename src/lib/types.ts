@@ -1,4 +1,14 @@
-export type SocialNetwork = "instagram" | "facebook" | "linkedin" | "linkedin_page" | "threads";
+export type SocialNetwork =
+  | "instagram"
+  | "facebook"
+  | "linkedin"
+  | "linkedin_page"
+  | "threads"
+  | "youtube"
+  | "tiktok"
+  | "bluesky"
+  | "pinterest"
+  | "x";
 export type AccountStatus = "connected" | "expiring" | "expired" | "error";
 export type PostStatus = "draft" | "scheduled" | "publishing" | "published" | "partial" | "failed";
 export type TargetStatus = "pending" | "publishing" | "published" | "failed";
@@ -32,6 +42,8 @@ export type SocialAccount = {
   status: AccountStatus;
   last_error: string | null;
   connected_at: string;
+  /** Réglages non secrets (auteur LinkedIn, tableaux Pinterest…). Jamais de token. */
+  meta?: Record<string, unknown>;
 };
 
 export type Post = {

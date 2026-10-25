@@ -7,7 +7,7 @@ import { z } from "zod";
 import { logActivity } from "@/lib/activity";
 import { requireAdmin } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
-import { triggerPublishNow } from "@/lib/edge";
+import { callEdgeFunction, triggerPublishNow } from "@/lib/edge";
 import { checkTarget, NETWORKS } from "@/lib/social/networks";
 import { supabaseUrl } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
@@ -18,14 +18,17 @@ const MIME: Record<string, { kind: MediaKind; ext: string }> = {
   "image/png": { kind: "image", ext: "png" },
   "image/webp": { kind: "image", ext: "webp" },
   "application/pdf": { kind: "pdf", ext: "pdf" },
+  "video/mp4": { kind: "video", ext: "mp4" },
+  "video/quicktime": { kind: "video", ext: "mov" },
 };
 
 /** Prépare l'envoi direct d'un fichier vers Supabase Storage (URL signée à usage unique). */
 export async function createUploadTarget(input: { businessId: string; mimeType: string; size: number }) {
   await requireAdmin();
   const type = MIME[input.mimeType];
-  if (!type) return { error: "Format non pris en charge (JPEG, PNG, WebP ou PDF)." } as const;
-  const max = type.kind === "pdf" ? 100 : 8;
+  if (!type) return { error: "Format non pris en charge (JPEG, PNG, WebP, PDF, MP4 ou MOV)." } as const;
+  // Vidéos : 50 Mo, limite d'envoi de Supabase sur le plan gratuit.
+  const max = type.kind === "pdf" ? 100 : type.kind === "video" ? 50 : 8;
   if (input.size > max * 1024 * 1024) return { error: `Fichier trop lourd (${max} Mo max).` } as const;
 
   const supabase = await createClient();
@@ -38,7 +41,7 @@ export async function createUploadTarget(input: { businessId: string; mimeType: 
 
 const mediaSchema = z.object({
   storagePath: z.string().min(1),
-  kind: z.enum(["image", "pdf"]),
+  kind: z.enum(["image", "pdf", "video"]),
   mimeType: z.string(),
   size: z.number().int().nonnegative(),
   width: z.number().int().positive().nullable(),
@@ -236,7 +239,7 @@ export async function unschedulePost(formData: FormData) {
 // Comptes connectés
 // ---------------------------------------------------------------------------
 
-const PROVIDERS = ["meta", "linkedin", "linkedin_page"] as const;
+const PROVIDERS = ["meta", "linkedin", "linkedin_page", "threads", "youtube", "tiktok", "pinterest", "x"] as const;
 
 /** Démarre le flux OAuth officiel : l'edge function `oauth` prend la suite et garde les tokens côté serveur. */
 export async function startOAuth(formData: FormData) {
@@ -268,4 +271,29 @@ export async function disconnectAccount(formData: FormData) {
     message: `Compte ${NETWORKS[account.network as SocialNetwork].label} « ${account.display_name} » déconnecté`,
   });
   revalidatePath(`/b/${(account.businesses as unknown as { slug: string }).slug}`, "layout");
+}
+
+export type BlueskyState = { ok?: boolean; error?: string };
+
+/** Bluesky : identifiant + mot de passe d'application, vérifiés et chiffrés par l'edge function (jamais stockés ici). */
+export async function connectBluesky(_prev: BlueskyState, formData: FormData): Promise<BlueskyState> {
+  await requireAdmin();
+  const businessId = String(formData.get("businessId"));
+  const res = await callEdgeFunction<{ ok: boolean; error?: string }>(
+    "connectors",
+    { action: "bluesky", business_id: businessId, identifier: String(formData.get("identifier") ?? ""), password: String(formData.get("password") ?? "") },
+    20_000,
+  );
+  if (!res) return { error: "Le serveur ne répond pas. Réessaie dans un instant." };
+  if (!res.ok) return { error: res.error ?? "Connexion impossible." };
+  revalidatePath("/b", "layout");
+  return { ok: true };
+}
+
+/** Tableau Pinterest où publier (parmi ceux lus à la connexion). */
+export async function setPinterestBoard(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+  await supabase.rpc("set_pinterest_board", { p_account_id: String(formData.get("accountId")), p_board_id: String(formData.get("boardId")) });
+  revalidatePath("/b", "layout");
 }

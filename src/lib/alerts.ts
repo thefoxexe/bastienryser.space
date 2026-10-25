@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { AUTO_REFRESH } from "@/lib/social/networks";
 import type { SocialAccount } from "@/lib/types";
 
 export type Alert =
@@ -41,6 +42,8 @@ export async function listAlerts(): Promise<Alert[]> {
         target_id: f.id,
       }),
     ),
-    ...((accounts ?? []) as AccountRow[]).map((a): Alert => ({ kind: "account", business_id: a.business_id, account: a })),
+    ...((accounts ?? []) as AccountRow[])
+      .filter((a) => !AUTO_REFRESH.includes(a.network) || a.status === "expired" || a.status === "error")
+      .map((a): Alert => ({ kind: "account", business_id: a.business_id, account: a })),
   ];
 }

@@ -5,6 +5,10 @@
 
 import { env, META_GRAPH, optionalEnv } from "../_shared/env.ts";
 import { adminClient, authorize, heartbeat, json, logActivity, readToken, storeToken } from "../_shared/supabase.ts";
+import { accessToken, type AccountRow } from "../_shared/tokens.ts";
+
+// Réseaux dont le jeton se renouvelle seul (refresh token) : on vérifie qu'il marche encore, sans alerte d'échéance.
+const AUTO_REFRESH = new Set(["threads", "youtube", "tiktok", "pinterest", "x"]);
 
 const DAY = 86400_000;
 
@@ -13,10 +17,25 @@ Deno.serve(async (req) => {
   const db = adminClient();
   const { data: accounts } = await db
     .from("social_accounts")
-    .select("id, business_id, network, display_name, token_ref, token_expires_at, refresh_token_ref, refresh_expires_at, status");
+    .select("id, business_id, network, display_name, username, external_id, token_ref, token_expires_at, refresh_token_ref, refresh_expires_at, meta, status");
 
   const report: { id: string; result: string }[] = [];
   for (const a of accounts ?? []) {
+    if (AUTO_REFRESH.has(a.network)) {
+      try {
+        await accessToken(db, a as AccountRow);
+        if (a.status !== "connected") await db.from("social_accounts").update({ status: "connected", last_error: null }).eq("id", a.id);
+        report.push({ id: a.id, result: "connected" });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Renouvellement impossible : reconnecte le compte.";
+        await db.from("social_accounts").update({ status: "error", last_error: message }).eq("id", a.id);
+        if (a.status !== "error") {
+          await logActivity(db, { business_id: a.business_id, kind: "account.refresh_failed", message: `Connexion à refaire : ${a.display_name} (${a.network})` });
+        }
+        report.push({ id: a.id, result: "refresh_failed" });
+      }
+      continue;
+    }
     try {
       const expiresAt = a.token_expires_at ? new Date(a.token_expires_at).getTime() : null;
       const soon = expiresAt !== null && expiresAt - Date.now() < 10 * DAY;

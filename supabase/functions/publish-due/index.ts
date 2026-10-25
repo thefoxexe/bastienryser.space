@@ -4,10 +4,17 @@
 // 3. En cas d'erreur passagère : jusqu'à 3 essais espacés, puis `failed` avec un message clair.
 // Une cible verrouillée n'est jamais reprise automatiquement : pas de double publication.
 
+import { publishBluesky } from "../_shared/bluesky.ts";
 import { asNetworkError, NetworkError } from "../_shared/errors.ts";
 import { publishLinkedIn, type LinkedInMedia } from "../_shared/linkedin.ts";
 import { publishFacebook, publishInstagram } from "../_shared/meta.ts";
-import { adminClient, authorize, heartbeat, json, logActivity, readToken } from "../_shared/supabase.ts";
+import { publishPinterest } from "../_shared/pinterest.ts";
+import { adminClient, authorize, heartbeat, json, logActivity } from "../_shared/supabase.ts";
+import { publishThreads } from "../_shared/threads.ts";
+import { publishTikTok } from "../_shared/tiktok.ts";
+import { accessToken, ACCOUNT_COLUMNS, blueskyFor, type AccountRow } from "../_shared/tokens.ts";
+import { publishX } from "../_shared/x.ts";
+import { publishYouTube, youtubeTitle } from "../_shared/youtube.ts";
 
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAYS_MIN = [2, 10]; // après le 1er puis le 2e échec
@@ -19,6 +26,11 @@ const LABEL: Record<string, string> = {
   linkedin: "LinkedIn",
   linkedin_page: "LinkedIn (page)",
   threads: "Threads",
+  youtube: "YouTube",
+  tiktok: "TikTok",
+  bluesky: "Bluesky",
+  pinterest: "Pinterest",
+  x: "X",
 };
 
 type Target = {
@@ -51,58 +63,123 @@ Deno.serve(async (req) => {
   return json({ processed: results.length, results });
 });
 
+type MediaRow = { storage_path: string; kind: "image" | "video" | "pdf"; mime_type: string | null; width: number | null; height: number | null };
+
 async function processTarget(db: ReturnType<typeof adminClient>, target: Target) {
-  const { data: account } = await db
-    .from("social_accounts")
-    .select("id, business_id, network, display_name, external_id, token_ref, meta, status")
-    .eq("id", target.social_account_id)
-    .single();
+  const { data } = await db.from("social_accounts").select(ACCOUNT_COLUMNS).eq("id", target.social_account_id).single();
+  const account = data as AccountRow | null;
   const { data: post } = await db.from("posts").select("id, business_id, title, businesses(name)").eq("id", target.post_id).single();
   const businessName = (post?.businesses as unknown as { name: string } | null)?.name ?? "";
+  let note: string | null = null;
 
   try {
     if (!account || !post) throw new NetworkError("Le compte ou le post n'existe plus.", false);
-    const token = await readToken(db, account.token_ref);
-    if (!token) throw new NetworkError("Aucun token pour ce compte : reconnecte-le.", false, true);
 
-    const { data: media } = await db.from("post_media").select("storage_path, kind, mime_type, position").eq("post_id", post.id).order("position");
-    const files = media ?? [];
+    const { data: media } = await db
+      .from("post_media")
+      .select("storage_path, kind, mime_type, width, height, position")
+      .eq("post_id", post.id)
+      .order("position");
+    const files = (media ?? []) as MediaRow[];
+    const images = files.filter((m) => m.kind === "image");
+    const video = files.find((m) => m.kind === "video");
+
+    // Les réseaux qui téléchargent eux-mêmes les fichiers reçoivent des URL signées valables 1 h.
+    const signed = async (list: MediaRow[]) => {
+      if (!list.length) return [];
+      const { data: urls, error } = await db.storage.from("media").createSignedUrls(list.map((m) => m.storage_path), 3600);
+      if (error || !urls || urls.some((u) => !u.signedUrl)) throw new NetworkError("Impossible de préparer les fichiers.", true);
+      return urls.map((u) => u.signedUrl!);
+    };
+    const download = async (m: MediaRow) => {
+      const { data: blob, error } = await db.storage.from("media").download(m.storage_path);
+      if (error || !blob) throw new NetworkError("Impossible de lire un fichier du post.", true);
+      return { bytes: new Uint8Array(await blob.arrayBuffer()), contentType: m.mime_type ?? (m.kind === "video" ? "video/mp4" : "image/jpeg"), width: m.width, height: m.height };
+    };
+    const needVideo = () => {
+      if (!video) throw new NetworkError(`${LABEL[account.network]} demande une vidéo.`, false);
+      return video;
+    };
 
     let result: { externalId: string; permalink: string | null };
-    if (account.network === "instagram" || account.network === "facebook") {
-      // Meta télécharge les images depuis une adresse publique : URL signées valables 1 h.
-      const images = files.filter((m) => m.kind === "image");
-      let urls: string[] = [];
-      if (images.length) {
-        const { data: signed, error } = await db.storage.from("media").createSignedUrls(
-          images.map((m) => m.storage_path),
-          3600,
-        );
-        if (error || !signed || signed.some((s) => !s.signedUrl)) throw new NetworkError("Impossible de préparer les images.", true);
-        urls = signed.map((s) => s.signedUrl!);
+    switch (account.network) {
+      case "instagram":
+      case "facebook": {
+        const token = await accessToken(db, account);
+        const urls = await signed(images);
+        const videoUrl = video ? (await signed([video]))[0] : undefined;
+        result =
+          account.network === "instagram"
+            ? await publishInstagram(account.external_id, token, target.caption, urls, videoUrl)
+            : await publishFacebook(account.external_id, token, target.caption, urls, videoUrl);
+        break;
       }
-      result =
-        account.network === "instagram"
-          ? await publishInstagram(account.external_id, token, target.caption, urls)
-          : await publishFacebook(account.external_id, token, target.caption, urls);
-    } else if (account.network === "linkedin" || account.network === "linkedin_page") {
-      const author = (account.meta as { author?: string }).author;
-      if (!author) throw new NetworkError("Compte LinkedIn incomplet : reconnecte-le.", false, true);
-      const liMedia: LinkedInMedia[] = [];
-      for (const m of files) {
-        if (m.kind !== "image" && m.kind !== "pdf") continue;
-        const { data: blob, error } = await db.storage.from("media").download(m.storage_path);
-        if (error || !blob) throw new NetworkError("Impossible de lire un fichier du post.", true);
-        liMedia.push({
-          bytes: new Uint8Array(await blob.arrayBuffer()),
-          contentType: m.mime_type ?? (m.kind === "pdf" ? "application/pdf" : "image/jpeg"),
-          kind: m.kind,
-          title: post.title ?? undefined,
+      case "threads": {
+        const token = await accessToken(db, account);
+        result = await publishThreads(account.external_id, token, target.caption, {
+          images: await signed(images),
+          video: video ? (await signed([video]))[0] : undefined,
         });
+        break;
       }
-      result = await publishLinkedIn(author, token, target.caption, liMedia);
-    } else {
-      throw new NetworkError(`${LABEL[account.network] ?? account.network} n'est pas encore pris en charge.`, false);
+      case "linkedin":
+      case "linkedin_page": {
+        const token = await accessToken(db, account);
+        const author = (account.meta as { author?: string }).author;
+        if (!author) throw new NetworkError("Compte LinkedIn incomplet : reconnecte-le.", false, true);
+        if (video) throw new NetworkError("La vidéo n'est pas encore prise en charge sur LinkedIn.", false);
+        const liMedia: LinkedInMedia[] = [];
+        for (const m of files) {
+          if (m.kind !== "image" && m.kind !== "pdf") continue;
+          const file = await download(m);
+          liMedia.push({ bytes: file.bytes, contentType: file.contentType, kind: m.kind, title: post.title ?? undefined });
+        }
+        result = await publishLinkedIn(author, token, target.caption, liMedia);
+        break;
+      }
+      case "youtube": {
+        const token = await accessToken(db, account);
+        const file = await download(needVideo());
+        result = await publishYouTube(token, file, youtubeTitle(post.title, target.caption), target.caption);
+        break;
+      }
+      case "tiktok": {
+        const token = await accessToken(db, account);
+        const file = await download(needVideo());
+        const r = await publishTikTok(token, target.caption, file, account.username);
+        if (r.inbox) note = "Vidéo envoyée dans la boîte de réception TikTok : ouvre l'app pour la publier.";
+        result = r;
+        break;
+      }
+      case "bluesky": {
+        const session = await blueskyFor(db, account);
+        const files = [];
+        for (const m of images.slice(0, 4)) files.push(await download(m));
+        result = await publishBluesky(session, target.caption, files);
+        break;
+      }
+      case "pinterest": {
+        const token = await accessToken(db, account);
+        const meta = account.meta as { board_id?: string; boards?: { id: string }[] };
+        const boardId = meta.board_id ?? meta.boards?.[0]?.id;
+        if (!boardId) throw new NetworkError("Aucun tableau Pinterest : crée-en un sur Pinterest puis reconnecte le compte.", false);
+        result = await publishPinterest(token, boardId, {
+          title: youtubeTitle(post.title, target.caption),
+          description: [...target.caption].slice(0, 800).join(""),
+          link: target.caption.match(/https?:\/\/[^\s]+/)?.[0] ?? null,
+          imageUrls: await signed(images.slice(0, 5)),
+        });
+        break;
+      }
+      case "x": {
+        const token = await accessToken(db, account);
+        const files = [];
+        for (const m of images.slice(0, 4)) files.push(await download(m));
+        result = await publishX(token, target.caption, files, account.username);
+        break;
+      }
+      default:
+        throw new NetworkError(`${LABEL[account.network] ?? account.network} n'est pas encore pris en charge.`, false);
     }
 
     await db
@@ -117,11 +194,11 @@ async function processTarget(db: ReturnType<typeof adminClient>, target: Target)
       })
       .eq("id", target.id);
 
-    const kind = files.length > 1 ? "Carrousel" : files.some((f) => f.kind === "pdf") ? "Document" : files.length === 1 ? "Post" : "Texte";
+    const kind = video ? "Vidéo" : files.length > 1 ? "Carrousel" : files.some((f) => f.kind === "pdf") ? "Document" : files.length === 1 ? "Post" : "Texte";
     await logActivity(db, {
       business_id: post.business_id,
       kind: "post.published",
-      message: `${kind} publié sur ${LABEL[account.network]} (${businessName})`,
+      message: note ? `${note} (${businessName})` : `${kind} publié sur ${LABEL[account.network]} (${businessName})`,
       meta: { post_id: post.id, target_id: target.id, permalink: result.permalink },
     });
     return { id: target.id, status: "published" };

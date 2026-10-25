@@ -1,27 +1,30 @@
 import type { Metadata } from "next";
 import { AlertTriangle, CheckCircle2, Clock, RefreshCw, Unplug } from "lucide-react";
 import { NetworkChip, NetworkIcon } from "@/components/network-icon";
-import { AccountStatusBadge, Badge, Button, Card } from "@/components/ui";
+import { AccountStatusBadge, Button, Card } from "@/components/ui";
 import { getBusiness, listAccounts } from "@/lib/data";
 import { formatDate, formatRelative } from "@/lib/format";
-import { NETWORKS } from "@/lib/social/networks";
-import type { SocialNetwork } from "@/lib/types";
-import { disconnectAccount, startOAuth } from "../actions";
+import { AUTO_REFRESH, NETWORKS } from "@/lib/social/networks";
+import type { SocialAccount, SocialNetwork } from "@/lib/types";
+import { disconnectAccount, setPinterestBoard, startOAuth } from "../actions";
+import { BlueskyForm } from "./bluesky-form";
 
 export const metadata: Metadata = { title: "Comptes connectés" };
 
-const PROVIDERS: {
-  id: "meta" | "linkedin" | "linkedin_page" | null;
-  networks: SocialNetwork[];
-  title: string;
-  description: string;
-  note?: string;
-}[] = [
+type Provider = "meta" | "linkedin" | "linkedin_page" | "threads" | "youtube" | "tiktok" | "pinterest" | "x" | "bluesky";
+
+const PROVIDERS: { id: Provider; networks: SocialNetwork[]; title: string; description: string; note?: string }[] = [
   {
     id: "meta",
     networks: ["instagram", "facebook"],
     title: "Instagram et Page Facebook",
-    description: "Un seul flux Meta connecte la Page Facebook et le compte Instagram professionnel qui lui est relié.",
+    description: "Un seul flux Meta connecte la Page Facebook et le compte Instagram professionnel qui lui est relié. Images, carrousels et Reels.",
+  },
+  {
+    id: "threads",
+    networks: ["threads"],
+    title: "Threads",
+    description: "Texte, images, carrousels et vidéos.",
   },
   {
     id: "linkedin",
@@ -37,17 +40,45 @@ const PROVIDERS: {
     description: "Nécessite l'accès « Community Management API » accordé par LinkedIn.",
   },
   {
-    id: null,
-    networks: ["threads"],
-    title: "Threads",
-    description: "Prévu dans un second temps.",
+    id: "tiktok",
+    networks: ["tiktok"],
+    title: "TikTok",
+    description: "Vidéos publiées sur ton compte, avec leurs vues et interactions.",
+    note: "Tant que l'app TikTok n'a pas passé l'audit de TikTok, la vidéo arrive dans ta boîte de réception TikTok : tu la publies d'un geste depuis l'app.",
+  },
+  {
+    id: "youtube",
+    networks: ["youtube"],
+    title: "YouTube",
+    description: "Vidéos et Shorts sur ta chaîne, avec vues, likes et abonnés.",
+    note: "Tant que le projet Google n'a pas passé l'audit YouTube, les vidéos envoyées par l'API restent privées : tu les passes en public dans YouTube Studio.",
+  },
+  {
+    id: "x",
+    networks: ["x"],
+    title: "X",
+    description: "Posts et jusqu'à 4 images, avec impressions et interactions.",
+    note: "L'API X est payante à l'usage : chaque post publié consomme des crédits de ton compte développeur X.",
+  },
+  {
+    id: "bluesky",
+    networks: ["bluesky"],
+    title: "Bluesky",
+    description: "Posts et jusqu'à 4 images. Connexion par mot de passe d'application, sans validation à attendre.",
+  },
+  {
+    id: "pinterest",
+    networks: ["pinterest"],
+    title: "Pinterest",
+    description: "Épingles (image ou carrousel) sur le tableau de ton choix, avec impressions et enregistrements.",
+    note: "En accès « Trial », les épingles ne sont visibles que par toi ; l'accès « Standard » de Pinterest lève cette limite.",
   },
 ];
 
 const ERRORS: Record<string, string> = {
   refuse: "La connexion a été annulée.",
   expire: "Le lien de connexion a expiré, recommence.",
-  aucun_compte: "Aucun compte trouvé. Vérifie que le compte Instagram est professionnel et relié à une Page dont tu es admin.",
+  aucun_compte: "Aucun compte trouvé. Pour Instagram : compte professionnel relié à une Page dont tu es admin. Pour YouTube : le compte Google doit avoir une chaîne.",
   config: "L'application du réseau n'est pas encore configurée (identifiants manquants dans les secrets Supabase).",
   echec: "La connexion a échoué. Réessaie dans un instant.",
 };
@@ -75,7 +106,7 @@ export default async function AccountsPage({ params, searchParams }: PageProps<"
         </div>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid items-start gap-4 lg:grid-cols-2">
         {PROVIDERS.map((p) => {
           const list = accounts.filter((a) => p.networks.includes(a.network));
           return (
@@ -90,7 +121,7 @@ export default async function AccountsPage({ params, searchParams }: PageProps<"
                   <h3 className="text-[15px] font-semibold tracking-tight">{p.title}</h3>
                   <p className="mt-0.5 text-[13px] text-muted">{p.description}</p>
                 </div>
-                {p.id ? (
+                {p.id !== "bluesky" ? (
                   <form action={startOAuth}>
                     <input type="hidden" name="provider" value={p.id} />
                     <input type="hidden" name="businessId" value={business.id} />
@@ -99,10 +130,9 @@ export default async function AccountsPage({ params, searchParams }: PageProps<"
                       {list.length ? "Reconnecter" : "Connecter"}
                     </Button>
                   </form>
-                ) : (
-                  <Badge>Bientôt</Badge>
-                )}
+                ) : null}
               </div>
+              {p.id === "bluesky" ? <BlueskyForm businessId={business.id} connected={list.length > 0} /> : null}
 
               {list.length ? (
                 <ul className="mx-5 mb-5 divide-y divide-border rounded-[14px] bg-fill">
@@ -123,7 +153,9 @@ export default async function AccountsPage({ params, searchParams }: PageProps<"
                         </p>
                         <p className="flex flex-wrap items-center gap-1 text-[12px] text-muted">
                           {NETWORKS[a.network].label} · connecté {formatRelative(a.connected_at)}
-                          {a.token_expires_at ? (
+                          {AUTO_REFRESH.includes(a.network) ? (
+                            " · renouvelée automatiquement"
+                          ) : a.token_expires_at ? (
                             <>
                               {" "}
                               · <Clock className="size-3" /> expire le {formatDate(a.token_expires_at)}
@@ -131,6 +163,7 @@ export default async function AccountsPage({ params, searchParams }: PageProps<"
                           ) : null}
                         </p>
                         {a.last_error ? <p className="mt-1 text-[12px] text-danger">{a.last_error}</p> : null}
+                        {a.network === "pinterest" ? <BoardPicker account={a} /> : null}
                       </div>
                       <AccountStatusBadge status={a.status} />
                       <form action={disconnectAccount}>
@@ -150,8 +183,38 @@ export default async function AccountsPage({ params, searchParams }: PageProps<"
       </div>
 
       <p className="text-[12px] text-faint">
-        Les tokens d&apos;accès sont chiffrés dans Supabase Vault et ne sont lus que par les fonctions serveur. TikTok et YouTube arriveront plus tard.
+        Les tokens d&apos;accès et mots de passe d&apos;application sont chiffrés dans Supabase Vault et ne sont lus que par les fonctions serveur.
       </p>
     </div>
+  );
+}
+
+/** Tableau Pinterest où partent les épingles. */
+function BoardPicker({ account }: { account: SocialAccount }) {
+  const meta = (account.meta ?? {}) as { boards?: { id: string; name: string }[]; board_id?: string };
+  const boards = meta.boards ?? [];
+  if (!boards.length) return <p className="mt-1 text-[12px] text-danger">Aucun tableau : crée-en un sur Pinterest puis reconnecte le compte.</p>;
+  return (
+    <form action={setPinterestBoard} className="mt-2 flex items-center gap-2">
+      <input type="hidden" name="accountId" value={account.id} />
+      <label className="text-[12px] text-muted" htmlFor={`board-${account.id}`}>
+        Tableau
+      </label>
+      <select
+        id={`board-${account.id}`}
+        name="boardId"
+        defaultValue={meta.board_id ?? boards[0].id}
+        className="h-8 rounded-lg bg-surface px-2 text-[13px] shadow-[0_0_0_0.5px_var(--border-strong)]"
+      >
+        {boards.map((b) => (
+          <option key={b.id} value={b.id}>
+            {b.name}
+          </option>
+        ))}
+      </select>
+      <Button type="submit" size="sm" variant="ghost">
+        Enregistrer
+      </Button>
+    </form>
   );
 }

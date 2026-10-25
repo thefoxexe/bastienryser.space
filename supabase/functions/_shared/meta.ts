@@ -31,8 +31,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Instagram (API Graph via Facebook Login) : conteneurs puis media_publish.
 // ---------------------------------------------------------------------------
 
-async function waitForContainer(containerId: string, token: string) {
-  for (let i = 0; i < 20; i++) {
+async function waitForContainer(containerId: string, token: string, video = false) {
+  for (let i = 0; i < (video ? 40 : 20); i++) {
     const { status_code } = await metaGet<{ status_code?: string }>(containerId, token, { fields: "status_code" });
     if (status_code === "FINISHED") return;
     if (status_code === "ERROR" || status_code === "EXPIRED") {
@@ -43,10 +43,14 @@ async function waitForContainer(containerId: string, token: string) {
   throw new NetworkError("Instagram met trop de temps à traiter les images. Nouvel essai automatique.", true);
 }
 
-export async function publishInstagram(igUserId: string, token: string, caption: string, imageUrls: string[]) {
-  if (!imageUrls.length) throw new NetworkError("Instagram demande au moins une image.", false);
+export async function publishInstagram(igUserId: string, token: string, caption: string, imageUrls: string[], videoUrl?: string) {
+  if (!imageUrls.length && !videoUrl) throw new NetworkError("Instagram demande une image ou une vidéo.", false);
   let creationId: string;
-  if (imageUrls.length === 1) {
+  if (videoUrl) {
+    // Vidéo : publiée en Reel, et aussi visible dans le fil.
+    const { id } = await metaPost<{ id: string }>(`${igUserId}/media`, token, { media_type: "REELS", video_url: videoUrl, caption, share_to_feed: true });
+    creationId = id;
+  } else if (imageUrls.length === 1) {
     const { id } = await metaPost<{ id: string }>(`${igUserId}/media`, token, { image_url: imageUrls[0], caption });
     creationId = id;
   } else {
@@ -59,7 +63,7 @@ export async function publishInstagram(igUserId: string, token: string, caption:
     const { id } = await metaPost<{ id: string }>(`${igUserId}/media`, token, { media_type: "CAROUSEL", children: children.join(","), caption });
     creationId = id;
   }
-  await waitForContainer(creationId, token);
+  await waitForContainer(creationId, token, Boolean(videoUrl));
   const { id: mediaId } = await metaPost<{ id: string }>(`${igUserId}/media_publish`, token, { creation_id: creationId });
 
   // La publication est faite : un échec ici ne doit jamais provoquer de nouvel essai.
@@ -76,9 +80,11 @@ export async function publishInstagram(igUserId: string, token: string, caption:
 // Page Facebook : photo simple, multi-photos (attached_media) ou texte.
 // ---------------------------------------------------------------------------
 
-export async function publishFacebook(pageId: string, token: string, message: string, imageUrls: string[]) {
+export async function publishFacebook(pageId: string, token: string, message: string, imageUrls: string[], videoUrl?: string) {
   let postId: string;
-  if (imageUrls.length === 0) {
+  if (videoUrl) {
+    ({ id: postId } = await metaPost<{ id: string }>(`${pageId}/videos`, token, { file_url: videoUrl, description: message }));
+  } else if (imageUrls.length === 0) {
     ({ id: postId } = await metaPost<{ id: string }>(`${pageId}/feed`, token, { message }));
   } else if (imageUrls.length === 1) {
     const res = await metaPost<{ id: string; post_id?: string }>(`${pageId}/photos`, token, { url: imageUrls[0], caption: message, published: true });
@@ -97,6 +103,8 @@ export async function publishFacebook(pageId: string, token: string, message: st
   let permalink: string | null = null;
   try {
     ({ permalink_url: permalink } = await metaGet<{ permalink_url: string }>(postId, token, { fields: "permalink_url" }));
+    // Les vidéos renvoient un chemin relatif.
+    if (permalink?.startsWith("/")) permalink = `https://www.facebook.com${permalink}`;
   } catch {
     permalink = null;
   }

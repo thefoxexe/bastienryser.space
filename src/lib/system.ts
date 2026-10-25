@@ -119,6 +119,11 @@ export async function runSystemChecks(): Promise<CheckGroup[]> {
     ? { label: "Edge Functions", status: "ok", detail: "Déployées et joignables." }
     : { label: "Edge Functions", status: "error", detail: healthError ?? "Session introuvable.", fix: "supabase functions deploy --project-ref <ref>" };
 
+  const appCheck = (label: string, id: string, secretName: string, fix: string): Check =>
+    secret(id) && secret(secretName)
+      ? { label, status: "ok", detail: "Identifiants de l'app présents." }
+      : { label, status: "warning", detail: `${id} / ${secretName} manquants.`, fix };
+
   const networks: Check[] = [
     functionsCheck,
     {
@@ -149,6 +154,16 @@ export async function runSystemChecks(): Promise<CheckGroup[]> {
       status: secret("LINKEDIN_PAGE_CLIENT_ID") || secret("LINKEDIN_CLIENT_ID") ? "ok" : "warning",
       detail: secret("LINKEDIN_PAGE_CLIENT_ID") ? "App dédiée configurée." : "Utilise l'app LinkedIn principale (Community Management API requise).",
     },
+    appCheck("Threads", "THREADS_APP_ID", "THREADS_APP_SECRET", "Cas d'usage « Threads » dans l'app Meta (identifiants Threads, distincts de ceux de Meta)."),
+    {
+      label: "YouTube",
+      status: secret("GOOGLE_CLIENT_ID") && secret("GOOGLE_CLIENT_SECRET") ? "ok" : "warning",
+      detail: secret("GOOGLE_CLIENT_ID") ? "Utilise le client OAuth Google (activer YouTube Data API v3)." : "Client OAuth Google manquant.",
+    },
+    appCheck("TikTok", "TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET", "App sur developers.tiktok.com (Login Kit + Content Posting API)."),
+    appCheck("Pinterest", "PINTEREST_APP_ID", "PINTEREST_APP_SECRET", "App sur developers.pinterest.com."),
+    appCheck("X", "X_CLIENT_ID", "X_CLIENT_SECRET", "App sur console.x.com (OAuth 2.0, crédits d'API)."),
+    { label: "Bluesky", status: "ok", detail: "Aucune app à créer : connexion par mot de passe d'application." },
   ];
 
   const verifiedTotp = (factorsRes.data?.totp ?? []).filter((f) => f.status === "verified").length;

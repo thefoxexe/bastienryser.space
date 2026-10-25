@@ -5,7 +5,7 @@ import { Bookmark, ChevronLeft, ChevronRight, FileText, Globe2, Heart, MessageCi
 import { cn } from "@/components/ui/cn";
 import type { SocialNetwork } from "@/lib/types";
 
-export type PreviewMedia = { url: string | null; kind: "image" | "pdf"; width: number | null; height: number | null; name?: string };
+export type PreviewMedia = { url: string | null; kind: "image" | "pdf" | "video"; width: number | null; height: number | null; name?: string };
 
 type PreviewProps = {
   network: SocialNetwork;
@@ -20,7 +20,120 @@ type PreviewProps = {
 export function NetworkPreview(props: PreviewProps) {
   if (props.network === "instagram") return <InstagramPreview {...props} />;
   if (props.network === "facebook") return <FacebookPreview {...props} />;
-  return <LinkedInPreview {...props} />;
+  if (props.network === "linkedin" || props.network === "linkedin_page") return <LinkedInPreview {...props} />;
+  if (props.network === "tiktok" || props.network === "youtube") return <VideoPreview {...props} />;
+  if (props.network === "pinterest") return <PinPreview {...props} />;
+  return <ShortPostPreview {...props} />;
+}
+
+/** Vidéo lue en boucle, sans son, comme dans les fils. */
+function VideoFrame({ url, className }: { url: string | null; className?: string }) {
+  return url ? (
+    <video src={url} muted loop autoPlay playsInline className={cn("size-full object-cover", className)} />
+  ) : (
+    <Placeholder className={cn("size-full", className)} />
+  );
+}
+
+const HANDLE_PREFIX: Partial<Record<SocialNetwork, string>> = { threads: "", x: "@", bluesky: "@" };
+
+/** Threads, X et Bluesky : post court, avatar à gauche, images en grille ou vidéo. */
+function ShortPostPreview({ network, name, username, avatarUrl, color, caption, media }: PreviewProps) {
+  const images = media.filter((m) => m.kind === "image");
+  const video = media.find((m) => m.kind === "video");
+  const handle = `${HANDLE_PREFIX[network] ?? ""}${username ?? name.toLowerCase().replace(/\s+/g, "")}`;
+  return (
+    <div className="mx-auto w-full max-w-[460px] rounded-xl border border-neutral-200 bg-white p-4 text-[15px] text-neutral-900 shadow-card dark:border-neutral-800 dark:bg-black dark:text-neutral-100">
+      <div className="flex gap-3">
+        <Avatar url={avatarUrl} name={name} color={color} className="size-10 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="flex items-baseline gap-1.5 text-[14px]">
+            <span className="truncate font-semibold">{network === "threads" ? handle : name}</span>
+            {network !== "threads" ? <span className="truncate text-neutral-500">{handle}</span> : null}
+            <span className="text-neutral-500">· maintenant</span>
+          </p>
+          <div className="mt-0.5 whitespace-pre-line break-words leading-snug">
+            {caption ? <Rich text={caption} /> : <span className="text-neutral-400">Le texte apparaîtra ici.</span>}
+          </div>
+          {video ? (
+            <div className="mt-3 aspect-[4/5] overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800">
+              <VideoFrame url={video.url} />
+            </div>
+          ) : images.length ? (
+            <div className="mt-3 overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800">
+              <ImageGrid images={images.slice(0, 4)} />
+            </div>
+          ) : null}
+          <div className="mt-3 flex max-w-[300px] justify-between text-neutral-500">
+            <MessageCircle className="size-[18px]" />
+            <Repeat2 className="size-[18px]" />
+            <Heart className="size-[18px]" />
+            <Share2 className="size-[18px]" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** TikTok (vertical, légende en surimpression) et YouTube (16:9 avec titre). */
+function VideoPreview({ network, name, avatarUrl, color, caption, media }: PreviewProps) {
+  const video = media.find((m) => m.kind === "video");
+  if (network === "tiktok") {
+    return (
+      <div className="relative mx-auto aspect-[9/16] w-full max-w-[300px] overflow-hidden rounded-2xl bg-black text-white shadow-card">
+        <VideoFrame url={video?.url ?? null} />
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4 pr-14 text-[13px] leading-snug">
+          <p className="mb-1 font-semibold">@{name.toLowerCase().replace(/\s+/g, "")}</p>
+          <p className="line-clamp-3 whitespace-pre-line">{caption || "La légende apparaîtra ici."}</p>
+        </div>
+        <div className="absolute bottom-20 right-3 flex flex-col items-center gap-4">
+          <Avatar url={avatarUrl} name={name} color={color} className="size-10 ring-2 ring-white" />
+          <Heart className="size-7 fill-white" />
+          <MessageCircle className="size-7 fill-white" />
+          <Share2 className="size-7" />
+        </div>
+      </div>
+    );
+  }
+  const title = caption.split("\n").find((l) => l.trim()) ?? "";
+  return (
+    <div className="mx-auto w-full max-w-[520px] text-neutral-900 dark:text-neutral-100">
+      <div className="aspect-video overflow-hidden rounded-xl bg-black">
+        <VideoFrame url={video?.url ?? null} />
+      </div>
+      <div className="mt-3 flex gap-3">
+        <Avatar url={avatarUrl} name={name} color={color} className="size-9 shrink-0" />
+        <div className="min-w-0">
+          <p className="line-clamp-2 text-[15px] font-semibold leading-snug">{title || "Titre de la vidéo"}</p>
+          <p className="mt-0.5 text-[13px] text-neutral-500">{name} · 0 vue · maintenant</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Épingle Pinterest : image arrondie, titre et description. */
+function PinPreview({ name, avatarUrl, color, caption, media }: PreviewProps) {
+  const image = media.find((m) => m.kind === "image");
+  const title = caption.split("\n").find((l) => l.trim()) ?? "";
+  return (
+    <div className="mx-auto w-full max-w-[280px] text-neutral-900 dark:text-neutral-100">
+      <div className="overflow-hidden rounded-2xl bg-neutral-100 dark:bg-neutral-900">
+        {image?.url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={image.url} alt="" className="w-full object-cover" />
+        ) : (
+          <Placeholder className="aspect-[2/3] w-full" />
+        )}
+      </div>
+      <p className="mt-2 line-clamp-2 text-[14px] font-semibold leading-snug">{title || "Titre de l'épingle"}</p>
+      <div className="mt-1.5 flex items-center gap-2 text-[12px] text-neutral-500">
+        <Avatar url={avatarUrl} name={name} color={color} className="size-6" />
+        {name}
+      </div>
+    </div>
+  );
 }
 
 function Avatar({ url, name, color, className }: { url?: string | null; name: string; color: string; className?: string }) {
@@ -72,6 +185,7 @@ function Placeholder({ className }: { className?: string }) {
 
 function InstagramPreview({ name, username, avatarUrl, color, caption, media }: PreviewProps) {
   const images = media.filter((m) => m.kind === "image");
+  const video = media.find((m) => m.kind === "video");
   const [index, setIndex] = useState(0);
   const current = images[Math.min(index, images.length - 1)];
   const handle = username ?? name.toLowerCase().replace(/\s+/g, "");
@@ -85,7 +199,9 @@ function InstagramPreview({ name, username, avatarUrl, color, caption, media }: 
         <MoreHorizontal className="size-5" />
       </div>
       <div className="relative aspect-[4/5] bg-neutral-100 dark:bg-neutral-900">
-        {current?.url ? (
+        {video ? (
+          <VideoFrame url={video.url} />
+        ) : current?.url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={current.url} alt="" className="size-full object-cover" />
         ) : (
@@ -188,7 +304,13 @@ function FacebookPreview({ name, avatarUrl, color, caption, media }: PreviewProp
       <div className="whitespace-pre-line break-words px-4 py-3 leading-snug">
         {caption ? <Truncated text={caption} limit={280} moreLabel="Voir plus" /> : <span className="text-neutral-400">Le texte apparaîtra ici.</span>}
       </div>
-      <ImageGrid images={images} />
+      {media.some((m) => m.kind === "video") ? (
+        <div className="aspect-video bg-black">
+          <VideoFrame url={media.find((m) => m.kind === "video")!.url} className="object-contain" />
+        </div>
+      ) : (
+        <ImageGrid images={images} />
+      )}
       <div className="mx-4 flex items-center justify-between border-b border-neutral-200 py-2.5 text-[13px] text-[#65676b] dark:border-neutral-700 dark:text-[#b0b3b8]">
         <span className="flex items-center gap-1">
           <span className="grid size-[18px] place-items-center rounded-full bg-[#1877f2]">

@@ -14,7 +14,7 @@ import { isoToZurichLocal, zurichLocalToIso } from "@/lib/format";
 import { checkTarget, countChars, countHashtags, NETWORK_ORDER, NETWORKS, type Issue } from "@/lib/social/networks";
 import { createUploadClient } from "@/lib/supabase/browser";
 import type { SocialAccount, SocialNetwork } from "@/lib/types";
-import { imageSize, toJpeg } from "./client-media";
+import { imageSize, toJpeg, videoSize } from "./client-media";
 import { MediaPicker, type MediaItem } from "./media-picker";
 import { NetworkPreview } from "./previews";
 
@@ -85,13 +85,14 @@ export function Composer({ business, accounts, initial }: Props) {
     for (const original of files) {
       const key = crypto.randomUUID();
       const isPdf = original.type === "application/pdf";
+      const isVideo = original.type === "video/mp4" || original.type === "video/quicktime";
       setMedia((prev) => [
         ...prev,
         {
           key,
           status: "uploading",
           storagePath: null,
-          kind: isPdf ? "pdf" : "image",
+          kind: isPdf ? "pdf" : isVideo ? "video" : "image",
           mimeType: original.type,
           size: original.size,
           width: null,
@@ -102,9 +103,10 @@ export function Composer({ business, accounts, initial }: Props) {
       ]);
       const update = (patch: Partial<MediaItem>) => setMedia((prev) => prev.map((m) => (m.key === key ? { ...m, ...patch } : m)));
       try {
-        if (!isPdf && !["image/jpeg", "image/png", "image/webp"].includes(original.type)) throw new Error("Format non pris en charge");
-        const file = isPdf ? original : await toJpeg(original);
-        const dims = isPdf ? null : await imageSize(file);
+        if (!isPdf && !isVideo && !["image/jpeg", "image/png", "image/webp"].includes(original.type)) throw new Error("Format non pris en charge");
+        if (isVideo && original.size > 50 * 1024 * 1024) throw new Error("Vidéo trop lourde (50 Mo max)");
+        const file = isPdf || isVideo ? original : await toJpeg(original);
+        const dims = isPdf ? null : isVideo ? await videoSize(file) : await imageSize(file);
         const target = await createUploadTarget({ businessId: business.id, mimeType: file.type, size: file.size });
         if ("error" in target) throw new Error(target.error);
         const { error: uploadError } = await supabase.storage.from("media").uploadToSignedUrl(target.path, target.token, file, { contentType: file.type });
@@ -191,7 +193,7 @@ export function Composer({ business, accounts, initial }: Props) {
       <div className="flex min-w-0 flex-col gap-5">
         {/* 1. Médias */}
         <Card className="p-5 sm:p-6">
-          <SectionTitle step={1} title="Images" hint={readyMedia.length > 1 ? `Carrousel de ${readyMedia.length} · glisse pour réordonner` : undefined} />
+          <SectionTitle step={1} title="Médias" hint={readyMedia.length > 1 ? `Carrousel de ${readyMedia.length} · glisse pour réordonner` : undefined} />
           <MediaPicker items={media} onChange={setMedia} onFiles={handleFiles} />
         </Card>
 

@@ -121,8 +121,10 @@ function PostCard() {
   return (
     <Panel className="w-[236px] p-3">
       <div className="mb-2.5 flex items-center gap-2 px-1">
-        <span className="grid size-7 place-items-center rounded-full bg-ink text-[11px] font-semibold text-ink-text">C</span>
-        <span className="flex-1 text-[13px] font-semibold">cantia</span>
+        <span className="grid size-7 place-items-center rounded-full bg-ink text-ink-text">
+          <LogoMark className="size-4" />
+        </span>
+        <span className="flex-1 text-[13px] font-semibold">bastienryser.space</span>
         <BrandMark brand="instagram" className="size-4" />
       </div>
       <div className="relative aspect-[4/5] overflow-hidden rounded-[14px] bg-[linear-gradient(160deg,#2c2c2e,#0b0b0c)]">
@@ -179,7 +181,8 @@ function TerminalCard() {
 
 /** Surveillance des sites : points qui pulsent, barres de disponibilité. */
 function SitesCard() {
-  const sites = ["cantia.ch", "accounting.cantia.ch", "partners.cantia.ch"];
+  // Adresses génériques : rien ne doit trahir les business gérés derrière la connexion.
+  const sites = ["bastienryser.space", "boutique.exemple.ch", "blog.exemple.ch"];
   return (
     <Panel className="w-[272px]">
       <Label right={<span className="text-glow text-[11px] font-semibold">Tout répond</span>}>Sites web</Label>
@@ -219,7 +222,7 @@ function Notification() {
             <span className="text-faint">maintenant</span>
           </div>
           <p className="text-[13px] font-medium">Mot-clé en hausse</p>
-          <p className="truncate text-[12.5px] text-muted">« fiduciaire lausanne » passe en top 3</p>
+          <p className="truncate text-[12.5px] text-muted">Un mot-clé suivi passe dans le top 3</p>
         </div>
       </div>
     </div>

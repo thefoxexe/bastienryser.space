@@ -71,6 +71,8 @@ export default async function PostPage({ params }: PageProps<"/b/[slug]/reseaux/
               {m.kind === "image" && m.url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={m.url} alt="" className="size-full object-cover" />
+              ) : m.kind === "video" && m.url ? (
+                <video src={m.url} controls playsInline preload="metadata" className="size-full bg-black object-contain" />
               ) : (
                 <div className="grid size-full place-items-center text-muted">
                   <FileText className="size-8" />

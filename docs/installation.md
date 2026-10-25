@@ -3,7 +3,7 @@
 ## Le plus simple : un seul fichier à coller
 
 1. Supabase > *SQL Editor* > *New query* : coller tout le contenu de **`supabase/setup.sql`**, puis *Run*.
-   Il crée toute la base (les 7 migrations), règle l'adresse du projet pour les tâches automatiques
+   Il crée toute la base (toutes les migrations), règle l'adresse du projet pour les tâches automatiques
    et donne l'accès admin à `bastienryser20004@gmail.com` (tout de suite si l'utilisateur existe, sinon dès sa création).
    À lancer une seule fois, sur un projet neuf. Après une nouvelle migration : `npm run setup:sql` pour le régénérer.
 2. *Authentication > Users > Add user* avec `bastienryser20004@gmail.com` (cocher *Auto Confirm User*).
@@ -28,6 +28,8 @@ Chaque étape est idempotente : on peut la relancer sans risque.
    5. `20261025000400_data_module` (surveillance des sites, connecteurs Stripe et Plausible, chiffres quotidiens)
    6. `20261025000500_google_connectors` (Search Console et Google Analytics 4)
    7. `20261025000600_keywords` (historique quotidien des mots-clés, mots-clés suivis, classements)
+   8. `20261025000700_hardening` (durcissement relevé par les contrôles de sécurité Supabase)
+   9. `20261025000800_more_networks` (YouTube, TikTok, Bluesky, Pinterest, X ; Threads disponible)
 4. **Adresse du projet pour pg_cron** (pas un secret) avec `execute_sql` :
    ```sql
    select vault.create_secret('https://<ref>.supabase.co', 'project_url')
@@ -60,7 +62,8 @@ Bastien les saisit lui-même dans Supabase et Vercel.
 - *Authentication > Users > Add user* : créer son utilisateur (cocher *Auto Confirm User*), puis prévenir Claude (étape 9).
 - *Authentication > URL Configuration* : *Site URL* = adresse du panel.
 - Plus tard, *Edge Functions > Secrets* : `META_APP_ID`, `META_APP_SECRET`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`
-  (et `LINKEDIN_PAGE_*` pour la page entreprise), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
+  (et `LINKEDIN_PAGE_*` pour la page entreprise), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, puis selon les réseaux voulus
+  `THREADS_*`, `TIKTOK_*`, `PINTEREST_*`, `X_*` (voir « Autres réseaux »).
 
 **Google Cloud** (une fois, pour Search Console et Google Analytics)
 1. console.cloud.google.com → nouveau projet (ex. « bastienryser »).
@@ -74,6 +77,24 @@ Bastien les saisit lui-même dans Supabase et Vercel.
 5. *Identifiants > Créer > ID client OAuth* : type **Application Web**, URI de redirection autorisé :
    `https://<ref>.supabase.co/functions/v1/oauth/callback`.
 6. Copier l'ID client et le code secret dans les secrets Supabase (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`).
+
+**Autres réseaux** (URI de redirection partout : `https://<ref>.supabase.co/functions/v1/oauth/callback`)
+- **Threads** : dans l'app Meta, ajouter le cas d'usage « Accéder à l'API Threads », permissions `threads_basic`,
+  `threads_content_publish`, `threads_manage_insights`. Secrets : `THREADS_APP_ID`, `THREADS_APP_SECRET` (identifiants Threads,
+  différents de ceux de l'app Meta).
+- **YouTube** : même client OAuth que Google ; activer **YouTube Data API v3** et ajouter les champs d'application
+  `youtube.upload` et `youtube.readonly` à l'écran de consentement. Tant que le projet n'a pas passé l'audit YouTube
+  (formulaire « YouTube API Services – Audit »), les vidéos envoyées restent privées.
+- **TikTok** : developers.tiktok.com → app avec **Login Kit** et **Content Posting API** (Direct Post activé), champs
+  `user.info.basic`, `user.info.profile`, `user.info.stats`, `video.publish`, `video.upload`, `video.list`.
+  Secrets : `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`. Avant l'audit TikTok, les vidéos arrivent dans la boîte de réception
+  TikTok du compte (à publier depuis l'app).
+- **Pinterest** : developers.pinterest.com → app, champs `boards:read`, `pins:read`, `pins:write`, `user_accounts:read`.
+  Secrets : `PINTEREST_APP_ID`, `PINTEREST_APP_SECRET`. En accès Trial, les épingles ne sont visibles que par toi.
+- **X** : console.x.com → app, OAuth 2.0 « Web App » (client confidentiel), champs `tweet.read`, `tweet.write`, `users.read`,
+  `media.write`, `offline.access`, et des crédits d'API (facturation à l'usage). Secrets : `X_CLIENT_ID`, `X_CLIENT_SECRET`.
+- **Bluesky** : rien à créer. Dans le panel, identifiant + mot de passe d'application (Bluesky › Réglages › Confidentialité
+  et sécurité › Mots de passe d'application).
 
 **Vercel** (*Settings > Environment Variables*, puis *Deployments > Redeploy* : obligatoire, ces valeurs sont figées au build)
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `ANTHROPIC_API_KEY`.

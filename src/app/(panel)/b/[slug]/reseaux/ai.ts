@@ -15,6 +15,11 @@ const STYLE: Record<SocialNetwork, string> = {
   linkedin: "LinkedIn (profil personnel) : professionnel et personnel à la fois, phrase d'accroche, paragraphes aérés, valeur concrète pour le lecteur, 3 à 5 hashtags à la fin.",
   linkedin_page: "LinkedIn (page entreprise) : professionnel, centré sur la valeur pour les clients, paragraphes aérés, 3 à 5 hashtags à la fin.",
   threads: "Threads : très court (moins de 500 caractères), conversationnel, un seul hashtag au maximum.",
+  youtube: "YouTube : description de vidéo, première phrase qui résume la vidéo (visible avant « plus »), puis détails utiles et liens, 3 hashtags à la fin.",
+  tiktok: "TikTok : légende très courte et punchy, une accroche, 3 à 5 hashtags tendance et pertinents.",
+  bluesky: "Bluesky : moins de 300 caractères, naturel et direct, 0 à 2 hashtags.",
+  pinterest: "Pinterest : description inspirante et descriptive (mots-clés naturels pour la recherche), 2 à 3 phrases, sans hashtag.",
+  x: "X : moins de 280 caractères, percutant, une idée forte, 0 à 2 hashtags.",
 };
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };

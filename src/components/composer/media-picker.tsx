@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AlertCircle, FileText, GripVertical, ImagePlus, Loader2, X } from "lucide-react";
+import { AlertCircle, FileText, GripVertical, ImagePlus, Loader2, Play, X } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 
 export type MediaItem = {
@@ -12,7 +12,7 @@ export type MediaItem = {
   status: "uploading" | "ready" | "error";
   error?: string;
   storagePath: string | null;
-  kind: "image" | "pdf";
+  kind: "image" | "pdf" | "video";
   mimeType: string;
   size: number;
   width: number | null;
@@ -21,7 +21,7 @@ export type MediaItem = {
   name: string;
 };
 
-const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
+const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf,video/mp4,video/quicktime";
 
 export function MediaPicker({
   items,
@@ -93,9 +93,9 @@ export function MediaPicker({
           <span className="mb-1 grid size-12 place-items-center rounded-full bg-surface shadow-card">
             <ImagePlus className="size-5 text-text" />
           </span>
-          <span className="text-sm font-medium">Dépose tes images ici</span>
-          <span className="max-w-xs text-[13px] text-muted">
-            1 image = post simple, plusieurs = carrousel. Format conseillé 4:5 (1080 × 1350). PDF possible pour LinkedIn.
+          <span className="text-sm font-medium">Dépose tes images ou ta vidéo ici</span>
+          <span className="max-w-sm text-[13px] text-muted">
+            1 image = post simple, plusieurs = carrousel (4:5 conseillé). Une vidéo MP4 ou MOV (50 Mo max) pour TikTok, YouTube, les Reels et Threads. PDF pour LinkedIn.
           </span>
         </button>
       )}
@@ -137,6 +137,15 @@ function SortableTile({ item, index, onRemove }: { item: MediaItem; index: numbe
         {item.kind === "image" && item.previewUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={item.previewUrl} alt="" className="size-full object-cover" draggable={false} />
+        ) : item.kind === "video" && item.previewUrl ? (
+          <>
+            <video src={item.previewUrl} muted playsInline preload="metadata" className="size-full object-cover" />
+            <span className="absolute inset-0 grid place-items-center">
+              <span className="grid size-9 place-items-center rounded-full bg-black/55 text-white backdrop-blur">
+                <Play className="ml-0.5 size-4 fill-current" />
+              </span>
+            </span>
+          </>
         ) : (
           <div className="flex size-full flex-col items-center justify-center gap-2 p-2 text-center text-muted">
             <FileText className="size-7" />

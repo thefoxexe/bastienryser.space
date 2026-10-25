@@ -24,7 +24,7 @@ export default async function ComposePage({ params, searchParams }: PageProps<"/
             key: m.id,
             status: "ready",
             storagePath: m.storage_path,
-            kind: m.kind as "image" | "pdf",
+            kind: m.kind,
             mimeType: m.mime_type ?? "image/jpeg",
             size: m.size_bytes ?? 0,
             width: m.width,

@@ -3,8 +3,12 @@
 //   POST { action: "connect", business_id, kind, api_key, site_id?, base_url? }
 //   POST { action: "sync", connector_id }
 //   POST { action: "configure", connector_id, choice }   (choix du site Search Console ou de la propriété GA4)
+//   POST { action: "bluesky", business_id, identifier, password }   (compte Bluesky, par mot de passe d'application)
 
+import { upsertAccount } from "../_shared/accounts.ts";
+import { blueskyProfile, blueskySession } from "../_shared/bluesky.ts";
 import { ConnectorError, plausibleTest, stripeTest } from "../_shared/connectors.ts";
+import { NetworkError } from "../_shared/errors.ts";
 import { adminClient, isAdminRequest, json, logActivity, storeToken } from "../_shared/supabase.ts";
 import { syncConnector, type ConnectorRow } from "../_shared/sync.ts";
 
@@ -39,6 +43,37 @@ Deno.serve(async (req) => {
       .single();
     const result = await syncConnector(db, saved as ConnectorRow);
     return json(result.ok ? { ok: true, points: result.points } : { ok: true, warning: result.error });
+  }
+
+  if (body.action === "bluesky") {
+    const identifier = String(body.identifier ?? "").trim().replace(/^@/, "");
+    const password = String(body.password ?? "").trim();
+    if (!identifier || !password) return json({ ok: false, error: "Indique ton identifiant et un mot de passe d'application." }, 400);
+    const { data: business } = await db.from("businesses").select("id, name").eq("id", body.business_id).maybeSingle();
+    if (!business) return json({ ok: false, error: "Business introuvable." }, 404);
+    try {
+      const session = await blueskySession({ identifier, password });
+      const profile = await blueskyProfile(session.did).catch(() => null);
+      const renewed = await upsertAccount(db, {
+        business_id: business.id,
+        network: "bluesky",
+        external_id: session.did,
+        display_name: profile?.displayName || session.handle,
+        username: session.handle,
+        avatar_url: profile?.avatar ?? null,
+        // Identifiant + mot de passe d'application, chiffrés dans Vault : une session est ouverte à chaque publication.
+        token: JSON.stringify({ identifier, password }),
+        token_expires_at: null,
+      });
+      await logActivity(db, {
+        business_id: business.id,
+        kind: renewed ? "account.refreshed" : "account.connected",
+        message: renewed ? `Connexion Bluesky renouvelée : @${session.handle}` : `Compte Bluesky connecté : @${session.handle} (${business.name})`,
+      });
+      return json({ ok: true });
+    } catch (e) {
+      return json({ ok: false, error: e instanceof NetworkError ? e.message : "Connexion à Bluesky impossible." });
+    }
   }
 
   if (body.action !== "connect") return json({ ok: false, error: "Action inconnue." }, 400);

@@ -14,7 +14,12 @@ export type NetworkRules = {
   minImages: number;
   maxImages: number;
   allowsPdf: boolean;
+  /** Une vidéo seule (pas de mélange avec des images). */
+  allowsVideo: boolean;
+  requiresVideo: boolean;
   requiresMedia: boolean;
+  /** Poids maximal d'une image (Bluesky : 1 Mo). */
+  maxImageBytes: number | null;
   available: boolean;
 };
 
@@ -22,7 +27,12 @@ export type NetworkRules = {
 // - Instagram (API Graph v26) : légende 2 200 caractères, 30 hashtags, carrousel de 2 à 10 éléments, JPEG.
 // - Page Facebook : 63 206 caractères, publication multi-photos via attached_media.
 // - LinkedIn (Posts API 202609) : 3 000 caractères, multiImage de 2 à 20 images, ou un document PDF.
-// - Threads : 500 caractères, un seul sujet (hashtag), carrousel jusqu'à 20.
+// - Threads : 500 caractères, un seul sujet (hashtag), carrousel jusqu'à 20, vidéo.
+// - YouTube (Data API v3) : titre 100 caractères, description 5 000, une vidéo.
+// - TikTok (Content Posting API) : légende 2 200 caractères, une vidéo.
+// - Bluesky (AT Protocol) : 300 caractères, 4 images de 1 Mo maximum.
+// - Pinterest (API v5) : description 800 caractères, une image ou un carrousel de 2 à 5.
+// - X (API v2) : 280 caractères, 4 images.
 export const NETWORKS: Record<SocialNetwork, NetworkRules> = {
   instagram: {
     id: "instagram",
@@ -36,6 +46,9 @@ export const NETWORKS: Record<SocialNetwork, NetworkRules> = {
     maxImages: 10,
     allowsPdf: false,
     requiresMedia: true,
+    allowsVideo: true,
+    requiresVideo: false,
+    maxImageBytes: null,
     available: true,
   },
   facebook: {
@@ -50,6 +63,9 @@ export const NETWORKS: Record<SocialNetwork, NetworkRules> = {
     maxImages: 10,
     allowsPdf: false,
     requiresMedia: false,
+    allowsVideo: true,
+    requiresVideo: false,
+    maxImageBytes: null,
     available: true,
   },
   linkedin: {
@@ -64,6 +80,9 @@ export const NETWORKS: Record<SocialNetwork, NetworkRules> = {
     maxImages: 20,
     allowsPdf: true,
     requiresMedia: false,
+    allowsVideo: false,
+    requiresVideo: false,
+    maxImageBytes: null,
     available: true,
   },
   linkedin_page: {
@@ -78,6 +97,9 @@ export const NETWORKS: Record<SocialNetwork, NetworkRules> = {
     maxImages: 20,
     allowsPdf: true,
     requiresMedia: false,
+    allowsVideo: false,
+    requiresVideo: false,
+    maxImageBytes: null,
     available: true,
   },
   threads: {
@@ -91,12 +113,114 @@ export const NETWORKS: Record<SocialNetwork, NetworkRules> = {
     minImages: 0,
     maxImages: 20,
     allowsPdf: false,
+    allowsVideo: true,
+    requiresVideo: false,
     requiresMedia: false,
-    available: false,
+    maxImageBytes: null,
+    available: true,
+  },
+  youtube: {
+    id: "youtube",
+    label: "YouTube",
+    short: "YT",
+    brand: "#ff0000",
+    maxChars: 5000,
+    maxHashtags: 60,
+    recommendedHashtags: 3,
+    minImages: 0,
+    maxImages: 0,
+    allowsPdf: false,
+    allowsVideo: true,
+    requiresVideo: true,
+    requiresMedia: true,
+    maxImageBytes: null,
+    available: true,
+  },
+  tiktok: {
+    id: "tiktok",
+    label: "TikTok",
+    short: "TT",
+    brand: "#000000",
+    maxChars: 2200,
+    maxHashtags: null,
+    recommendedHashtags: 5,
+    minImages: 0,
+    maxImages: 0,
+    allowsPdf: false,
+    allowsVideo: true,
+    requiresVideo: true,
+    requiresMedia: true,
+    maxImageBytes: null,
+    available: true,
+  },
+  bluesky: {
+    id: "bluesky",
+    label: "Bluesky",
+    short: "BS",
+    brand: "#1185fe",
+    maxChars: 300,
+    maxHashtags: null,
+    recommendedHashtags: 3,
+    minImages: 0,
+    maxImages: 4,
+    allowsPdf: false,
+    allowsVideo: false,
+    requiresVideo: false,
+    requiresMedia: false,
+    maxImageBytes: 1_000_000,
+    available: true,
+  },
+  pinterest: {
+    id: "pinterest",
+    label: "Pinterest",
+    short: "P",
+    brand: "#e60023",
+    maxChars: 800,
+    maxHashtags: null,
+    recommendedHashtags: 5,
+    minImages: 1,
+    maxImages: 5,
+    allowsPdf: false,
+    allowsVideo: false,
+    requiresVideo: false,
+    requiresMedia: true,
+    maxImageBytes: null,
+    available: true,
+  },
+  x: {
+    id: "x",
+    label: "X",
+    short: "X",
+    brand: "#000000",
+    maxChars: 280,
+    maxHashtags: null,
+    recommendedHashtags: 2,
+    minImages: 0,
+    maxImages: 4,
+    allowsPdf: false,
+    allowsVideo: false,
+    requiresVideo: false,
+    requiresMedia: false,
+    maxImageBytes: null,
+    available: true,
   },
 };
 
-export const NETWORK_ORDER: SocialNetwork[] = ["instagram", "facebook", "linkedin", "linkedin_page", "threads"];
+export const NETWORK_ORDER: SocialNetwork[] = [
+  "instagram",
+  "facebook",
+  "linkedin",
+  "linkedin_page",
+  "threads",
+  "tiktok",
+  "youtube",
+  "x",
+  "bluesky",
+  "pinterest",
+];
+
+/** Jeton renouvelé automatiquement (refresh token) : pas d'alerte d'échéance, seulement en cas d'erreur. */
+export const AUTO_REFRESH: SocialNetwork[] = ["threads", "youtube", "tiktok", "pinterest", "x"];
 
 export function countHashtags(text: string) {
   return (text.match(/(^|\s)#[\p{L}\p{N}_]+/gu) ?? []).length;
@@ -107,7 +231,7 @@ export function countChars(text: string) {
   return [...new Intl.Segmenter("fr", { granularity: "grapheme" }).segment(text)].length;
 }
 
-export type MediaSummary = { kind: MediaKind }[];
+export type MediaSummary = { kind: MediaKind; size?: number }[];
 
 export type Issue = { level: "error" | "warning"; message: string };
 
@@ -128,8 +252,17 @@ export function checkTarget(network: SocialNetwork, caption: string, media: Medi
   } else if (rules.recommendedHashtags !== null && tags > rules.recommendedHashtags) {
     issues.push({ level: "warning", message: `${tags} hashtags : au-delà de ${rules.recommendedHashtags}, la portée baisse souvent.` });
   }
-  if (videos > 0) {
-    issues.push({ level: "error", message: "Les vidéos ne sont pas encore prises en charge." });
+  if (videos > 0 && !rules.allowsVideo) {
+    issues.push({ level: "error", message: `${rules.label} : les vidéos ne sont pas prises en charge ici.` });
+  }
+  if (videos > 1) {
+    issues.push({ level: "error", message: "Une seule vidéo par post." });
+  }
+  if (videos > 0 && (images > 0 || pdfs > 0)) {
+    issues.push({ level: "error", message: "Une vidéo se publie seule : retire les images et le PDF." });
+  }
+  if (rules.requiresVideo && videos === 0) {
+    issues.push({ level: "error", message: `${rules.label} demande une vidéo.` });
   }
   if (pdfs > 0 && !rules.allowsPdf) {
     issues.push({ level: "error", message: `${rules.label} n'accepte pas de PDF.` });
@@ -140,13 +273,19 @@ export function checkTarget(network: SocialNetwork, caption: string, media: Medi
   if (pdfs > 0 && images > 0 && rules.allowsPdf) {
     issues.push({ level: "error", message: "LinkedIn : choisis soit des images, soit un PDF, pas les deux." });
   }
-  if (rules.requiresMedia && images === 0) {
-    issues.push({ level: "error", message: `${rules.label} demande au moins une image.` });
+  if (rules.requiresMedia && !rules.requiresVideo && images === 0 && !(rules.allowsVideo && videos > 0)) {
+    issues.push({ level: "error", message: `${rules.label} demande ${rules.allowsVideo ? "une image ou une vidéo" : "au moins une image"}.` });
+  }
+  if (rules.maxImageBytes !== null) {
+    const heavy = media.filter((m) => m.kind === "image" && (m.size ?? 0) > rules.maxImageBytes!).length;
+    if (heavy) {
+      issues.push({ level: "error", message: `${heavy} image${heavy > 1 ? "s" : ""} trop lourde${heavy > 1 ? "s" : ""} pour ${rules.label} (1 Mo max).` });
+    }
   }
   if (images > rules.maxImages) {
     issues.push({ level: "error", message: `${images} images, ${rules.label} en accepte ${rules.maxImages} au maximum.` });
   }
-  if (!caption.trim() && images === 0 && pdfs === 0) {
+  if (!caption.trim() && images === 0 && pdfs === 0 && videos === 0) {
     issues.push({ level: "error", message: "Le post est vide." });
   }
   return issues;

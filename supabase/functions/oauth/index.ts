@@ -1,4 +1,4 @@
-// Flux OAuth officiel de Meta et LinkedIn.
+// Flux OAuth officiels : Meta, LinkedIn, Threads, YouTube, TikTok, Pinterest, X et Google (connecteurs de données).
 //   GET /oauth/start?state=…     → redirige vers l'écran d'autorisation du réseau
 //   GET /oauth/callback?code&state → échange le code, chiffre les tokens dans Vault, revient au panel
 // L'état (state) est créé par le panel pour un admin connecté : il protège contre le CSRF
@@ -8,11 +8,27 @@ import { ConfigError, env, LINKEDIN_VERSION, META_GRAPH, optionalEnv, SUPABASE_U
 import { NetworkError } from "../_shared/errors.ts";
 import { ConnectorError } from "../_shared/connectors.ts";
 import { GOOGLE_SCOPES, listAnalyticsProperties, listSearchConsoleSites, type GoogleKind } from "../_shared/google.ts";
+import { inSeconds, upsertAccount } from "../_shared/accounts.ts";
 import { metaGet } from "../_shared/meta.ts";
+import { PINTEREST_SCOPES, pinterestBoards, pinterestToken, pinterestUser } from "../_shared/pinterest.ts";
 import { syncConnector, type ConnectorRow } from "../_shared/sync.ts";
 import { adminClient, logActivity, storeToken } from "../_shared/supabase.ts";
+import { THREADS_SCOPES, threadsExchange, threadsProfile } from "../_shared/threads.ts";
+import { TIKTOK_SCOPES, tiktokToken, tiktokUser } from "../_shared/tiktok.ts";
+import { X_SCOPES, xMe, xToken } from "../_shared/x.ts";
+import { YOUTUBE_SCOPES, youtubeChannel } from "../_shared/youtube.ts";
 
-type Provider = "meta" | "linkedin" | "linkedin_page" | "google";
+type Provider = "meta" | "linkedin" | "linkedin_page" | "google" | "threads" | "youtube" | "tiktok" | "pinterest" | "x";
+
+const LABELS: Record<string, string> = { threads: "Threads", youtube: "YouTube", tiktok: "TikTok", pinterest: "Pinterest", x: "X" };
+
+/** PKCE (X) : vérificateur aléatoire et son empreinte SHA-256 en base64url. */
+async function pkce() {
+  const b64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  const challenge = b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
+  return { verifier, challenge };
+}
 
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/oauth/callback`;
 
@@ -54,7 +70,7 @@ Deno.serve(async (req) => {
 
   const { data: row } = await db
     .from("oauth_states")
-    .select("state, business_id, provider, context, created_at, used_at, businesses(slug, name)")
+    .select("state, business_id, provider, context, code_verifier, created_at, used_at, businesses(slug, name)")
     .eq("state", state)
     .maybeSingle();
   const business = row?.businesses as unknown as { slug: string; name: string } | undefined;
@@ -80,6 +96,57 @@ Deno.serve(async (req) => {
         auth.searchParams.set("prompt", "consent");
         auth.searchParams.set("include_granted_scopes", "true");
         auth.searchParams.set("state", state);
+        return Response.redirect(auth.toString(), 302);
+      }
+      if (provider === "youtube") {
+        const auth = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+        auth.searchParams.set("client_id", env("GOOGLE_CLIENT_ID"));
+        auth.searchParams.set("redirect_uri", REDIRECT_URI);
+        auth.searchParams.set("response_type", "code");
+        auth.searchParams.set("scope", YOUTUBE_SCOPES);
+        auth.searchParams.set("access_type", "offline");
+        auth.searchParams.set("prompt", "consent");
+        auth.searchParams.set("state", state);
+        return Response.redirect(auth.toString(), 302);
+      }
+      if (provider === "threads") {
+        const auth = new URL("https://threads.net/oauth/authorize");
+        auth.searchParams.set("client_id", env("THREADS_APP_ID"));
+        auth.searchParams.set("redirect_uri", REDIRECT_URI);
+        auth.searchParams.set("scope", THREADS_SCOPES);
+        auth.searchParams.set("response_type", "code");
+        auth.searchParams.set("state", state);
+        return Response.redirect(auth.toString(), 302);
+      }
+      if (provider === "tiktok") {
+        const auth = new URL("https://www.tiktok.com/v2/auth/authorize/");
+        auth.searchParams.set("client_key", env("TIKTOK_CLIENT_KEY"));
+        auth.searchParams.set("redirect_uri", REDIRECT_URI);
+        auth.searchParams.set("scope", TIKTOK_SCOPES);
+        auth.searchParams.set("response_type", "code");
+        auth.searchParams.set("state", state);
+        return Response.redirect(auth.toString(), 302);
+      }
+      if (provider === "pinterest") {
+        const auth = new URL("https://www.pinterest.com/oauth/");
+        auth.searchParams.set("client_id", env("PINTEREST_APP_ID"));
+        auth.searchParams.set("redirect_uri", REDIRECT_URI);
+        auth.searchParams.set("response_type", "code");
+        auth.searchParams.set("scope", PINTEREST_SCOPES);
+        auth.searchParams.set("state", state);
+        return Response.redirect(auth.toString(), 302);
+      }
+      if (provider === "x") {
+        const { verifier, challenge } = await pkce();
+        await db.from("oauth_states").update({ code_verifier: verifier }).eq("state", state);
+        const auth = new URL("https://x.com/i/oauth2/authorize");
+        auth.searchParams.set("response_type", "code");
+        auth.searchParams.set("client_id", env("X_CLIENT_ID"));
+        auth.searchParams.set("redirect_uri", REDIRECT_URI);
+        auth.searchParams.set("scope", X_SCOPES);
+        auth.searchParams.set("state", state);
+        auth.searchParams.set("code_challenge", challenge);
+        auth.searchParams.set("code_challenge_method", "S256");
         return Response.redirect(auth.toString(), 302);
       }
       if (provider === "meta") {
@@ -121,7 +188,9 @@ Deno.serve(async (req) => {
     const count =
       provider === "meta"
         ? await connectMeta(db, row.business_id, business!.name, code)
-        : await connectLinkedIn(db, row.business_id, business!.name, code, provider);
+        : provider === "linkedin" || provider === "linkedin_page"
+          ? await connectLinkedIn(db, row.business_id, business!.name, code, provider)
+          : await connectOther(db, row.business_id, business!.name, code, provider, row.code_verifier);
 
     if (count === 0) return backTo(slug, { erreur: "aucun_compte" });
     return backTo(slug, { connecte: provider, nombre: String(count) });
@@ -132,55 +201,6 @@ Deno.serve(async (req) => {
 });
 
 type Db = ReturnType<typeof adminClient>;
-
-async function upsertAccount(
-  db: Db,
-  values: {
-    business_id: string;
-    network: string;
-    external_id: string;
-    display_name: string;
-    username?: string | null;
-    avatar_url?: string | null;
-    token: string;
-    token_expires_at: string | null;
-    refresh_token?: string | null;
-    refresh_expires_at?: string | null;
-    meta?: Record<string, unknown>;
-  },
-) {
-  const { data: existing } = await db
-    .from("social_accounts")
-    .select("id, token_ref, refresh_token_ref")
-    .eq("business_id", values.business_id)
-    .eq("network", values.network)
-    .eq("external_id", values.external_id)
-    .maybeSingle();
-
-  const label = `${values.network}:${values.external_id}`;
-  const tokenRef = await storeToken(db, values.token, label, existing?.token_ref);
-  const refreshRef = values.refresh_token ? await storeToken(db, values.refresh_token, `${label}:refresh`, existing?.refresh_token_ref) : (existing?.refresh_token_ref ?? null);
-
-  const row = {
-    business_id: values.business_id,
-    network: values.network,
-    external_id: values.external_id,
-    display_name: values.display_name,
-    username: values.username ?? null,
-    avatar_url: values.avatar_url ?? null,
-    token_ref: tokenRef,
-    token_expires_at: values.token_expires_at,
-    refresh_token_ref: refreshRef,
-    refresh_expires_at: values.refresh_expires_at ?? null,
-    status: "connected",
-    last_error: null,
-    meta: values.meta ?? {},
-    connected_at: new Date().toISOString(),
-  };
-  if (existing) await db.from("social_accounts").update(row).eq("id", existing.id);
-  else await db.from("social_accounts").insert(row);
-  return Boolean(existing);
-}
 
 // ---------------------------------------------------------------------------
 // Meta : jeton utilisateur longue durée → jetons de Page (sans expiration) → comptes IG reliés.
@@ -409,4 +429,104 @@ async function connectGoogle(db: Db, businessId: string, businessName: string, c
 
   if (chosen && saved) await syncConnector(db, saved as ConnectorRow);
   return chosen ? "ok" : "choisir";
+}
+
+// ---------------------------------------------------------------------------
+// Threads, YouTube, TikTok, Pinterest et X : un compte par connexion.
+// ---------------------------------------------------------------------------
+
+async function connectOther(db: Db, businessId: string, businessName: string, code: string, provider: Provider, verifier: string | null) {
+  let values: Parameters<typeof upsertAccount>[1];
+  const base = { business_id: businessId };
+
+  if (provider === "threads") {
+    const { token, expiresIn } = await threadsExchange(code, REDIRECT_URI);
+    const me = await threadsProfile(token);
+    values = {
+      ...base,
+      network: "threads",
+      external_id: me.id,
+      display_name: me.name || me.username || "Threads",
+      username: me.username ?? null,
+      avatar_url: me.threads_profile_picture_url ?? null,
+      token,
+      token_expires_at: inSeconds(expiresIn),
+    };
+  } else if (provider === "youtube") {
+    const tokens = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI, client_id: env("GOOGLE_CLIENT_ID"), client_secret: env("GOOGLE_CLIENT_SECRET") }),
+    }).then((r) => r.json());
+    if (!tokens.access_token || !tokens.refresh_token) throw new NetworkError("Échange du code YouTube refusé.", false, true, JSON.stringify(tokens));
+    const channel = await youtubeChannel(tokens.access_token);
+    if (!channel) return 0;
+    // On garde le refresh token Google : un jeton d'accès est redemandé à chaque usage.
+    values = {
+      ...base,
+      network: "youtube",
+      external_id: channel.id,
+      display_name: channel.title,
+      username: channel.handle,
+      avatar_url: channel.avatar,
+      token: tokens.refresh_token,
+      token_expires_at: null,
+    };
+  } else if (provider === "tiktok") {
+    const t = await tiktokToken({ grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI });
+    const user = await tiktokUser(t.access_token);
+    values = {
+      ...base,
+      network: "tiktok",
+      external_id: t.open_id,
+      display_name: user.display_name || user.username || "TikTok",
+      username: user.username ?? null,
+      avatar_url: user.avatar_url ?? null,
+      token: t.access_token,
+      token_expires_at: inSeconds(t.expires_in),
+      refresh_token: t.refresh_token,
+      refresh_expires_at: inSeconds(t.refresh_expires_in),
+    };
+  } else if (provider === "pinterest") {
+    const t = await pinterestToken({ grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI });
+    const [user, boards] = await Promise.all([pinterestUser(t.access_token), pinterestBoards(t.access_token)]);
+    values = {
+      ...base,
+      network: "pinterest",
+      external_id: user.username,
+      display_name: user.business_name || user.username,
+      username: user.username,
+      avatar_url: user.profile_image ?? null,
+      token: t.access_token,
+      token_expires_at: inSeconds(t.expires_in),
+      refresh_token: t.refresh_token ?? null,
+      refresh_expires_at: inSeconds(t.refresh_token_expires_in),
+      meta: { boards },
+    };
+  } else if (provider === "x") {
+    if (!verifier) throw new NetworkError("Connexion X incomplète, recommence.", false, true, "code_verifier absent");
+    const t = await xToken({ grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI, code_verifier: verifier });
+    const me = await xMe(t.access_token);
+    values = {
+      ...base,
+      network: "x",
+      external_id: me.id,
+      display_name: me.name,
+      username: me.username,
+      avatar_url: me.profile_image_url ?? null,
+      token: t.access_token,
+      token_expires_at: inSeconds(t.expires_in),
+      refresh_token: t.refresh_token ?? null,
+    };
+  } else {
+    return 0;
+  }
+
+  const renewed = await upsertAccount(db, values);
+  await logActivity(db, {
+    business_id: businessId,
+    kind: renewed ? "account.refreshed" : "account.connected",
+    message: renewed ? `Connexion ${LABELS[provider]} renouvelée : ${values.display_name}` : `Compte ${LABELS[provider]} connecté : ${values.display_name} (${businessName})`,
+  });
+  return 1;
 }
