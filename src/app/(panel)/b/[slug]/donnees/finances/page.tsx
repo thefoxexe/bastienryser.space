@@ -104,7 +104,7 @@ export default async function FinancesPage({ params, searchParams }: PageProps<"
         </Card>
         <div id="saisie" className="scroll-mt-6">
           <Card className="p-5 sm:p-6">
-            <h3 className="mb-4 text-[17px] font-semibold">Ajouter</h3>
+            <h3 className="mb-4 text-[17px] font-semibold">Ajouter une écriture</h3>
             <EntryForm businessId={business.id} slug={business.slug} today={today} />
           </Card>
         </div>

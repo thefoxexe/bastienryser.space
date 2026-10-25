@@ -12,10 +12,9 @@ import { listAlerts } from "@/lib/alerts";
 import { SiteDot } from "@/components/charts/site-dot";
 import { formatValue } from "@/components/charts/format";
 import { listActivity, listBusinesses, listPosts, metricsLast30Days, type PostSummary } from "@/lib/data";
-import { metricSeries, siteStatuses, type SeriesPoint } from "@/lib/metrics";
-import { financeSummary, periodFrom, periodShort } from "@/lib/finance";
-import { PeriodChips } from "@/components/period-chips";
-import { KpiTile } from "@/components/kpi-tile";
+import { siteStatuses } from "@/lib/metrics";
+import { periodFrom } from "@/lib/finance";
+import { KpiStrip } from "@/components/kpi-strip";
 import { formatDate, formatNumber, formatTime, TIME_ZONE, zurichDayKey } from "@/lib/format";
 import { NETWORKS } from "@/lib/social/networks";
 import { retryTarget } from "./b/[slug]/reseaux/actions";
@@ -34,14 +33,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     metricsLast30Days(),
     listActivity({ limit: 15 }),
   ]);
-  const [sites, overview] = await Promise.all([siteStatuses(businesses), overviewSeries(businesses.map((b) => b.id), period)]);
-  const sum = (s: SeriesPoint[] | null) => (s ? s.reduce((a, p) => a + p.value, 0) : null);
-  const measured = sites.filter((s) => s.uptime30d !== null);
-  const uptime = measured.length ? measured.reduce((a, s) => a + (s.uptime30d ?? 0), 0) / measured.length : null;
-  const sitesDown = sites.filter((s) => s.last && !s.last.ok).length;
-  const reach = metrics.reduce<number | null>((a, m) => (m.reach === null ? a : (a ?? 0) + m.reach), null);
-  const published = metrics.reduce((a, m) => a + m.posts, 0);
-  const connectHref = businesses[0] ? `/b/${businesses[0].slug}/donnees/connecteurs` : "/reglages/business/nouveau";
+  const sites = await siteStatuses(businesses);
 
   const byId = new Map(businesses.map((b) => [b.id, b]));
   const bizMap = new Map(businesses.map((b) => [b.id, { name: b.name, color: b.color }]));
@@ -68,34 +60,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
         }
       />
 
-      {/* Chiffres clés, tous business confondus */}
-      <div className="-mb-2 flex justify-end">
-        <PeriodChips base="/" current={period} />
-      </div>
-      <section aria-label="Chiffres clés" className="animate-rise grid grid-cols-2 gap-3 [animation-delay:40ms] md:grid-cols-3 2xl:grid-cols-6">
-        <KpiTile label={`Visiteurs · ${periodShort(period)}`} amount={overview.visitors ? sum(overview.visitors) : null} format={{ kind: "number" }} trend={overview.visitors?.map((p) => p.value)} empty="Connecter" href={connectHref} />
-        <KpiTile
-          label={`Résultat · ${periodShort(period)}`}
-          amount={overview.hasMoney ? overview.finance.totals.net : null}
-          format={{ kind: "currency", currency: overview.finance.currency }}
-          hint={`Encaissé : ${formatValue(overview.finance.totals.income, { kind: "currency", currency: overview.finance.currency })}`}
-          trend={overview.finance.net.map((p) => p.value)}
-          empty="Stripe ou saisie"
-          href={businesses[0] ? `/b/${businesses[0].slug}/donnees/finances` : "/"}
-        />
-        <KpiTile label={`Clics Google · ${periodShort(period)}`} amount={overview.clicks ? sum(overview.clicks) : null} format={{ kind: "number" }} trend={overview.clicks?.map((p) => p.value)} empty="Connecter" href={connectHref} />
-        <KpiTile label="Portée réseaux · 30 j" amount={reach} format={{ kind: "number" }} hint={`${published} publication${published > 1 ? "s" : ""}`} empty="Aucune statistique" href={businesses[0] ? `/b/${businesses[0].slug}/reseaux/comptes` : "/"} />
-        <KpiTile label="Posts prévus · 14 j" amount={upcoming.length} format={{ kind: "number" }} hint={upcoming[0]?.scheduled_at ? `Prochain : ${new Intl.DateTimeFormat("fr-CH", { timeZone: TIME_ZONE, weekday: "short", day: "numeric", month: "short" }).format(new Date(upcoming[0].scheduled_at))}` : "Rien de programmé"} empty="" href="/" />
-        <KpiTile
-          label="Disponibilité · 30 j"
-          amount={uptime}
-          format={{ kind: "percent" }}
-          hint={sitesDown ? `${sitesDown} site${sitesDown > 1 ? "s" : ""} injoignable${sitesDown > 1 ? "s" : ""}` : `${measured.length} site${measured.length > 1 ? "s" : ""} surveillé${measured.length > 1 ? "s" : ""}`}
-          alert={sitesDown > 0}
-          empty="Ajouter un site"
-          href="/reglages"
-        />
-      </section>
+      {/* Chiffres clés, tous business confondus : chaque tuile ouvre son détail */}
+      <KpiStrip businesses={businesses} period={period} base="/" />
 
       {/* À traiter */}
       {alerts.length ? (
@@ -201,7 +167,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
 
       {/* Sites web */}
       {sites.length ? (
-        <Card>
+        <Card className="scroll-mt-6" id="sites">
           <CardHeader
             title="Sites web"
             description={
@@ -238,6 +204,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       {/* Calendrier 14 jours */}
       <Card>
         <CardHeader title="14 prochains jours" description="Tous business confondus" />
+        <span id="calendrier" className="sr-only" />
         <FourteenDays posts={upcoming} businesses={byId} start={now} />
       </Card>
 
@@ -383,15 +350,4 @@ function FourteenDays({
       </div>
     </div>
   );
-}
-
-/** Séries de l'accueil, tous business confondus. Visiteurs : Plausible si le business l'a, sinon Google Analytics (jamais les deux). */
-async function overviewSeries(businessIds: string[], days: number) {
-  const perBusiness = await Promise.all(
-    businessIds.map(async (businessId) => (await metricSeries({ businessId, metric: "visitors", days })) ?? (await metricSeries({ businessId, metric: "ga_users", days }))),
-  );
-  const present = perBusiness.filter((s): s is SeriesPoint[] => s !== null);
-  const visitors = present.length ? present[0].map((p, i) => ({ day: p.day, value: present.reduce((a, s) => a + (s[i]?.value ?? 0), 0) })) : null;
-  const [finance, clicks] = await Promise.all([financeSummary(undefined, days), metricSeries({ metric: "search_clicks", trimTrailing: true, days })]);
-  return { visitors, finance, hasMoney: finance.hasStripe || finance.hasEntries, clicks };
 }

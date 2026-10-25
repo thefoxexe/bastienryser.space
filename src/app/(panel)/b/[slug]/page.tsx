@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { CalendarClock, Megaphone, PenSquare, Plug } from "lucide-react";
 import { ActivityFeed } from "@/components/activity-feed";
+import { KpiStrip } from "@/components/kpi-strip";
 import { NetworkChip } from "@/components/network-icon";
 import { PostRow } from "@/components/posts/post-row";
 import { Page } from "@/components/shell/page";
 import { AccountStatusBadge, ButtonLink, Card, CardHeader, EmptyState, Stat } from "@/components/ui";
 import { getBusiness, listAccounts, listActivity, listPosts, metricsLast30Days } from "@/lib/data";
+import { periodFrom } from "@/lib/finance";
 import { formatNumber } from "@/lib/format";
 import { NETWORKS } from "@/lib/social/networks";
 
@@ -15,8 +17,9 @@ export async function generateMetadata({ params }: PageProps<"/b/[slug]">): Prom
   return { title: business.name };
 }
 
-export default async function BusinessOverview({ params }: PageProps<"/b/[slug]">) {
+export default async function BusinessOverview({ params, searchParams }: PageProps<"/b/[slug]">) {
   const { slug } = await params;
+  const period = periodFrom((await searchParams).periode, 30);
   const business = await getBusiness(slug);
   const social = business.modules.includes("social");
   const base = `/b/${business.slug}/reseaux`;
@@ -36,6 +39,9 @@ export default async function BusinessOverview({ params }: PageProps<"/b/[slug]"
 
   return (
     <Page>
+      {/* Le même tableau de bord que l'accueil, avec les seuls chiffres de ce business. */}
+      <KpiStrip businesses={[business]} business={business} period={period} base={`/b/${business.slug}`} />
+
       {social ? (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">

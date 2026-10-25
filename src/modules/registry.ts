@@ -38,6 +38,8 @@ export const MODULES: ModuleDefinition[] = [
     tabs: [
       { href: "", label: "Vue d'ensemble" },
       { href: "/finances", label: "Finances" },
+      { href: "/visites", label: "Visites" },
+      { href: "/recherche", label: "Recherche" },
       { href: "/mots-cles", label: "Mots-clés" },
       { href: "/sites", label: "Sites web" },
       { href: "/connecteurs", label: "Connecteurs" },

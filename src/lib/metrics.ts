@@ -36,7 +36,9 @@ export type SiteStatus = {
 /** Les N derniers jours (AAAA-MM-JJ, heure de Zurich), du plus ancien au plus récent. */
 export function lastDays(n: number, now = new Date()) {
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
-  return Array.from({ length: n }, (_, i) => fmt.format(new Date(now.getTime() - (n - 1 - i) * 86400_000)));
+  // Jours du calendrier (et non tranches de 24 h) : sinon le changement d'heure donne deux fois la même date.
+  const [y, m, d] = fmt.format(now).split("-").map(Number);
+  return Array.from({ length: n }, (_, i) => new Date(Date.UTC(y, m - 1, d - (n - 1 - i))).toISOString().slice(0, 10));
 }
 
 export async function listConnectors(businessId?: string): Promise<Connector[]> {

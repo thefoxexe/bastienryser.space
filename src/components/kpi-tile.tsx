@@ -28,6 +28,7 @@ export function KpiTile({
   trend,
   empty,
   href,
+  link,
   alert,
 }: {
   label: string;
@@ -39,13 +40,20 @@ export function KpiTile({
   trend?: number[];
   empty: string;
   href: string;
+  /** Toute la tuile mène au détail (courbe, classements…). */
+  link?: string;
   alert?: boolean;
 }) {
   const delta = halfDelta(trend);
   const numeric = amount !== undefined && amount !== null && format;
   const present = numeric || (value !== undefined && value !== null);
-  return (
-    <Card className="@container flex min-h-[132px] min-w-0 flex-col justify-between gap-3 p-4 sm:p-5">
+  const tile = (
+    <Card
+      className={cn(
+        "@container flex h-full min-h-[132px] min-w-0 flex-col justify-between gap-3 p-4 sm:p-5",
+        link && present && "transition-[box-shadow,transform] duration-300 ease-[var(--ease-apple)] group-hover:shadow-pop group-active:scale-[0.98]",
+      )}
+    >
       <span className="truncate text-[13px] text-muted" title={label}>
         {label}
       </span>
@@ -78,5 +86,12 @@ export function KpiTile({
         </Link>
       )}
     </Card>
+  );
+  return link && present ? (
+    <Link href={link} className="group block min-w-0 rounded-2xl outline-offset-4" aria-label={`${label} : voir le détail`}>
+      {tile}
+    </Link>
+  ) : (
+    tile
   );
 }
