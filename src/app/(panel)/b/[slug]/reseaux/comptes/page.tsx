@@ -121,8 +121,7 @@ export default async function AccountsPage({ params, searchParams }: PageProps<"
                           {a.display_name}
                           {a.username ? <span className="font-normal text-muted"> @{a.username}</span> : null}
                         </p>
-                        <p className="flex items-center gap-1 text-[12px] text-muted">
-                          <NetworkIcon network={a.network} className="size-3" />
+                        <p className="flex flex-wrap items-center gap-1 text-[12px] text-muted">
                           {NETWORKS[a.network].label} · connecté {formatRelative(a.connected_at)}
                           {a.token_expires_at ? (
                             <>

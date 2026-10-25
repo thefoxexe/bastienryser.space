@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AlertTriangle, CheckCircle2, RefreshCw, Unplug } from "lucide-react";
+import { BrandMark, BrandTile, type Brand } from "@/components/brand-logos";
 import { Badge, Button, Card } from "@/components/ui";
 import { getBusiness } from "@/lib/data";
 import { formatRelative } from "@/lib/format";
@@ -16,7 +17,7 @@ type CatalogItem = {
   tagline: string;
   data: string;
   steps: string[];
-  mark: string;
+  brand: Brand;
   auth: "key" | "google";
 };
 
@@ -26,7 +27,7 @@ const CATALOG: CatalogItem[] = [
     name: "Google Search Console",
     tagline: "Ce que Google montre de ton site, et ce qu'on y clique.",
     data: "Clics, impressions et position moyenne par jour, requêtes et pages qui rapportent le plus. Google a 2 à 3 jours de décalage.",
-    mark: "G",
+    brand: "search_console",
     auth: "google",
     steps: ["Clique sur « Connecter avec Google » et choisis le compte qui gère la Search Console.", "Si plusieurs sites sont disponibles, choisis le bon."],
   },
@@ -35,7 +36,7 @@ const CATALOG: CatalogItem[] = [
     name: "Google Analytics 4",
     tagline: "Fréquentation et provenance des visiteurs.",
     data: "Utilisateurs, sessions et pages vues par jour, pages les plus vues et canaux d'acquisition.",
-    mark: "G",
+    brand: "google_analytics",
     auth: "google",
     steps: ["Clique sur « Connecter avec Google » et choisis le compte qui a accès à la propriété GA4.", "Si plusieurs propriétés sont disponibles, choisis la bonne."],
   },
@@ -44,7 +45,7 @@ const CATALOG: CatalogItem[] = [
     name: "Stripe",
     tagline: "Paiements encaissés, par jour et par devise.",
     data: "Revenus (remboursements déduits) et nombre de paiements, synchronisés chaque heure.",
-    mark: "S",
+    brand: "stripe",
     auth: "key",
     steps: [
       "Stripe → Développeurs → Clés API → Créer une clé restreinte.",
@@ -57,7 +58,7 @@ const CATALOG: CatalogItem[] = [
     name: "Plausible Analytics",
     tagline: "Fréquentation du site, sans cookies.",
     data: "Visiteurs, visites et pages vues par jour, synchronisés chaque heure.",
-    mark: "P",
+    brand: "plausible",
     auth: "key",
     steps: ["Plausible → Paramètres du compte → Clés d'API → Nouvelle clé (Stats API).", "Indiquer le domaine exactement comme dans Plausible, puis coller la clé."],
   },
@@ -100,9 +101,7 @@ export default async function ConnectorsPage({ params, searchParams }: PageProps
           return (
             <Card key={item.kind} className="flex flex-col p-5 sm:p-6">
               <div className="flex items-start gap-3.5">
-                <span className="grid size-11 shrink-0 place-items-center rounded-[12px] bg-ink font-[family-name:var(--font-display)] text-[18px] font-semibold text-ink-text">
-                  {item.mark}
-                </span>
+                <BrandTile brand={item.brand} />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-[17px] font-semibold">{item.name}</h2>
@@ -201,13 +200,14 @@ function GoogleButton({ kind, businessId, label, variant = "primary" }: { kind: 
     <form action={startGoogleConnect}>
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="businessId" value={businessId} />
-      <Button type="submit" size={variant === "primary" ? "md" : "sm"} variant={variant}>
-        <svg viewBox="0 0 24 24" aria-hidden className="size-[15px]">
-          <path
-            fill="currentColor"
-            d="M21.35 11.1H12v3.2h5.35c-.23 1.4-1.66 4.1-5.35 4.1-3.22 0-5.85-2.67-5.85-5.95S8.78 6.5 12 6.5c1.83 0 3.06.78 3.76 1.45l2.57-2.47C16.68 3.94 14.55 3 12 3 7.03 3 3 7.03 3 12s4.03 9 9 9c5.2 0 8.64-3.65 8.64-8.8 0-.6-.07-1.05-.29-1.1Z"
-          />
-        </svg>
+      {/* Bouton conforme à la charte Google : fond clair, « G » multicolore. */}
+      <Button
+        type="submit"
+        size={variant === "primary" ? "md" : "sm"}
+        variant="secondary"
+        className={variant === "primary" ? "bg-white text-[#1f1f1f] shadow-[0_0_0_1px_#dadce0] hover:bg-[#f8f9fa]" : undefined}
+      >
+        <BrandMark brand="google" className="size-[16px]" />
         {label}
       </Button>
     </form>
