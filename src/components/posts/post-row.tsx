@@ -38,7 +38,7 @@ export function PostRow({ post, href, business }: { post: PostSummary; href: str
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted">
           {business ? (
             <span className="inline-flex items-center gap-1.5">
-              <span className="size-2 rounded-full" style={{ background: business.color }} />
+              <span className="size-2 rounded-full bg-faint" />
               {business.name}
             </span>
           ) : null}

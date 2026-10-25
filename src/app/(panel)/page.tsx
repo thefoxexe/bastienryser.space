@@ -12,7 +12,8 @@ import { listAlerts } from "@/lib/alerts";
 import { SiteDot } from "@/components/charts/site-dot";
 import { formatValue } from "@/components/charts/format";
 import { listActivity, listBusinesses, listPosts, metricsLast30Days, type PostSummary } from "@/lib/data";
-import { siteStatuses } from "@/lib/metrics";
+import { metricSeries, revenueCurrencies, siteStatuses, type SeriesPoint } from "@/lib/metrics";
+import { KpiTile } from "@/components/kpi-tile";
 import { formatDate, formatNumber, formatTime, TIME_ZONE, zurichDayKey } from "@/lib/format";
 import { NETWORKS } from "@/lib/social/networks";
 import { retryTarget } from "./b/[slug]/reseaux/actions";
@@ -30,7 +31,14 @@ export default async function DashboardPage() {
     metricsLast30Days(),
     listActivity({ limit: 15 }),
   ]);
-  const sites = await siteStatuses(businesses);
+  const [sites, overview] = await Promise.all([siteStatuses(businesses), overviewSeries(businesses.map((b) => b.id))]);
+  const sum = (s: SeriesPoint[] | null) => (s ? s.reduce((a, p) => a + p.value, 0) : null);
+  const measured = sites.filter((s) => s.uptime30d !== null);
+  const uptime = measured.length ? measured.reduce((a, s) => a + (s.uptime30d ?? 0), 0) / measured.length : null;
+  const sitesDown = sites.filter((s) => s.last && !s.last.ok).length;
+  const reach = metrics.reduce<number | null>((a, m) => (m.reach === null ? a : (a ?? 0) + m.reach), null);
+  const published = metrics.reduce((a, m) => a + m.posts, 0);
+  const connectHref = businesses[0] ? `/b/${businesses[0].slug}/donnees/connecteurs` : "/reglages/business/nouveau";
 
   const byId = new Map(businesses.map((b) => [b.id, b]));
   const bizMap = new Map(businesses.map((b) => [b.id, { name: b.name, color: b.color }]));
@@ -57,6 +65,29 @@ export default async function DashboardPage() {
         }
       />
 
+      {/* Chiffres clés, tous business confondus */}
+      <section aria-label="Chiffres clés" className="animate-rise grid grid-cols-2 gap-3 [animation-delay:40ms] md:grid-cols-3 xl:grid-cols-6">
+        <KpiTile label="Visiteurs · 30 j" value={overview.visitors ? formatValue(sum(overview.visitors)!, { kind: "number" }) : null} trend={overview.visitors?.map((p) => p.value)} empty="Connecter" href={connectHref} />
+        <KpiTile
+          label="Revenus · 30 j"
+          value={overview.revenue ? formatValue(sum(overview.revenue)!, overview.currency ? { kind: "currency", currency: overview.currency } : { kind: "number" }) : null}
+          trend={overview.revenue?.map((p) => p.value)}
+          empty="Connecter Stripe"
+          href={connectHref}
+        />
+        <KpiTile label="Clics Google · 28 j" value={overview.clicks ? formatValue(sum(overview.clicks)!, { kind: "number" }) : null} trend={overview.clicks?.map((p) => p.value)} empty="Connecter" href={connectHref} />
+        <KpiTile label="Portée réseaux · 30 j" value={reach !== null ? formatValue(reach, { kind: "number" }) : null} hint={`${published} publication${published > 1 ? "s" : ""}`} empty="Aucune statistique" href={businesses[0] ? `/b/${businesses[0].slug}/reseaux/comptes` : "/"} />
+        <KpiTile label="Posts prévus · 14 j" value={String(upcoming.length)} hint={upcoming[0]?.scheduled_at ? `Prochain : ${new Intl.DateTimeFormat("fr-CH", { timeZone: TIME_ZONE, weekday: "short", day: "numeric", month: "short" }).format(new Date(upcoming[0].scheduled_at))}` : "Rien de programmé"} empty="" href="/" />
+        <KpiTile
+          label="Disponibilité · 30 j"
+          value={uptime !== null ? formatValue(uptime, { kind: "percent" }) : null}
+          hint={sitesDown ? `${sitesDown} site${sitesDown > 1 ? "s" : ""} injoignable${sitesDown > 1 ? "s" : ""}` : `${measured.length} site${measured.length > 1 ? "s" : ""} surveillé${measured.length > 1 ? "s" : ""}`}
+          alert={sitesDown > 0}
+          empty="Ajouter un site"
+          href="/reglages"
+        />
+      </section>
+
       {/* À traiter */}
       {alerts.length ? (
         <Card className="animate-rise overflow-hidden [animation-delay:60ms]">
@@ -78,7 +109,6 @@ export default async function DashboardPage() {
                           Échec sur {NETWORKS[a.network].label} · {a.title}
                         </Link>
                         <p className="mt-0.5 text-[13px] text-muted">
-                          <span className="mr-1.5 inline-block size-2 rounded-full align-middle" style={{ background: b.color }} />
                           {b.name} · {a.message ?? "Erreur inconnue"}
                         </p>
                       </div>
@@ -106,7 +136,6 @@ export default async function DashboardPage() {
                             : `Connexion à renouveler : ${a.account.display_name}`}
                       </p>
                       <p className="mt-0.5 text-[13px] text-muted">
-                        <span className="mr-1.5 inline-block size-2 rounded-full align-middle" style={{ background: b.color }} />
                         {b.name} · {NETWORKS[a.account.network].label}
                         {a.account.token_expires_at ? ` · ${expired ? "expirée le" : "expire le"} ${formatDate(a.account.token_expires_at)}` : ""}
                         {a.account.last_error ? ` · ${a.account.last_error}` : ""}
@@ -329,7 +358,7 @@ function FourteenDays({
                     href={b ? `/b/${b.slug}/reseaux/posts/${p.id}` : "#"}
                     className="flex flex-col gap-1 rounded-[10px] bg-surface p-1.5 text-[11px] shadow-card transition-shadow hover:shadow-pop"
                   >
-                    <span className="tabular flex items-center gap-1 text-muted"><span className="size-1.5 rounded-full" style={{ background: b?.color }} />{formatTime(p.scheduled_at!)}</span>
+                    <span className="tabular flex items-center gap-1 text-muted"><span className="size-1.5 rounded-full bg-faint" />{formatTime(p.scheduled_at!)}</span>
                     <span className="line-clamp-2 font-medium leading-tight">{postTitle(p)}</span>
                     <span className="flex gap-0.5 text-muted">
                       {[...new Set(p.targets.map((t) => t.network))].map((n) => (
@@ -345,4 +374,19 @@ function FourteenDays({
       </div>
     </div>
   );
+}
+
+/** Séries de l'accueil, tous business confondus. Visiteurs : Plausible si le business l'a, sinon Google Analytics (jamais les deux). */
+async function overviewSeries(businessIds: string[]) {
+  const perBusiness = await Promise.all(
+    businessIds.map(async (businessId) => (await metricSeries({ businessId, metric: "visitors" })) ?? (await metricSeries({ businessId, metric: "ga_users" }))),
+  );
+  const present = perBusiness.filter((s): s is SeriesPoint[] => s !== null);
+  const visitors = present.length ? present[0].map((p, i) => ({ day: p.day, value: present.reduce((a, s) => a + (s[i]?.value ?? 0), 0) })) : null;
+  const currency = (await revenueCurrencies())[0]?.unit;
+  const [revenue, clicks] = await Promise.all([
+    currency ? metricSeries({ metric: "revenue", unit: currency }) : Promise.resolve(null),
+    metricSeries({ metric: "search_clicks", trimTrailing: true }),
+  ]);
+  return { visitors, revenue, currency, clicks };
 }

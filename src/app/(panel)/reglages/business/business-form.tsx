@@ -7,8 +7,6 @@ import { Button, ButtonLink, Card, Field, FormError, Input, Textarea } from "@/c
 import type { BusinessWithLogo } from "@/lib/types";
 import { findLogo, saveBusiness, type BusinessFormState } from "./actions";
 
-// Noir, gris et le vert de la charte (une autre teinte reste possible avec le sélecteur).
-const PALETTE = ["#1d1d1f", "#3a3a3c", "#636366", "#8e8e93", "#c7c7cc", "#28c157"];
 
 function slugify(value: string) {
   return value
@@ -25,7 +23,6 @@ export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
   const [name, setName] = useState(business?.name ?? "");
   const [slug, setSlug] = useState(business?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(business));
-  const [color, setColor] = useState(business?.color ?? PALETTE[0]);
   const [logoPreview, setLogoPreview] = useState<string | null>(business?.logo_url ?? null);
   const [foundUrl, setFoundUrl] = useState("");
   const [logoNote, setLogoNote] = useState<string | null>(null);
@@ -85,26 +82,7 @@ export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
             <Textarea ref={websitesRef} id="websites" name="websites" defaultValue={business?.websites.join("\n") ?? ""} className="min-h-24 font-mono text-[13px]" />
           </Field>
 
-          <div className="flex flex-col gap-2">
-            <span className="text-[13px] font-medium">Couleur</span>
-            <div className="flex flex-wrap items-center gap-2">
-              {PALETTE.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setColor(c)}
-                  className="size-8 rounded-full ring-offset-2 ring-offset-surface transition"
-                  style={{ background: c, boxShadow: color === c ? `0 0 0 2px var(--surface), 0 0 0 4px ${c}` : undefined }}
-                  aria-label={`Couleur ${c}`}
-                />
-              ))}
-              <label className="relative ml-1 flex h-8 items-center gap-2 rounded-full bg-fill px-3 text-[13px] text-muted">
-                <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="size-4 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0" />
-                <span className="font-mono">{color}</span>
-              </label>
-            </div>
-            <input type="hidden" name="color" value={color} />
-          </div>
+          <input type="hidden" name="color" value={business?.color ?? "#1d1d1f"} />
 
           <Field
             label="Logo"
@@ -178,9 +156,9 @@ export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
         <div className="sticky top-10">
           <p className="mb-2 text-[13px] font-medium text-muted">Aperçu</p>
           <Card className="overflow-hidden">
-            <div className="h-16" style={{ background: `linear-gradient(135deg, ${color}, color-mix(in oklab, ${color} 55%, black))` }} />
+            <div className="h-16 bg-[linear-gradient(135deg,#2c2c2e,#000)]" />
             <div className="-mt-6 px-5 pb-5">
-              <BusinessMark name={name || "?"} color={color} logoUrl={logoPreview} size="lg" className="ring-4 ring-surface" />
+              <BusinessMark name={name || "?"} logoUrl={logoPreview} size="lg" className="ring-4 ring-surface" />
               <p className="mt-3 font-semibold tracking-tight">{name || "Nom du business"}</p>
               <p className="text-[13px] text-muted">/b/{slug || "…"}</p>
             </div>

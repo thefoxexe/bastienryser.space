@@ -27,7 +27,7 @@ export function ActivityFeed({ entries, businesses }: { entries: ActivityEntry[]
               <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-faint">
                 {b ? (
                   <>
-                    <span className="size-1.5 rounded-full" style={{ background: b.color }} />
+                    <span className="size-1.5 rounded-full bg-faint" />
                     {b.name} ·
                   </>
                 ) : null}

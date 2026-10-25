@@ -1,15 +1,15 @@
-import { initials, readableOn } from "@/lib/color";
+import { initials } from "@/lib/color";
 import { cn } from "@/components/ui/cn";
 
 export function BusinessMark({
   name,
-  color,
   logoUrl,
   size = "md",
   className,
 }: {
   name: string;
-  color: string;
+  /** Conservée en base, plus affichée : les monogrammes sont noirs et blancs. */
+  color?: string;
   logoUrl?: string | null;
   size?: "sm" | "md" | "lg";
   className?: string;
@@ -24,7 +24,7 @@ export function BusinessMark({
   return (
     <span
       className={cn(dims, "grid shrink-0 place-items-center font-semibold tracking-[-0.02em] shadow-[inset_0_0_0_0.5px_var(--border-strong)]", className)}
-      style={{ background: color, color: readableOn(color) }}
+      style={{ background: "var(--ink)", color: "var(--ink-text)" }}
       aria-hidden
     >
       {initials(name)}

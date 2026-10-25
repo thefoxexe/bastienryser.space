@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { ArrowUpRight, Globe, PlugZap, Search } from "lucide-react";
 import { AreaChart } from "@/components/charts/area-chart";
 import { formatValue } from "@/components/charts/format";
-import { Sparkline } from "@/components/charts/sparkline";
+import { KpiTile } from "@/components/kpi-tile";
 import { ButtonLink, Card, CardHeader, EmptyState } from "@/components/ui";
-import { cn } from "@/components/ui/cn";
 import { SiteDot } from "@/components/charts/site-dot";
 import { getBusiness } from "@/lib/data";
 import { listConnectors, metricSeries, revenueCurrencies, searchPosition, siteStatuses, type SeriesPoint } from "@/lib/metrics";
@@ -13,16 +11,6 @@ import { listConnectors, metricSeries, revenueCurrencies, searchPosition, siteSt
 export const metadata: Metadata = { title: "Données" };
 
 const sum = (s: SeriesPoint[] | null) => (s ? s.reduce((a, p) => a + p.value, 0) : null);
-
-/** Variation réelle entre les deux moitiés de la période (ex. 15 derniers jours contre les 15 d'avant). */
-function halfDelta(values?: number[]) {
-  if (!values || values.length < 4) return null;
-  const half = Math.floor(values.length / 2);
-  const before = values.slice(0, half).reduce((a, v) => a + v, 0);
-  const after = values.slice(-half).reduce((a, v) => a + v, 0);
-  if (before <= 0) return null;
-  return { pct: ((after - before) / before) * 100, days: half };
-}
 
 export default async function DataOverview({ params }: PageProps<"/b/[slug]/donnees">) {
   const { slug } = await params;
@@ -63,21 +51,21 @@ export default async function DataOverview({ params }: PageProps<"/b/[slug]/donn
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Tile
+        <KpiTile
           label="Visiteurs · 30 j"
           value={visitors ? formatValue(sum(visitors)!, { kind: "number" }) : null}
           trend={visitors?.map((p) => p.value)}
           empty="Connecter une source"
           href={`${base}/connecteurs`}
         />
-        <Tile
+        <KpiTile
           label="Pages vues · 30 j"
           value={pageviews ? formatValue(sum(pageviews)!, { kind: "number" }) : null}
           trend={pageviews?.map((p) => p.value)}
           empty="Connecter une source"
           href={`${base}/connecteurs`}
         />
-        <Tile
+        <KpiTile
           label="Revenus · 30 j"
           value={revenue ? formatValue(sum(revenue)!, mainCurrency ? { kind: "currency", currency: mainCurrency } : { kind: "number" }) : null}
           hint={currencies.length > 1 ? `+ ${currencies.slice(1).map((c) => formatValue(c.total, { kind: "currency", currency: c.unit })).join(", ")}` : undefined}
@@ -85,7 +73,7 @@ export default async function DataOverview({ params }: PageProps<"/b/[slug]/donn
           empty="Connecter Stripe"
           href={`${base}/connecteurs`}
         />
-        <Tile
+        <KpiTile
           label="Disponibilité · 30 j"
           value={uptime !== null ? formatValue(uptime, { kind: "percent" }) : null}
           hint={down.length ? `${down.length} site${down.length > 1 ? "s" : ""} injoignable${down.length > 1 ? "s" : ""}` : measured.length ? "Tous les sites répondent" : undefined}
@@ -189,54 +177,6 @@ export default async function DataOverview({ params }: PageProps<"/b/[slug]/donn
         </div>
       </Card>
     </div>
-  );
-}
-
-function Tile({
-  label,
-  value,
-  hint,
-  trend,
-  empty,
-  href,
-  alert,
-}: {
-  label: string;
-  value: string | null;
-  hint?: string;
-  trend?: number[];
-  empty: string;
-  href: string;
-  alert?: boolean;
-}) {
-  const delta = halfDelta(trend);
-  return (
-    <Card className="flex flex-col justify-between gap-3 p-4 sm:p-5">
-      <span className="text-[13px] text-muted">{label}</span>
-      {value !== null ? (
-        <>
-          <span className="tabular font-[family-name:var(--font-display)] text-[26px] font-semibold leading-none tracking-[-0.03em] sm:text-[30px]">{value}</span>
-          <div className="flex items-end justify-between gap-2">
-            {delta && !hint && !alert ? (
-              <span className="text-[12px] text-faint" title={`${delta.days} derniers jours, comparés aux ${delta.days} précédents`}>
-                <span className={cn("tabular font-medium", delta.pct >= 0.5 ? "text-glow" : "text-muted")}>
-                  {delta.pct >= 0 ? "+" : "−"}
-                  {formatValue(Math.abs(delta.pct), { kind: "percent" })}
-                </span>{" "}
-                sur {delta.days} j
-              </span>
-            ) : (
-              <span className={cn("text-[12px]", alert ? "font-medium text-danger" : "text-faint")}>{hint ?? ""}</span>
-            )}
-            {trend ? <Sparkline values={trend} className="h-7 w-20 shrink-0" /> : null}
-          </div>
-        </>
-      ) : (
-        <Link href={href} className="text-[14px] font-medium text-muted transition hover:text-text">
-          {empty} →
-        </Link>
-      )}
-    </Card>
   );
 }
 

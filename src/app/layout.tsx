@@ -4,9 +4,11 @@ import { cookies } from "next/headers";
 import "./globals.css";
 
 // San Francisco est utilisée en priorité sur les appareils Apple (voir globals.css) ; Inter prend le relais ailleurs.
+// Axe « opsz » : coupe Display (plus serrée) pour les grands titres, coupe Text pour le corps, comme SF Pro.
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+  axes: ["opsz"],
 });
 
 export const metadata: Metadata = {

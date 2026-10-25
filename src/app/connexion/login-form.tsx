@@ -68,7 +68,9 @@ export function LoginForm({ initialStep }: { initialStep: LoginState["step"] }) 
           <p role="alert" className="text-[13px] text-danger">
             {state.error}
           </p>
-        ) : null}
+        ) : (
+          <p className="text-[12px] text-faint">Ensuite, le code à 6 chiffres de ton application.</p>
+        )}
       </div>
     </form>
   );

@@ -29,7 +29,7 @@ function Avatar({ url, name, color, className }: { url?: string | null; name: st
     return <img src={url} alt="" className={cn("rounded-full object-cover", className)} />;
   }
   return (
-    <span className={cn("grid place-items-center rounded-full text-[11px] font-semibold text-white", className)} style={{ background: color }}>
+    <span className={cn("grid place-items-center rounded-full text-[11px] font-semibold text-white", className)} style={{ background: color ? "#1d1d1f" : undefined }}>
       {name.slice(0, 1).toUpperCase()}
     </span>
   );

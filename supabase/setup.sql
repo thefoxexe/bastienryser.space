@@ -1,6 +1,6 @@
 -- Installation complète de bastienryser.space (généré par supabase/scripts/build-setup.mjs, ne pas modifier à la main).
 -- À coller en une fois dans Supabase > SQL Editor > New query, puis Run, sur un projet neuf.
--- Contient 7 migrations, l'adresse du projet pour les tâches automatiques et l'accès admin.
+-- Contient 8 migrations, l'adresse du projet pour les tâches automatiques et l'accès admin.
 
 -- ===========================================================================
 -- 20261025000000_socle.sql
@@ -940,6 +940,19 @@ revoke execute on function public.keyword_history(uuid, text, integer) from publ
 grant execute on function public.keyword_history(uuid, text, integer) to authenticated;
 
 -- ===========================================================================
+-- 20261025000700_hardening.sql
+-- ===========================================================================
+
+-- Durcissement relevé par les contrôles de sécurité de Supabase.
+
+-- Fonction de déclencheur : jamais appelée directement, donc pas exposée par l'API.
+revoke execute on function public.refresh_post_status() from public, anon, authenticated;
+
+-- pg_net hors du schéma public (l'extension n'est pas déplaçable : on la recrée, ses fonctions restent dans `net`).
+drop extension if exists pg_net;
+create extension pg_net with schema extensions;
+
+-- ===========================================================================
 -- Configuration du projet
 -- ===========================================================================
 
@@ -953,7 +966,8 @@ insert into supabase_migrations.schema_migrations (version, name) values
   ('20261025000300', 'system_status'),
   ('20261025000400', 'data_module'),
   ('20261025000500', 'google_connectors'),
-  ('20261025000600', 'keywords')
+  ('20261025000600', 'keywords'),
+  ('20261025000700', 'hardening')
 on conflict do nothing;
 
 -- Adresse du projet, lue par pg_cron pour appeler les Edge Functions (pas un secret).
