@@ -2,70 +2,77 @@
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
+/*
+ * Palette monochrome, inspirée des valeurs système d'Apple.
+ * Une seule « couleur » : l'encre (#1d1d1f / #f5f5f7). Les couleurs de statut sont les couleurs système.
+ */
 :root {
-  --bg: #f7f7f5;
+  --bg: #f5f5f7;
   --surface: #ffffff;
-  --surface-2: #f3f3f0;
-  --sunken: #eeeeea;
-  --border: #e7e6e2;
-  --border-strong: #d7d6d0;
-  --text: #161614;
-  --muted: #6c6b66;
-  --faint: #a19f99;
-  --brand: #161614;
-  --brand-text: #ffffff;
-  --success: #12805c;
-  --warning: #b25e09;
-  --danger: #c4320a;
-  --info: #2860c9;
-  --shadow: 0 1px 2px rgb(22 22 20 / 0.04), 0 1px 1px rgb(22 22 20 / 0.03);
-  --shadow-lg: 0 12px 32px -12px rgb(22 22 20 / 0.18), 0 2px 6px rgb(22 22 20 / 0.05);
-  --accent: var(--brand);
-  --accent-text: var(--brand-text);
+  --surface-2: #f5f5f7;
+  --sunken: #ebebef;
+  --border: rgb(0 0 0 / 0.08);
+  --border-strong: rgb(0 0 0 / 0.16);
+  --text: #1d1d1f;
+  --muted: #6e6e73;
+  --faint: #a1a1a6;
+  --ink: #1d1d1f;
+  --ink-text: #ffffff;
+  --success: #248a3d;
+  --warning: #c25e00;
+  --danger: #d70015;
+  --info: #0066cc;
+  --material: rgb(245 245 247 / 0.72);
+  --shadow: 0 0 0 0.5px rgb(0 0 0 / 0.04), 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-lg: 0 0 0 0.5px rgb(0 0 0 / 0.05), 0 8px 28px rgb(0 0 0 / 0.08), 0 2px 6px rgb(0 0 0 / 0.04);
+  --accent: var(--ink);
+  --accent-text: var(--ink-text);
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0c0c0b;
-    --surface: #141413;
-    --surface-2: #1b1b19;
-    --sunken: #10100f;
-    --border: #252523;
-    --border-strong: #33332f;
-    --text: #edece8;
-    --muted: #9a9993;
-    --faint: #66655f;
-    --brand: #edece8;
-    --brand-text: #111110;
-    --success: #3ccf91;
-    --warning: #f0a54a;
-    --danger: #ff7a59;
-    --info: #79a6ff;
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-lg: 0 16px 40px -12px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
+    --bg: #000000;
+    --surface: #161617;
+    --surface-2: #1d1d1f;
+    --sunken: #0b0b0c;
+    --border: rgb(255 255 255 / 0.09);
+    --border-strong: rgb(255 255 255 / 0.18);
+    --text: #f5f5f7;
+    --muted: #a1a1a6;
+    --faint: #6e6e73;
+    --ink: #f5f5f7;
+    --ink-text: #000000;
+    --success: #30d158;
+    --warning: #ff9f0a;
+    --danger: #ff453a;
+    --info: #2997ff;
+    --material: rgb(0 0 0 / 0.66);
+    --shadow: 0 0 0 0.5px rgb(255 255 255 / 0.06);
+    --shadow-lg: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 12px 40px rgb(0 0 0 / 0.6);
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #0c0c0b;
-  --surface: #141413;
-  --surface-2: #1b1b19;
-  --sunken: #10100f;
-  --border: #252523;
-  --border-strong: #33332f;
-  --text: #edece8;
-  --muted: #9a9993;
-  --faint: #66655f;
-  --brand: #edece8;
-  --brand-text: #111110;
-  --success: #3ccf91;
-  --warning: #f0a54a;
-  --danger: #ff7a59;
-  --info: #79a6ff;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-lg: 0 16px 40px -12px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
+  --bg: #000000;
+  --surface: #161617;
+  --surface-2: #1d1d1f;
+  --sunken: #0b0b0c;
+  --border: rgb(255 255 255 / 0.09);
+  --border-strong: rgb(255 255 255 / 0.18);
+  --text: #f5f5f7;
+  --muted: #a1a1a6;
+  --faint: #6e6e73;
+  --ink: #f5f5f7;
+  --ink-text: #000000;
+  --success: #30d158;
+  --warning: #ff9f0a;
+  --danger: #ff453a;
+  --info: #2997ff;
+  --material: rgb(0 0 0 / 0.66);
+  --shadow: 0 0 0 0.5px rgb(255 255 255 / 0.06);
+  --shadow-lg: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 12px 40px rgb(0 0 0 / 0.6);
   color-scheme: dark;
 }
 
@@ -81,44 +88,65 @@
   --color-faint: var(--faint);
   --color-accent: var(--accent);
   --color-accent-text: var(--accent-text);
+  --color-ink: var(--ink);
+  /* Remplissages translucides (à la place des bordures). */
+  --color-fill: color-mix(in oklab, var(--text) 5%, transparent);
+  --color-fill-strong: color-mix(in oklab, var(--text) 9%, transparent);
+  --color-ink-text: var(--ink-text);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-info: var(--info);
   --shadow-card: var(--shadow);
   --shadow-pop: var(--shadow-lg);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* San Francisco sur les appareils Apple, Inter ailleurs. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", var(--font-inter), "Helvetica Neue", system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", var(--font-inter), "Helvetica Neue", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --ease-apple: cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
-html {
-  -webkit-text-size-adjust: 100%;
-}
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-feature-settings: "ss01", "cv11";
-}
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    letter-spacing: -0.006em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-::selection {
-  background: color-mix(in oklab, var(--accent) 22%, transparent);
-}
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.022em;
+  }
 
-:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--accent) 70%, transparent);
-  outline-offset: 2px;
+  ::selection {
+    background: color-mix(in oklab, var(--ink) 16%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--ink) 55%, transparent);
+    outline-offset: 2px;
+  }
 }
 
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
-/* Fond discret de la page de connexion. */
-.login-backdrop {
-  background:
-    radial-gradient(60rem 30rem at 50% -10%, color-mix(in oklab, var(--text) 6%, transparent), transparent 70%),
-    var(--bg);
+/* Matériau translucide (barre latérale, barre mobile). */
+.material {
+  background: var(--material);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
 }
 
 .scrollbar-none {
@@ -126,4 +154,24 @@ body {
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-rise {
+  animation: rise 0.6s var(--ease-apple) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise {
+    animation: none;
+  }
 }

@@ -14,16 +14,16 @@ export function BusinessMark({
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
-  const dims = { sm: "size-6 rounded-md text-[10px]", md: "size-8 rounded-lg text-[12px]", lg: "size-12 rounded-xl text-base" }[size];
+  const dims = { sm: "size-[22px] rounded-[6px] text-[10px]", md: "size-9 rounded-[10px] text-[13px]", lg: "size-14 rounded-[16px] text-lg" }[size];
   if (logoUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={logoUrl} alt="" className={cn(dims, "shrink-0 border border-border bg-surface object-cover", className)} />
+      <img src={logoUrl} alt="" className={cn(dims, "shrink-0 bg-surface object-cover shadow-[0_0_0_0.5px_rgb(0_0_0/0.1)]", className)} />
     );
   }
   return (
     <span
-      className={cn(dims, "grid shrink-0 place-items-center font-semibold tracking-tight shadow-[inset_0_0_0_1px_rgb(0_0_0/0.08)]", className)}
+      className={cn(dims, "grid shrink-0 place-items-center font-semibold tracking-[-0.02em] shadow-[inset_0_0_0_0.5px_rgb(0_0_0/0.12)]", className)}
       style={{ background: color, color: readableOn(color) }}
       aria-hidden
     >

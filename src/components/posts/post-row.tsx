@@ -8,7 +8,7 @@ import { formatDateTime } from "@/lib/format";
 
 export function PostThumb({ post, className }: { post: Pick<PostSummary, "cover" | "media_count">; className?: string }) {
   return (
-    <span className={cn("relative grid size-12 shrink-0 place-items-center overflow-hidden rounded-lg border border-border bg-surface-2 text-faint", className)}>
+    <span className={cn("relative grid size-12 shrink-0 place-items-center overflow-hidden rounded-[10px] bg-fill text-faint", className)}>
       {post.cover?.url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={post.cover.url} alt="" className="size-full object-cover" />
@@ -31,7 +31,7 @@ export function postTitle(post: Pick<PostSummary, "title" | "targets">) {
 export function PostRow({ post, href, business }: { post: PostSummary; href: string; business?: { name: string; color: string } }) {
   const when = post.status === "published" ? post.published_at : post.scheduled_at;
   return (
-    <Link href={href} className="group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-surface-2">
+    <Link href={href} className="group flex items-center gap-3 rounded-[12px] px-3 py-2.5 transition-colors duration-150 hover:bg-fill">
       <PostThumb post={post} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{postTitle(post)}</p>
@@ -45,7 +45,7 @@ export function PostRow({ post, href, business }: { post: PostSummary; href: str
           <span className="tabular">{when ? formatDateTime(when) : "Pas de date"}</span>
           <span className="flex items-center gap-1">
             {post.targets.map((t) => (
-              <span key={t.id} className={cn("relative", t.status === "failed" && "after:absolute after:-right-0.5 after:-top-0.5 after:size-1.5 after:rounded-full after:bg-danger")}>
+              <span key={t.id} className={cn("relative text-muted", t.status === "failed" && "after:absolute after:-right-0.5 after:-top-0.5 after:size-1.5 after:rounded-full after:bg-danger")}>
                 <NetworkIcon network={t.network} className="size-3.5" />
               </span>
             ))}

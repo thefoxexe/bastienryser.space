@@ -78,7 +78,7 @@ export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
                   aria-label={`Couleur ${c}`}
                 />
               ))}
-              <label className="relative ml-1 flex h-8 items-center gap-2 rounded-full border border-border px-3 text-[13px] text-muted">
+              <label className="relative ml-1 flex h-8 items-center gap-2 rounded-full bg-fill px-3 text-[13px] text-muted">
                 <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="size-4 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0" />
                 <span className="font-mono">{color}</span>
               </label>
@@ -105,7 +105,7 @@ export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
             </label>
           ) : null}
 
-          <div className="rounded-xl border border-border bg-surface-2 p-4">
+          <div className="rounded-[14px] bg-fill p-4">
             <span className="text-[13px] font-medium">Modules</span>
             <label className="mt-3 flex items-start gap-3 text-sm">
               <input type="checkbox" name="social" defaultChecked={business ? business.modules.includes("social") : true} className="mt-0.5 accent-[var(--accent)]" />
@@ -118,7 +118,7 @@ export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
 
           <FormError message={state.error} />
           <div className="flex gap-2">
-            <Button type="submit" disabled={pending} style={{ background: color }} className="text-white">
+            <Button type="submit" disabled={pending}>
               {pending ? "Enregistrement…" : business ? "Enregistrer" : "Créer le business"}
             </Button>
             <ButtonLink href={business ? `/b/${business.slug}` : "/reglages"} variant="ghost">
@@ -130,7 +130,7 @@ export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
 
       <div className="hidden lg:block">
         <div className="sticky top-10">
-          <p className="mb-2 text-[12px] font-medium uppercase tracking-wide text-faint">Aperçu</p>
+          <p className="mb-2 text-[13px] font-medium text-muted">Aperçu</p>
           <Card className="overflow-hidden">
             <div className="h-16" style={{ background: `linear-gradient(135deg, ${color}, color-mix(in oklab, ${color} 55%, black))` }} />
             <div className="-mt-6 px-5 pb-5">

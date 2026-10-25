@@ -26,7 +26,7 @@ export default async function HistoryPage({ params, searchParams }: PageProps<"/
   const base = `/b/${business.slug}/reseaux`;
 
   return (
-    <div className="flex flex-col gap-4 px-4 pb-16 sm:px-8">
+    <div className="flex flex-col gap-4 px-4 pb-16 sm:px-10">
       <div className="scrollbar-none flex gap-1.5 overflow-x-auto">
         {FILTERS.map((f) => (
           <Link

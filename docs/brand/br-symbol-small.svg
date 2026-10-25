@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <title>Bastien Ryser</title>
+  <!-- Coupe petite taille : trait 40, panse agrandie pour garder la contre-forme ouverte à 16 px. -->
+  <path d="M56 34 V168 A52 52 0 1 0 160 168 A52 52 0 1 0 56 168 M160 170 A42 42 0 0 1 202 128" fill="none" stroke="#000" stroke-width="40" stroke-linecap="round"/>
+</svg>

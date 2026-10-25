@@ -7,14 +7,6 @@ export function readableOn(hex: string) {
   return luminance > 0.45 ? "#111110" : "#ffffff";
 }
 
-/** Variables CSS d'accent pour un business. */
-export function accentStyle(color: string): React.CSSProperties {
-  return {
-    "--accent": color,
-    "--accent-text": readableOn(color),
-  } as React.CSSProperties;
-}
-
 export function initials(name: string) {
   return name
     .split(/\s+/)

@@ -27,7 +27,7 @@ export function ThemeToggle({ initial }: { initial: Theme }) {
   ];
 
   return (
-    <div role="radiogroup" aria-label="Thème" className="flex rounded-lg border border-border bg-surface-2 p-0.5">
+    <div role="radiogroup" aria-label="Thème" className="flex rounded-[10px] bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-[3px]">
       {options.map((o) => (
         <button
           key={o.value}
@@ -37,8 +37,8 @@ export function ThemeToggle({ initial }: { initial: Theme }) {
           title={o.label}
           onClick={() => apply(o.value)}
           className={cn(
-            "grid h-7 flex-1 place-items-center rounded-md text-muted transition [&_svg]:size-3.5",
-            theme === o.value ? "bg-surface text-text shadow-card" : "hover:text-text",
+            "grid h-7 flex-1 place-items-center rounded-[8px] text-muted transition-all duration-200 [&_svg]:size-3.5",
+            theme === o.value ? "bg-surface text-text shadow-[0_1px_3px_rgb(0_0_0/0.12)]" : "hover:text-text",
           )}
         >
           {o.icon}

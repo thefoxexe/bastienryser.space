@@ -11,8 +11,8 @@ export default async function PanelLayout({ children }: LayoutProps<"/">) {
 
   if (!viewer.isAdmin) {
     return (
-      <main className="login-backdrop flex flex-1 items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-7 shadow-pop">
+      <main className="flex flex-1 items-center justify-center px-4 py-12">
+        <div className="w-full max-w-sm rounded-[22px] bg-surface p-7 shadow-pop">
           <div className="mb-4 grid size-10 place-items-center rounded-xl bg-[color-mix(in_oklab,var(--danger)_10%,transparent)] text-danger">
             <ShieldAlert className="size-5" />
           </div>

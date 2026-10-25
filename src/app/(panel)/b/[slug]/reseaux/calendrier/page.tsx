@@ -22,16 +22,16 @@ export default async function CalendarPage({ params, searchParams }: PageProps<"
   const posts = [...scheduled, ...published.filter((p) => !ids.has(p.id))];
 
   return (
-    <div className="flex flex-col gap-4 px-4 pb-16 sm:px-8">
+    <div className="flex flex-col gap-4 px-4 pb-16 sm:px-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Link href={`?mois=${range.prev}`} className="grid size-8 place-items-center rounded-lg border border-border bg-surface shadow-card hover:bg-surface-2" aria-label="Mois précédent">
+          <Link href={`?mois=${range.prev}`} className="grid size-8 place-items-center rounded-full bg-fill transition hover:bg-fill-strong" aria-label="Mois précédent">
             <ChevronLeft className="size-4" />
           </Link>
-          <Link href={`?mois=${range.next}`} className="grid size-8 place-items-center rounded-lg border border-border bg-surface shadow-card hover:bg-surface-2" aria-label="Mois suivant">
+          <Link href={`?mois=${range.next}`} className="grid size-8 place-items-center rounded-full bg-fill transition hover:bg-fill-strong" aria-label="Mois suivant">
             <ChevronRight className="size-4" />
           </Link>
-          <h2 className="ml-2 text-lg font-semibold capitalize tracking-tight">{range.label}</h2>
+          <h2 className="ml-2 text-[22px] font-semibold capitalize">{range.label}</h2>
           <Link href="?" className="ml-2 text-[13px] text-muted hover:text-text">
             Aujourd&apos;hui
           </Link>
@@ -42,7 +42,7 @@ export default async function CalendarPage({ params, searchParams }: PageProps<"
       </div>
       <MonthCalendar year={range.year} month={range.month} posts={posts} hrefFor={(p) => `${base}/posts/${p.id}`} />
       <div className="flex flex-wrap gap-4 text-[12px] text-muted">
-        <Legend className="bg-info" label="Programmé" />
+        <Legend className="bg-muted" label="Programmé" />
         <Legend className="bg-warning" label="En cours / partiel" />
         <Legend className="bg-success" label="Publié" />
         <Legend className="bg-danger" label="Échec" />

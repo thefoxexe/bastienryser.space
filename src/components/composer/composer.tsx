@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { AlertTriangle, CalendarClock, Check, Languages, Loader2, Plug, RotateCcw, Send, Sparkles } from "lucide-react";
+import { LogoMark } from "@/components/logo";
 import { NetworkIcon } from "@/components/network-icon";
 import { Button, Card, FormError, Input, Textarea } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
@@ -186,16 +187,16 @@ export function Composer({ business, accounts, initial }: Props) {
   const strictestMax = networks.length ? Math.min(...networks.map((n) => NETWORKS[n].maxChars)) : null;
 
   return (
-    <div className="grid gap-6 px-4 pb-16 sm:px-8 xl:grid-cols-[minmax(0,1fr)_440px]">
+    <div className="grid gap-6 px-4 pb-16 sm:px-10 xl:grid-cols-[minmax(0,1fr)_440px]">
       <div className="flex min-w-0 flex-col gap-5">
         {/* 1. Médias */}
-        <Card className="p-5">
+        <Card className="p-5 sm:p-6">
           <SectionTitle step={1} title="Images" hint={readyMedia.length > 1 ? `Carrousel de ${readyMedia.length} · glisse pour réordonner` : undefined} />
           <MediaPicker items={media} onChange={setMedia} onFiles={handleFiles} />
         </Card>
 
         {/* 2. Comptes */}
-        <Card className="p-5">
+        <Card className="p-5 sm:p-6">
           <SectionTitle step={2} title="Comptes" hint={selected.length ? `${selected.length} sélectionné${selected.length > 1 ? "s" : ""}` : undefined} />
           {usable.length ? (
             <div className="grid gap-2 sm:grid-cols-2">
@@ -207,8 +208,8 @@ export function Composer({ business, accounts, initial }: Props) {
                     type="button"
                     onClick={() => toggleAccount(a.id)}
                     className={cn(
-                      "flex items-center gap-3 rounded-xl border p-3 text-left transition",
-                      on ? "border-accent bg-[color-mix(in_oklab,var(--accent)_6%,var(--surface))] ring-1 ring-accent" : "border-border hover:border-border-strong",
+                      "flex items-center gap-3 rounded-[14px] p-3 text-left transition-all duration-200",
+                      on ? "bg-surface shadow-[0_0_0_1.5px_var(--ink)]" : "bg-fill hover:bg-fill-strong",
                     )}
                   >
                     <span className="relative">
@@ -216,9 +217,9 @@ export function Composer({ business, accounts, initial }: Props) {
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={a.avatar_url} alt="" className="size-9 rounded-full object-cover" />
                       ) : (
-                        <span className="grid size-9 place-items-center rounded-full bg-surface-2 text-[12px] font-semibold text-muted">{a.display_name[0]}</span>
+                        <span className="grid size-9 place-items-center rounded-full bg-ink text-[13px] font-semibold text-ink-text">{a.display_name[0]}</span>
                       )}
-                      <span className="absolute -bottom-1 -right-1 grid size-[18px] place-items-center rounded-full border border-border bg-surface">
+                      <span className="absolute -bottom-1 -right-1 grid size-[18px] place-items-center rounded-full bg-surface shadow-[0_0_0_1.5px_var(--surface)]">
                         <NetworkIcon network={a.network} className="size-[11px]" />
                       </span>
                     </span>
@@ -229,7 +230,7 @@ export function Composer({ business, accounts, initial }: Props) {
                         {a.status !== "connected" ? <span className="text-warning"> · {a.status === "expired" ? "expiré" : "à renouveler"}</span> : null}
                       </span>
                     </span>
-                    <span className={cn("grid size-5 place-items-center rounded-md border transition", on ? "border-accent bg-accent text-accent-text" : "border-border-strong")}>
+                    <span className={cn("grid size-5 place-items-center rounded-full transition-all duration-200", on ? "bg-ink text-ink-text" : "shadow-[inset_0_0_0_1.5px_var(--border-strong)]")}>
                       {on ? <Check className="size-3.5" /> : null}
                     </span>
                   </button>
@@ -237,7 +238,7 @@ export function Composer({ business, accounts, initial }: Props) {
               })}
             </div>
           ) : (
-            <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-border-strong p-4 text-sm text-muted sm:flex-row sm:items-center">
+            <div className="flex flex-col items-start gap-3 rounded-[14px] bg-fill p-4 text-sm text-muted sm:flex-row sm:items-center">
               <Plug className="size-5" />
               <span className="flex-1">Aucun compte connecté pour {business.name}.</span>
               <Link href={`/b/${business.slug}/reseaux/comptes`} className="font-medium text-text underline-offset-4 hover:underline">
@@ -248,7 +249,7 @@ export function Composer({ business, accounts, initial }: Props) {
         </Card>
 
         {/* 3. Description */}
-        <Card className="p-5">
+        <Card className="p-5 sm:p-6">
           <SectionTitle step={3} title="Description" />
           <div className="mb-3">
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titre interne (facultatif, pour t'y retrouver)" className="h-9" />
@@ -308,7 +309,7 @@ export function Composer({ business, accounts, initial }: Props) {
 
           {tab !== "common" ? <IssueList issues={issues.get(tab) ?? []} /> : null}
 
-          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface-2 p-2">
+          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-[14px] bg-fill p-2">
             <span className="flex items-center gap-1.5 px-2 text-[12px] font-medium text-muted">
               <Sparkles className="size-3.5" /> IA
             </span>
@@ -331,7 +332,7 @@ export function Composer({ business, accounts, initial }: Props) {
         </Card>
 
         {/* 4. Publication */}
-        <Card className="p-5">
+        <Card className="p-5 sm:p-6">
           <SectionTitle step={4} title="Publication" />
           <div className="grid gap-2 sm:grid-cols-2">
             <ModeCard active={mode === "now"} onClick={() => setMode("now")} icon={<Send />} title="Publier maintenant" description="Envoyé dans la minute." />
@@ -382,15 +383,15 @@ export function Composer({ business, accounts, initial }: Props) {
       <aside className="min-w-0">
         <div className="flex flex-col gap-3 xl:sticky xl:top-6">
           <div className="flex items-center justify-between">
-            <span className="text-[12px] font-medium uppercase tracking-wide text-faint">Aperçu</span>
+            <span className="text-[13px] font-medium text-muted">Aperçu</span>
             {networks.length > 1 ? (
-              <div className="flex gap-1 rounded-lg border border-border bg-surface-2 p-0.5">
+              <div className="flex gap-0.5 rounded-[10px] bg-fill p-[3px]">
                 {networks.map((n) => (
                   <button
                     key={n}
                     type="button"
                     onClick={() => setPreviewNetwork(n)}
-                    className={cn("grid size-7 place-items-center rounded-md transition", activeNetwork === n ? "bg-surface shadow-card" : "opacity-60 hover:opacity-100")}
+                    className={cn("grid size-7 place-items-center rounded-[8px] transition-all duration-200", activeNetwork === n ? "bg-surface shadow-[0_1px_3px_rgb(0_0_0/0.12)]" : "text-muted hover:text-text")}
                     title={NETWORKS[n].label}
                   >
                     <NetworkIcon network={n} className="size-3.5" />
@@ -410,8 +411,9 @@ export function Composer({ business, accounts, initial }: Props) {
               media={media.map((m) => ({ url: m.previewUrl, kind: m.kind, width: m.width, height: m.height, name: m.name }))}
             />
           ) : (
-            <div className="grid min-h-72 place-items-center rounded-xl border border-dashed border-border-strong p-6 text-center text-[13px] text-muted">
-              Choisis un compte pour voir l&apos;aperçu du post.
+            <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-2xl bg-surface p-6 text-center shadow-card">
+              <LogoMark small className="size-7 text-faint" />
+              <p className="max-w-[220px] text-[13px] leading-relaxed text-muted">Choisis un compte pour voir le post tel qu&apos;il apparaîtra.</p>
             </div>
           )}
         </div>
@@ -423,8 +425,8 @@ export function Composer({ business, accounts, initial }: Props) {
 function SectionTitle({ step, title, hint }: { step: number; title: string; hint?: string }) {
   return (
     <div className="mb-4 flex items-center gap-2.5">
-      <span className="grid size-6 place-items-center rounded-full bg-surface-2 text-[12px] font-semibold text-muted ring-1 ring-border">{step}</span>
-      <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>
+      <span className="grid size-6 place-items-center rounded-full bg-ink text-[12px] font-semibold text-ink-text">{step}</span>
+      <h2 className="text-[17px] font-semibold">{title}</h2>
       {hint ? <span className="ml-auto text-[12px] text-muted">{hint}</span> : null}
     </div>
   );
@@ -452,11 +454,11 @@ function ModeCard({ active, onClick, icon, title, description }: { active: boole
       type="button"
       onClick={onClick}
       className={cn(
-        "flex items-center gap-3 rounded-xl border p-3.5 text-left transition [&_svg]:size-4",
-        active ? "border-accent bg-[color-mix(in_oklab,var(--accent)_6%,var(--surface))] ring-1 ring-accent" : "border-border hover:border-border-strong",
+        "flex items-center gap-3 rounded-[14px] p-3.5 text-left transition-all duration-200 [&_svg]:size-4",
+        active ? "bg-surface shadow-[0_0_0_1.5px_var(--ink)]" : "bg-fill hover:bg-fill-strong",
       )}
     >
-      <span className={cn("grid size-9 place-items-center rounded-lg", active ? "bg-accent text-accent-text" : "bg-surface-2 text-muted")}>{icon}</span>
+      <span className={cn("grid size-9 place-items-center rounded-full transition-colors", active ? "bg-ink text-ink-text" : "bg-surface text-muted")}>{icon}</span>
       <span>
         <span className="block text-sm font-medium">{title}</span>
         <span className="block text-[12px] text-muted">{description}</span>

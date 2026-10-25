@@ -37,7 +37,7 @@ export default async function SettingsPage() {
           <Card>
             <CardHeader title={<span id="profil">Profil</span>} description="Le compte se gère dans Supabase : aucune inscription n'est possible ici." />
             <div className="flex items-center gap-4 p-5">
-              <span className="grid size-11 place-items-center rounded-full bg-surface-2 text-base font-semibold text-muted ring-1 ring-border">
+              <span className="grid size-11 place-items-center rounded-full bg-ink text-base font-semibold text-ink-text">
                 {(viewer.email ?? "?")[0]?.toUpperCase()}
               </span>
               <div>
@@ -57,9 +57,9 @@ export default async function SettingsPage() {
               {totp.length > 0 ? (
                 <ul className="flex flex-col gap-3">
                   {totp.map((factor) => (
-                    <li key={factor.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface-2 p-3.5">
+                    <li key={factor.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] bg-fill p-3.5">
                       <span className="flex items-center gap-3 text-sm">
-                        <ShieldCheck className="size-5 text-success" />
+                        <ShieldCheck className="size-5 text-text" />
                         <span>
                           {factor.friendly_name ?? "Application d'authentification"}
                           <span className="block text-[13px] text-muted">Activée le {formatDate(factor.created_at)}</span>

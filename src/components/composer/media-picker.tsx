@@ -60,7 +60,7 @@ export function MediaPicker({
                 <button
                   type="button"
                   onClick={() => input.current?.click()}
-                  className="grid aspect-[4/5] w-full place-items-center rounded-xl border border-dashed border-border-strong text-muted transition hover:border-text hover:text-text"
+                  className="grid aspect-[4/5] w-full place-items-center rounded-[14px] bg-fill text-muted transition hover:bg-fill-strong hover:text-text"
                 >
                   <span className="flex flex-col items-center gap-1 text-[12px]">
                     <ImagePlus className="size-5" />
@@ -86,12 +86,12 @@ export function MediaPicker({
             onFiles([...e.dataTransfer.files]);
           }}
           className={cn(
-            "flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-6 py-10 text-center transition",
-            over ? "border-accent bg-[color-mix(in_oklab,var(--accent)_6%,transparent)]" : "border-border-strong hover:border-text",
+            "flex flex-col items-center justify-center gap-2 rounded-2xl px-6 py-12 text-center transition-all duration-200",
+            over ? "bg-fill-strong shadow-[inset_0_0_0_1.5px_var(--ink)]" : "bg-fill hover:bg-fill-strong",
           )}
         >
-          <span className="grid size-11 place-items-center rounded-xl border border-border bg-surface shadow-card">
-            <ImagePlus className="size-5 text-muted" />
+          <span className="mb-1 grid size-12 place-items-center rounded-full bg-surface shadow-card">
+            <ImagePlus className="size-5 text-text" />
           </span>
           <span className="text-sm font-medium">Dépose tes images ici</span>
           <span className="max-w-xs text-[13px] text-muted">
@@ -129,8 +129,8 @@ function SortableTile({ item, index, onRemove }: { item: MediaItem; index: numbe
         {...attributes}
         {...listeners}
         className={cn(
-          "relative aspect-[4/5] cursor-grab touch-none overflow-hidden rounded-xl border bg-surface-2 active:cursor-grabbing",
-          item.status === "error" ? "border-danger" : "border-border",
+          "relative aspect-[4/5] cursor-grab touch-none overflow-hidden rounded-[14px] bg-fill active:cursor-grabbing",
+          item.status === "error" && "shadow-[0_0_0_1.5px_var(--danger)]",
           isDragging && "shadow-pop",
         )}
       >
@@ -170,7 +170,7 @@ function SortableTile({ item, index, onRemove }: { item: MediaItem; index: numbe
       <button
         type="button"
         onClick={onRemove}
-        className="absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full border border-border bg-surface text-muted shadow-card transition hover:text-danger sm:opacity-0 sm:group-hover:opacity-100"
+        className="absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-ink text-ink-text shadow-pop transition sm:opacity-0 sm:group-hover:opacity-100"
         aria-label="Retirer"
       >
         <X className="size-3.5" />

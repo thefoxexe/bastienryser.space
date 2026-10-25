@@ -24,8 +24,8 @@ export function LinkTabs({
             key={tab.href}
             href={tab.href}
             className={cn(
-              "whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] transition",
-              isActive(tab.href) ? "bg-surface font-medium text-text shadow-card ring-1 ring-border" : "text-muted hover:text-text",
+              "whitespace-nowrap rounded-[9px] px-3.5 py-1.5 text-[13px] font-medium transition-all duration-200",
+              isActive(tab.href) ? "bg-surface text-text shadow-[0_1px_3px_rgb(0_0_0/0.1),0_0_0_0.5px_rgb(0_0_0/0.04)]" : "text-muted hover:text-text",
             )}
           >
             {tab.label}
@@ -46,7 +46,7 @@ export function LinkTabs({
             className={cn("relative whitespace-nowrap px-3 pb-3 pt-1 text-sm transition-colors", active ? "font-medium text-text" : "text-muted hover:text-text")}
           >
             {tab.label}
-            {active ? <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent" /> : null}
+            {active ? <span className="absolute inset-x-3 -bottom-px h-[2px] rounded-full bg-text" /> : null}
           </Link>
         );
       })}

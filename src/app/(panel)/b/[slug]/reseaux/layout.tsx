@@ -8,11 +8,11 @@ export default async function SocialLayout({ children, params }: LayoutProps<"/b
   const mod = MODULES.find((m) => m.id === "social")!;
   const base = `/b/${business.slug}/${mod.basePath}`;
   return (
-    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 pt-6 sm:px-8 sm:pt-8">
-      <div className="w-fit max-w-full rounded-xl border border-border bg-surface-2 p-1">
+    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 pt-6 sm:px-10 sm:pt-8">
+      <div className="w-fit max-w-full rounded-[12px] bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-[3px]">
         <SegmentTabs tabs={mod.tabs.map((t) => ({ href: base + t.href, label: t.label }))} base={base} />
       </div>
-      <div className="-mx-4 sm:-mx-8">{children}</div>
+      <div className="-mx-4 sm:-mx-10">{children}</div>
     </div>
   );
 }

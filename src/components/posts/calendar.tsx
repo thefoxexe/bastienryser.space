@@ -9,7 +9,7 @@ const WEEKDAYS = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."];
 
 const statusDot: Record<PostSummary["status"], string> = {
   draft: "bg-faint",
-  scheduled: "bg-info",
+  scheduled: "bg-muted",
   publishing: "bg-warning",
   published: "bg-success",
   partial: "bg-warning",
@@ -54,8 +54,8 @@ export function MonthCalendar({
   });
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-card">
-      <div className="grid grid-cols-7 border-b border-border bg-surface-2 text-center text-[11px] font-medium uppercase tracking-wide text-faint">
+    <div className="overflow-hidden rounded-2xl bg-surface shadow-card">
+      <div className="grid grid-cols-7 border-b border-border text-center text-[12px] font-medium text-faint">
         {WEEKDAYS.map((d) => (
           <div key={d} className="py-2">
             {d}
@@ -72,7 +72,7 @@ export function MonthCalendar({
                 "min-h-20 border-border p-1 sm:min-h-28 sm:p-1.5",
                 i % 7 !== 6 && "border-r",
                 i < totalCells - 7 && "border-b",
-                !c.inMonth && "bg-[color-mix(in_oklab,var(--surface-2)_60%,transparent)]",
+                !c.inMonth && "bg-[color-mix(in_oklab,var(--text)_2.5%,transparent)]",
               )}
             >
               <div className="mb-1 flex justify-end">
@@ -90,13 +90,13 @@ export function MonthCalendar({
                   <Link
                     key={p.id}
                     href={hrefFor(p)}
-                    className="group flex items-center gap-1 overflow-hidden rounded-md border border-border bg-surface px-1 py-0.5 text-[11px] shadow-card transition hover:border-border-strong sm:px-1.5"
+                    className="group flex items-center gap-1 overflow-hidden rounded-[6px] bg-fill px-1 py-[3px] text-[11px] transition hover:bg-fill-strong sm:px-1.5"
                     style={colorFor?.(p) ? { borderLeft: `3px solid ${colorFor(p)}` } : undefined}
                   >
                     <span className={cn("size-1.5 shrink-0 rounded-full", statusDot[p.status])} />
                     <span className="hidden shrink-0 tabular text-muted sm:inline">{postDate(p) ? formatTime(postDate(p)!) : ""}</span>
                     <span className="hidden truncate sm:inline">{postTitle(p)}</span>
-                    <span className="ml-auto hidden shrink-0 items-center gap-0.5 lg:flex">
+                    <span className="ml-auto hidden shrink-0 items-center gap-0.5 text-muted lg:flex">
                       {[...new Set(p.targets.map((t) => t.network))].map((n) => (
                         <NetworkIcon key={n} network={n} className="size-3" />
                       ))}

@@ -61,15 +61,15 @@ export default async function AccountsPage({ params, searchParams }: PageProps<"
   const error = typeof query.erreur === "string" ? (ERRORS[query.erreur] ?? ERRORS.echec) : null;
 
   return (
-    <div className="flex flex-col gap-5 px-4 pb-16 sm:px-8">
+    <div className="flex flex-col gap-5 px-4 pb-16 sm:px-10">
       {connected !== null ? (
-        <div className="flex items-center gap-2 rounded-xl border border-[color-mix(in_oklab,var(--success)_25%,transparent)] bg-[color-mix(in_oklab,var(--success)_8%,transparent)] px-4 py-3 text-sm text-success">
+        <div className="flex items-center gap-2 rounded-[14px] bg-[color-mix(in_oklab,var(--success)_10%,transparent)] px-4 py-3 text-sm text-success">
           <CheckCircle2 className="size-4" />
           Connexion réussie{connected ? ` : ${connected} compte${connected > 1 ? "s" : ""} relié${connected > 1 ? "s" : ""}` : ""}.
         </div>
       ) : null}
       {error ? (
-        <div className="flex items-center gap-2 rounded-xl border border-[color-mix(in_oklab,var(--danger)_25%,transparent)] bg-[color-mix(in_oklab,var(--danger)_8%,transparent)] px-4 py-3 text-sm text-danger">
+        <div className="flex items-center gap-2 rounded-[14px] bg-[color-mix(in_oklab,var(--danger)_9%,transparent)] px-4 py-3 text-sm text-danger">
           <AlertTriangle className="size-4" />
           {error}
         </div>
@@ -83,7 +83,7 @@ export default async function AccountsPage({ params, searchParams }: PageProps<"
               <div className="flex items-start gap-3 p-5">
                 <div className="flex -space-x-2">
                   {p.networks.map((n) => (
-                    <NetworkChip key={n} network={n} className="size-9 ring-2 ring-surface" />
+                    <NetworkChip key={n} network={n} className="size-9 rounded-full bg-surface-2 ring-2 ring-surface" />
                   ))}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -105,7 +105,7 @@ export default async function AccountsPage({ params, searchParams }: PageProps<"
               </div>
 
               {list.length ? (
-                <ul className="mx-5 mb-5 divide-y divide-border rounded-xl border border-border">
+                <ul className="mx-5 mb-5 divide-y divide-border rounded-[14px] bg-fill">
                   {list.map((a) => (
                     <li key={a.id} className="flex flex-wrap items-center gap-3 p-3">
                       {a.avatar_url ? (

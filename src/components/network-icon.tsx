@@ -40,9 +40,10 @@ const paths: Record<SocialNetwork, React.ReactNode> = {
   ),
 };
 
-export function NetworkIcon({ network, className }: { network: SocialNetwork; className?: string }) {
+// Monochrome par défaut (suit la couleur du texte) ; `brand` affiche la couleur du réseau.
+export function NetworkIcon({ network, className, brand }: { network: SocialNetwork; className?: string; brand?: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" aria-label={NETWORKS[network].label} role="img" className={cn("size-4", className)} style={{ color: NETWORKS[network].brand }}>
+    <svg viewBox="0 0 24 24" aria-label={NETWORKS[network].label} role="img" className={cn("size-4", className)} style={brand ? { color: NETWORKS[network].brand } : undefined}>
       {paths[network]}
     </svg>
   );
@@ -50,8 +51,8 @@ export function NetworkIcon({ network, className }: { network: SocialNetwork; cl
 
 export function NetworkChip({ network, className }: { network: SocialNetwork; className?: string }) {
   return (
-    <span className={cn("grid size-7 place-items-center rounded-lg border border-border bg-surface", className)}>
-      <NetworkIcon network={network} className="size-[15px] dark:[filter:brightness(1.4)]" />
+    <span className={cn("grid size-7 place-items-center rounded-[8px] bg-fill text-text", className)}>
+      <NetworkIcon network={network} className="size-[15px]" />
     </span>
   );
 }

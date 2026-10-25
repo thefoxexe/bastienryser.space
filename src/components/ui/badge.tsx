@@ -5,23 +5,17 @@ import { cn } from "./cn";
 type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "accent";
 
 const tones: Record<Tone, string> = {
-  neutral: "bg-surface-2 text-muted border-border",
-  success: "text-success bg-[color-mix(in_oklab,var(--success)_10%,transparent)] border-[color-mix(in_oklab,var(--success)_22%,transparent)]",
-  warning: "text-warning bg-[color-mix(in_oklab,var(--warning)_10%,transparent)] border-[color-mix(in_oklab,var(--warning)_22%,transparent)]",
-  danger: "text-danger bg-[color-mix(in_oklab,var(--danger)_10%,transparent)] border-[color-mix(in_oklab,var(--danger)_22%,transparent)]",
-  info: "text-info bg-[color-mix(in_oklab,var(--info)_10%,transparent)] border-[color-mix(in_oklab,var(--info)_22%,transparent)]",
-  accent: "text-text bg-[color-mix(in_oklab,var(--accent)_12%,transparent)] border-[color-mix(in_oklab,var(--accent)_28%,transparent)]",
+  neutral: "text-muted bg-[color-mix(in_oklab,var(--text)_6%,transparent)]",
+  success: "text-success bg-[color-mix(in_oklab,var(--success)_12%,transparent)]",
+  warning: "text-warning bg-[color-mix(in_oklab,var(--warning)_12%,transparent)]",
+  danger: "text-danger bg-[color-mix(in_oklab,var(--danger)_11%,transparent)]",
+  info: "text-text bg-[color-mix(in_oklab,var(--text)_8%,transparent)]",
+  accent: "text-text bg-[color-mix(in_oklab,var(--text)_8%,transparent)]",
 };
 
 export function Badge({ tone = "neutral", dot, children, className }: { tone?: Tone; dot?: boolean; children: ReactNode; className?: string }) {
   return (
-    <span
-      className={cn(
-        "inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-full border px-2 text-[12px] font-medium",
-        tones[tone],
-        className,
-      )}
-    >
+    <span className={cn("inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-[12px] font-medium", tones[tone], className)}>
       {dot ? <span className="size-1.5 rounded-full bg-current" /> : null}
       {children}
     </span>

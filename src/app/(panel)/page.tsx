@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AlertTriangle, ArrowUpRight, CalendarDays, CheckCircle2, Clock, PenSquare, RotateCw } from "lucide-react";
 import { ActivityFeed } from "@/components/activity-feed";
 import { BusinessMark } from "@/components/business-mark";
-import { NetworkIcon } from "@/components/network-icon";
+import { NetworkChip, NetworkIcon } from "@/components/network-icon";
 import { PostRow, postTitle } from "@/components/posts/post-row";
 import { Page } from "@/components/shell/page";
 import { Button, ButtonLink, Card, CardHeader, EmptyState, PageHeader } from "@/components/ui";
@@ -55,21 +55,20 @@ export default async function DashboardPage() {
 
       {/* À traiter */}
       {alerts.length ? (
-        <Card className="overflow-hidden border-[color-mix(in_oklab,var(--danger)_30%,var(--border))]">
-          <div className="flex items-center gap-2 border-b border-border bg-[color-mix(in_oklab,var(--danger)_6%,transparent)] px-5 py-3">
-            <AlertTriangle className="size-4 text-danger" />
-            <h2 className="text-[15px] font-semibold tracking-tight">À traiter</h2>
-            <span className="ml-auto text-[13px] text-muted">{alerts.length}</span>
+        <Card className="animate-rise overflow-hidden [animation-delay:60ms]">
+          <div className="flex items-center gap-2.5 px-5 pb-2 pt-5 sm:px-6">
+            <h2 className="text-[17px] font-semibold">À traiter</h2>
+            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-danger px-1.5 text-[11px] font-semibold text-white">{alerts.length}</span>
           </div>
-          <ul className="divide-y divide-border">
+          <ul className="divide-y divide-border px-1 pb-1">
             {alerts.map((a) => {
               const b = byId.get(a.business_id);
               if (!b) return null;
               if (a.kind === "failed_post") {
                 return (
-                  <li key={a.target_id} className="flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center">
+                  <li key={a.target_id} className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:px-5">
                     <div className="flex min-w-0 flex-1 items-start gap-3">
-                      <NetworkIcon network={a.network} className="mt-0.5 size-4 shrink-0" />
+                      <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-[color-mix(in_oklab,var(--danger)_11%,transparent)] text-danger"><AlertTriangle className="size-3.5" /></span>
                       <div className="min-w-0">
                         <Link href={`/b/${b.slug}/reseaux/posts/${a.post_id}`} className="text-sm font-medium hover:underline">
                           Échec sur {NETWORKS[a.network].label} · {a.title}
@@ -91,9 +90,9 @@ export default async function DashboardPage() {
               }
               const expired = a.account.status === "expired" || (a.account.token_expires_at && new Date(a.account.token_expires_at) < now);
               return (
-                <li key={a.account.id} className="flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center">
+                <li key={a.account.id} className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:px-5">
                   <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <NetworkIcon network={a.account.network} className="mt-0.5 size-4 shrink-0" />
+                    <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-fill text-text"><NetworkIcon network={a.account.network} className="size-3.5" /></span>
                     <div className="min-w-0">
                       <p className="text-sm font-medium">
                         {a.account.status === "error"
@@ -121,8 +120,8 @@ export default async function DashboardPage() {
       ) : null}
 
       {/* Cartes par business */}
-      <section className="flex flex-col gap-3">
-        <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-faint">Business</h2>
+      <section className="flex flex-col gap-4">
+        <h2 className="text-[22px] font-semibold">Business</h2>
         {businesses.length ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {businesses.map((b) => {
@@ -130,16 +129,15 @@ export default async function DashboardPage() {
               const last = recent.filter((p) => p.business_id === b.id).slice(0, 2);
               const bAlerts = alerts.filter((a) => a.business_id === b.id).length;
               return (
-                <Card key={b.id} className="group flex flex-col overflow-hidden transition hover:shadow-pop">
-                  <div className="h-1" style={{ background: b.color }} />
-                  <Link href={`/b/${b.slug}`} className="flex items-center gap-3 px-5 pb-3 pt-4">
+                <Card key={b.id} className="group flex flex-col overflow-hidden transition-shadow duration-300 hover:shadow-pop">
+                  <Link href={`/b/${b.slug}`} className="flex items-center gap-3 px-5 pb-3 pt-5">
                     <BusinessMark name={b.name} color={b.color} logoUrl={b.logo_url} />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold tracking-tight">{b.name}</p>
+                      <p className="truncate text-[17px] font-semibold tracking-[-0.02em]">{b.name}</p>
                       <p className="truncate text-[12px] text-muted">{b.websites[0]?.replace(/^https?:\/\//, "") ?? b.description ?? ""}</p>
                     </div>
                     {bAlerts ? (
-                      <span className="rounded-full bg-[color-mix(in_oklab,var(--danger)_12%,transparent)] px-2 py-0.5 text-[12px] font-medium text-danger">{bAlerts} alerte{bAlerts > 1 ? "s" : ""}</span>
+                      <span className="rounded-full bg-[color-mix(in_oklab,var(--danger)_11%,transparent)] px-2.5 py-0.5 text-[12px] font-medium text-danger">{bAlerts} alerte{bAlerts > 1 ? "s" : ""}</span>
                     ) : (
                       <ArrowUpRight className="size-4 text-faint transition group-hover:text-text" />
                     )}
@@ -173,7 +171,7 @@ export default async function DashboardPage() {
             {metrics.length ? (
               <table className="w-full min-w-[520px] text-sm">
                 <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-wide text-faint">
+                  <tr className="text-left text-[12px] text-muted">
                     <th className="px-3 py-2 font-medium">Compte</th>
                     <th className="px-3 py-2 text-right font-medium">Posts</th>
                     <th className="px-3 py-2 text-right font-medium">Portée</th>
@@ -188,9 +186,9 @@ export default async function DashboardPage() {
                       const b = byId.get(m.business_id);
                       return (
                         <tr key={`${m.business_id}:${m.network}`}>
-                          <td className="px-3 py-2.5">
-                            <span className="flex items-center gap-2">
-                              <NetworkIcon network={m.network} />
+                          <td className="px-3 py-3">
+                            <span className="flex items-center gap-2.5">
+                              <NetworkChip network={m.network} />
                               <span className="font-medium">{NETWORKS[m.network].label}</span>
                               <span className="text-[12px] text-muted">{b?.name}</span>
                             </span>
@@ -237,7 +235,7 @@ function MiniList({
 }) {
   return (
     <div>
-      <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-faint [&_svg]:size-3">
+      <p className="mb-1 flex items-center gap-1.5 text-[13px] text-muted [&_svg]:size-3.5">
         {icon}
         {title}
       </p>
@@ -278,10 +276,10 @@ function FourteenDays({
           const list = posts.filter((p) => p.scheduled_at && zurichDayKey(p.scheduled_at) === key);
           const weekend = ["sam.", "dim."].includes(fmt.format(d));
           return (
-            <div key={key} className={cn("flex min-h-36 flex-col gap-1.5 rounded-xl border border-border p-1.5", weekend ? "bg-surface-2" : "bg-surface", key === today && "ring-1 ring-text")}>
-              <div className="flex items-baseline justify-between px-1">
-                <span className="text-[11px] uppercase text-faint">{fmt.format(d)}</span>
-                <span className={cn("tabular text-sm font-semibold", key === today ? "text-text" : "text-muted")}>{dayNum.format(d)}</span>
+            <div key={key} className={cn("flex min-h-36 flex-col gap-1.5 rounded-[14px] p-1.5", weekend ? "bg-[color-mix(in_oklab,var(--text)_2.5%,transparent)]" : "bg-fill")}>
+              <div className="flex items-center justify-between px-1 pt-0.5">
+                <span className="text-[12px] text-muted">{fmt.format(d).replace(".", "")}</span>
+                <span className={cn("tabular grid size-6 place-items-center rounded-full text-[13px] font-semibold", key === today ? "bg-ink text-ink-text" : "text-text")}>{dayNum.format(d)}</span>
               </div>
               {list.map((p) => {
                 const b = businesses.get(p.business_id);
@@ -289,12 +287,11 @@ function FourteenDays({
                   <Link
                     key={p.id}
                     href={b ? `/b/${b.slug}/reseaux/posts/${p.id}` : "#"}
-                    className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1.5 text-[11px] shadow-card transition hover:border-border-strong"
-                    style={{ borderLeft: `3px solid ${b?.color ?? "var(--border)"}` }}
+                    className="flex flex-col gap-1 rounded-[10px] bg-surface p-1.5 text-[11px] shadow-card transition-shadow hover:shadow-pop"
                   >
-                    <span className="tabular text-muted">{formatTime(p.scheduled_at!)}</span>
+                    <span className="tabular flex items-center gap-1 text-muted"><span className="size-1.5 rounded-full" style={{ background: b?.color }} />{formatTime(p.scheduled_at!)}</span>
                     <span className="line-clamp-2 font-medium leading-tight">{postTitle(p)}</span>
-                    <span className="flex gap-0.5">
+                    <span className="flex gap-0.5 text-muted">
                       {[...new Set(p.targets.map((t) => t.network))].map((n) => (
                         <NetworkIcon key={n} network={n} className="size-3" />
                       ))}

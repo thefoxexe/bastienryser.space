@@ -1,68 +1,108 @@
 "use client";
 
-import { useActionState } from "react";
-import { KeyRound } from "lucide-react";
-import { Button, Field, FormError, Input } from "@/components/ui";
+import { useActionState, useRef } from "react";
+import { ArrowRight, Loader2 } from "lucide-react";
+import { OtpInput } from "@/components/otp-input";
+import { cn } from "@/components/ui/cn";
 import { login, type LoginState } from "./actions";
 
 export function LoginForm({ initialStep }: { initialStep: LoginState["step"] }) {
   const [state, action, pending] = useActionState(login, { step: initialStep });
+  const totpForm = useRef<HTMLFormElement>(null);
 
   if (state.step === "totp") {
     return (
-      <form action={action} className="flex flex-col gap-5">
-        <div className="flex items-start gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-border bg-surface-2 text-muted">
-            <KeyRound className="size-4" />
-          </span>
-          <p className="text-sm text-muted">Saisis le code à 6 chiffres de ton application d&apos;authentification.</p>
+      <form ref={totpForm} action={action} className="flex flex-col gap-6">
+        <input type="hidden" name="intent" value="totp" />
+        <p className="text-center text-[15px] leading-relaxed text-muted">
+          Saisis le code à 6 chiffres
+          <br />
+          de ton application d&apos;authentification.
+        </p>
+        <OtpInput key={state.error ?? "otp"} autoFocus disabled={pending} invalid={Boolean(state.error)} onComplete={() => totpForm.current?.requestSubmit()} />
+        <div className="flex h-5 items-center justify-center">
+          {pending ? (
+            <Loader2 className="size-4 animate-spin text-muted" />
+          ) : state.error ? (
+            <p role="alert" className="text-[13px] text-danger">
+              {state.error}
+            </p>
+          ) : null}
         </div>
-        <Field label="Code" htmlFor="code">
-          <Input
-            id="code"
-            name="code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={7}
-            required
-            autoFocus
-            className="h-12 text-center font-mono text-lg tracking-[0.4em]"
-            placeholder="000000"
-          />
-        </Field>
-        <FormError message={state.error} />
-        <div className="flex flex-col gap-2">
-          <Button type="submit" name="intent" value="totp" variant="brand" disabled={pending} className="h-11">
-            {pending ? "Vérification…" : "Valider"}
-          </Button>
-          <Button type="submit" name="intent" value="cancel" variant="ghost" formNoValidate disabled={pending}>
-            Annuler
-          </Button>
-        </div>
+        <button
+          type="submit"
+          formNoValidate
+          onClick={(e) => {
+            // « Annuler » : on remplace l'intention avant l'envoi.
+            const form = e.currentTarget.form!;
+            (form.elements.namedItem("intent") as HTMLInputElement).value = "cancel";
+          }}
+          className="mx-auto text-[13px] text-muted transition hover:text-text"
+        >
+          Utiliser un autre compte
+        </button>
       </form>
     );
   }
 
   return (
     <form action={action} className="flex flex-col gap-4">
-      <Field label="E-mail" htmlFor="email">
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="username"
-          defaultValue={state.email}
-          required
-          autoFocus
-        />
-      </Field>
-      <Field label="Mot de passe" htmlFor="password">
-        <Input id="password" name="password" type="password" autoComplete="current-password" required />
-      </Field>
-      <FormError message={state.error} />
-      <Button type="submit" name="intent" value="password" variant="brand" disabled={pending} className="mt-1 h-11">
-        {pending ? "Connexion…" : "Se connecter"}
-      </Button>
+      <input type="hidden" name="intent" value="password" />
+      <div className="overflow-hidden rounded-2xl bg-surface shadow-[0_0_0_0.5px_var(--border-strong),0_1px_2px_rgb(0_0_0/0.04)] transition-shadow focus-within:shadow-[0_0_0_1px_color-mix(in_oklab,var(--text)_40%,transparent),0_0_0_5px_color-mix(in_oklab,var(--text)_7%,transparent)]">
+        <FloatingField id="email" name="email" type="email" label="E-mail" autoComplete="username" defaultValue={state.email} autoFocus />
+        <div className="mx-4 h-px bg-border" />
+        <div className="relative">
+          <FloatingField id="password" name="password" type="password" label="Mot de passe" autoComplete="current-password" className="pr-14" />
+          <button
+            type="submit"
+            disabled={pending}
+            aria-label="Se connecter"
+            className="absolute right-3 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-ink text-ink-text transition hover:opacity-85 active:scale-95 disabled:opacity-60"
+          >
+            {pending ? <Loader2 className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
+          </button>
+        </div>
+      </div>
+      <div className="flex h-5 items-center justify-center">
+        {state.error ? (
+          <p role="alert" className="text-[13px] text-danger">
+            {state.error}
+          </p>
+        ) : null}
+      </div>
     </form>
+  );
+}
+
+function FloatingField({
+  id,
+  label,
+  className,
+  defaultValue,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & { id: string; label: string }) {
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        required
+        defaultValue={defaultValue}
+        placeholder=" "
+        className={cn("peer h-[60px] w-full bg-transparent px-4 pb-2 pt-6 text-[16px] text-text outline-none", className)}
+        {...props}
+      />
+      <label
+        htmlFor={id}
+        className={cn(
+          "pointer-events-none absolute left-4 text-muted transition-all duration-200 ease-[var(--ease-apple)]",
+          // Petite étiquette en haut dès que le champ est rempli (y compris par le remplissage automatique) ou actif.
+          "top-2.5 text-[12px]",
+          "peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-[16px]",
+          "peer-focus:top-2.5 peer-focus:translate-y-0 peer-focus:text-[12px]",
+        )}
+      >
+        {label}
+      </label>
+    </div>
   );
 }

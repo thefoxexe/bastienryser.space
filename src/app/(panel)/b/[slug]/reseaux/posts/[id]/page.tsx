@@ -21,7 +21,7 @@ export default async function PostPage({ params }: PageProps<"/b/[slug]/reseaux/
   const editable = post.status === "draft" || post.status === "scheduled";
 
   return (
-    <div className="flex flex-col gap-6 px-4 pb-16 sm:px-8">
+    <div className="flex flex-col gap-6 px-4 pb-16 sm:px-10">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <Link href={`${base}/historique`} className="mb-2 inline-flex items-center gap-1 text-[13px] text-muted hover:text-text">
@@ -67,7 +67,7 @@ export default async function PostPage({ params }: PageProps<"/b/[slug]/reseaux/
       {post.media.length ? (
         <div className="scrollbar-none -mx-4 flex gap-2.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           {post.media.map((m, i) => (
-            <div key={m.id} className="relative aspect-[4/5] w-36 shrink-0 overflow-hidden rounded-xl border border-border bg-surface-2 sm:w-44">
+            <div key={m.id} className="relative aspect-[4/5] w-36 shrink-0 overflow-hidden rounded-[14px] bg-fill sm:w-44">
               {m.kind === "image" && m.url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={m.url} alt="" className="size-full object-cover" />
@@ -124,7 +124,7 @@ export default async function PostPage({ params }: PageProps<"/b/[slug]/reseaux/
                     ["Enreg.", m?.saves],
                   ].map(([label, value]) => (
                     <div key={label as string}>
-                      <p className="text-[11px] uppercase tracking-wide text-faint">{label as string}</p>
+                      <p className="text-[12px] text-muted">{label as string}</p>
                       <p className="tabular text-lg font-semibold">{formatNumber(value as number | null | undefined)}</p>
                     </div>
                   ))}
