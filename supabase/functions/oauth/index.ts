@@ -91,9 +91,9 @@ Deno.serve(async (req) => {
         auth.searchParams.set("redirect_uri", REDIRECT_URI);
         auth.searchParams.set("response_type", "code");
         auth.searchParams.set("scope", GOOGLE_SCOPES[googleKind]);
-        // offline + consent : Google renvoie un refresh token pour la synchronisation horaire.
+        // offline + consent : Google renvoie un refresh token ; select_account : choix du compte Google à chaque connexion.
         auth.searchParams.set("access_type", "offline");
-        auth.searchParams.set("prompt", "consent");
+        auth.searchParams.set("prompt", "select_account consent");
         auth.searchParams.set("include_granted_scopes", "true");
         auth.searchParams.set("state", state);
         return Response.redirect(auth.toString(), 302);
@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
         auth.searchParams.set("response_type", "code");
         auth.searchParams.set("scope", YOUTUBE_SCOPES);
         auth.searchParams.set("access_type", "offline");
-        auth.searchParams.set("prompt", "consent");
+        auth.searchParams.set("prompt", "select_account consent");
         auth.searchParams.set("state", state);
         return Response.redirect(auth.toString(), 302);
       }
