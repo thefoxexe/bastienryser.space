@@ -9,7 +9,7 @@ import { connectBluesky, type BlueskyState } from "../actions";
 export function BlueskyForm({ businessId, connected }: { businessId: string; connected: boolean }) {
   const [state, action, pending] = useActionState<BlueskyState, FormData>(connectBluesky, {});
   return (
-    <form action={action} className="mx-5 mb-5 flex flex-col gap-2.5">
+    <form action={action} className="flex flex-col gap-2.5">
       <input type="hidden" name="businessId" value={businessId} />
       <div className="grid gap-2 sm:grid-cols-2">
         <Input name="identifier" placeholder="pseudo.bsky.social" autoComplete="off" required aria-label="Identifiant Bluesky" />

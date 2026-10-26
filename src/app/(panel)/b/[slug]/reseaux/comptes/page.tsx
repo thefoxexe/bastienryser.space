@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { AlertTriangle, CheckCircle2, Clock, RefreshCw, Unplug } from "lucide-react";
 import { NetworkChip, NetworkIcon } from "@/components/network-icon";
-import { AccountStatusBadge, Button, Card } from "@/components/ui";
+import { AccountStatusBadge, Button, Card, CardHeader } from "@/components/ui";
+import { cn } from "@/components/ui/cn";
 import { getBusiness, listAccounts } from "@/lib/data";
 import { formatDate, formatRelative } from "@/lib/format";
 import { AUTO_REFRESH, NETWORKS } from "@/lib/social/networks";
@@ -14,18 +15,6 @@ export const metadata: Metadata = { title: "Comptes connectés" };
 type Provider = "meta" | "linkedin" | "linkedin_page" | "threads" | "youtube" | "tiktok" | "pinterest" | "x" | "bluesky";
 
 const PROVIDERS: { id: Provider; networks: SocialNetwork[]; title: string; description: string; note?: string }[] = [
-  {
-    id: "meta",
-    networks: ["instagram", "facebook"],
-    title: "Instagram et Page Facebook",
-    description: "Un seul flux Meta connecte la Page Facebook et le compte Instagram professionnel qui lui est relié. Images, carrousels et Reels.",
-  },
-  {
-    id: "threads",
-    networks: ["threads"],
-    title: "Threads",
-    description: "Texte, images, carrousels et vidéos.",
-  },
   {
     id: "linkedin",
     networks: ["linkedin"],
@@ -52,6 +41,18 @@ const PROVIDERS: { id: Provider; networks: SocialNetwork[]; title: string; descr
     title: "YouTube",
     description: "Vidéos et Shorts sur ta chaîne, avec vues, likes et abonnés.",
     note: "Tant que le projet Google n'a pas passé l'audit YouTube, les vidéos envoyées par l'API restent privées : tu les passes en public dans YouTube Studio.",
+  },
+  {
+    id: "meta",
+    networks: ["instagram", "facebook"],
+    title: "Instagram et Page Facebook",
+    description: "Un seul flux Meta connecte la Page Facebook et le compte Instagram professionnel qui lui est relié. Images, carrousels et Reels.",
+  },
+  {
+    id: "threads",
+    networks: ["threads"],
+    title: "Threads",
+    description: "Texte, images, carrousels et vidéos.",
   },
   {
     id: "x",
@@ -106,80 +107,114 @@ export default async function AccountsPage({ params, searchParams }: PageProps<"
         </div>
       ) : null}
 
-      <div className="grid items-start gap-4 lg:grid-cols-2">
-        {PROVIDERS.map((p) => {
-          const list = accounts.filter((a) => p.networks.includes(a.network));
-          return (
-            <Card key={p.title} className="flex flex-col">
-              <div className="flex items-start gap-3 p-5">
-                <div className="flex -space-x-2">
-                  {p.networks.map((n) => (
-                    <NetworkChip key={n} network={n} className="size-9 rounded-full bg-surface-2 ring-2 ring-surface" />
-                  ))}
-                </div>
+      <Card>
+        <CardHeader
+          title="Comptes connectés"
+          description={accounts.length ? `${accounts.length} compte${accounts.length > 1 ? "s" : ""} relié${accounts.length > 1 ? "s" : ""} à ${business.name}.` : `Aucun compte relié à ${business.name} pour l'instant.`}
+        />
+        {accounts.length ? (
+          <ul className="divide-y divide-border px-2 pb-2 pt-1">
+            {accounts.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center gap-3 rounded-[12px] px-3 py-3 sm:flex-nowrap">
+                <span className="relative shrink-0">
+                  {a.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={a.avatar_url} alt="" className="size-10 rounded-full object-cover" />
+                  ) : (
+                    <span className="grid size-10 place-items-center rounded-full bg-fill">
+                      <NetworkIcon network={a.network} />
+                    </span>
+                  )}
+                  <NetworkChip network={a.network} className="absolute -bottom-1 -right-1 size-5 rounded-full ring-2 ring-surface [&_svg]:size-[11px]" />
+                </span>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-[15px] font-semibold tracking-tight">{p.title}</h3>
-                  <p className="mt-0.5 text-[13px] text-muted">{p.description}</p>
+                  <p className="truncate text-[14px] font-medium">
+                    {a.display_name}
+                    {a.username ? <span className="font-normal text-muted"> @{a.username}</span> : null}
+                  </p>
+                  <p className="flex flex-wrap items-center gap-1 text-[12px] text-muted">
+                    {NETWORKS[a.network].label} · connecté {formatRelative(a.connected_at)}
+                    {AUTO_REFRESH.includes(a.network) ? (
+                      " · renouvelé automatiquement"
+                    ) : a.token_expires_at ? (
+                      <>
+                        {" "}
+                        · <Clock className="size-3" /> expire le {formatDate(a.token_expires_at)}
+                      </>
+                    ) : null}
+                  </p>
+                  {a.last_error ? <p className="mt-1 text-[12px] text-danger">{a.last_error}</p> : null}
+                  {a.network === "pinterest" ? <BoardPicker account={a} /> : null}
                 </div>
-                {p.id !== "bluesky" ? (
-                  <form action={startOAuth}>
-                    <input type="hidden" name="provider" value={p.id} />
-                    <input type="hidden" name="businessId" value={business.id} />
-                    <Button type="submit" size="sm" variant={list.length ? "secondary" : "primary"}>
-                      {list.length ? <RefreshCw /> : null}
-                      {list.length ? "Reconnecter" : "Connecter"}
-                    </Button>
-                  </form>
-                ) : null}
-              </div>
-              {p.id === "bluesky" ? <BlueskyForm businessId={business.id} connected={list.length > 0} /> : null}
+                <AccountStatusBadge status={a.status} />
+                <form action={disconnectAccount}>
+                  <input type="hidden" name="accountId" value={a.id} />
+                  <Button type="submit" variant="ghost" size="icon" title="Déconnecter" aria-label={`Déconnecter ${a.display_name}`}>
+                    <Unplug />
+                  </Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-5 pb-5 text-[13px] text-muted sm:px-6">Choisis un réseau ci-dessous pour commencer.</p>
+        )}
+      </Card>
 
-              {list.length ? (
-                <ul className="mx-5 mb-5 divide-y divide-border rounded-[14px] bg-fill">
-                  {list.map((a) => (
-                    <li key={a.id} className="flex flex-wrap items-center gap-3 p-3">
-                      {a.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={a.avatar_url} alt="" className="size-9 rounded-full object-cover" />
-                      ) : (
-                        <span className="grid size-9 place-items-center rounded-full bg-surface-2">
-                          <NetworkIcon network={a.network} />
-                        </span>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
-                          {a.display_name}
-                          {a.username ? <span className="font-normal text-muted"> @{a.username}</span> : null}
-                        </p>
-                        <p className="flex flex-wrap items-center gap-1 text-[12px] text-muted">
-                          {NETWORKS[a.network].label} · connecté {formatRelative(a.connected_at)}
-                          {AUTO_REFRESH.includes(a.network) ? (
-                            " · renouvelée automatiquement"
-                          ) : a.token_expires_at ? (
-                            <>
-                              {" "}
-                              · <Clock className="size-3" /> expire le {formatDate(a.token_expires_at)}
-                            </>
-                          ) : null}
-                        </p>
-                        {a.last_error ? <p className="mt-1 text-[12px] text-danger">{a.last_error}</p> : null}
-                        {a.network === "pinterest" ? <BoardPicker account={a} /> : null}
+      <div>
+        <h2 className="mb-3 px-1 text-[17px] font-semibold tracking-tight">Réseaux</h2>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {PROVIDERS.map((p) => {
+            const count = accounts.filter((a) => p.networks.includes(a.network)).length;
+            return (
+              <Card key={p.id} className="flex flex-col p-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex -space-x-2">
+                    {p.networks.map((n) => (
+                      <NetworkChip key={n} network={n} className="size-9 rounded-full bg-surface-2 ring-2 ring-surface" />
+                    ))}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-[15px] font-semibold tracking-tight">{p.title}</h3>
+                    <p className={cn("text-[12px]", count ? "font-medium text-green-text" : "text-faint")}>
+                      {count ? `${count} compte${count > 1 ? "s" : ""} connecté${count > 1 ? "s" : ""}` : "Pas connecté"}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-[13px] text-muted">{p.description}</p>
+                {p.note ? <p className="mt-2 text-[12px] text-faint">{p.note}</p> : null}
+                <div className="mt-auto pt-4">
+                  {p.id === "bluesky" ? (
+                    <>
+                      <Button type="button" size="sm" variant={count ? "secondary" : "primary"} popoverTarget="bluesky-popover">
+                        {count ? <RefreshCw /> : null}
+                        {count ? "Reconnecter" : "Connecter"}
+                      </Button>
+                      <div
+                        id="bluesky-popover"
+                        popover="auto"
+                        className="m-auto w-[min(440px,calc(100vw-32px))] rounded-[22px] bg-surface p-6 text-text shadow-pop backdrop:bg-black/40 backdrop:backdrop-blur-sm"
+                      >
+                        <h3 className="mb-1 text-[17px] font-semibold">Connecter Bluesky</h3>
+                        <p className="mb-4 text-[13px] text-muted">Ton identifiant et un mot de passe d&apos;application, révocable à tout moment.</p>
+                        <BlueskyForm businessId={business.id} connected={count > 0} />
                       </div>
-                      <AccountStatusBadge status={a.status} />
-                      <form action={disconnectAccount}>
-                        <input type="hidden" name="accountId" value={a.id} />
-                        <Button type="submit" variant="ghost" size="icon" title="Déconnecter" aria-label="Déconnecter">
-                          <Unplug />
-                        </Button>
-                      </form>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {p.note ? <p className="mx-5 -mt-2 mb-5 text-[12px] text-faint">{p.note}</p> : null}
-            </Card>
-          );
-        })}
+                    </>
+                  ) : (
+                    <form action={startOAuth}>
+                      <input type="hidden" name="provider" value={p.id} />
+                      <input type="hidden" name="businessId" value={business.id} />
+                      <Button type="submit" size="sm" variant={count ? "secondary" : "primary"}>
+                        {count ? <RefreshCw /> : null}
+                        {count ? "Reconnecter" : "Connecter"}
+                      </Button>
+                    </form>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
       </div>
 
       <p className="text-[12px] text-faint">
