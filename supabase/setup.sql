@@ -1,6 +1,6 @@
 -- Installation complète de bastienryser.space (généré par supabase/scripts/build-setup.mjs, ne pas modifier à la main).
 -- À coller en une fois dans Supabase > SQL Editor > New query, puis Run, sur un projet neuf.
--- Contient 10 migrations, l'adresse du projet pour les tâches automatiques et l'accès admin.
+-- Contient 11 migrations, l'adresse du projet pour les tâches automatiques et l'accès admin.
 
 -- ===========================================================================
 -- 20261025000000_socle.sql
@@ -1023,6 +1023,28 @@ create policy ledger_entries_admin_all on public.ledger_entries
 revoke all on public.ledger_entries from anon;
 
 -- ===========================================================================
+-- 20261025001000_ai.sql
+-- ===========================================================================
+
+-- Assistant IA : brief du jour mis en cache (un par business et par jour, plus un pour l'accueil).
+
+create table public.ai_briefs (
+  id uuid primary key default gen_random_uuid(),
+  -- null : brief de l'accueil, tous business réunis.
+  business_id uuid references public.businesses (id) on delete cascade,
+  day date not null,
+  content text not null,
+  created_at timestamptz not null default now()
+);
+
+create unique index ai_briefs_scope_day on public.ai_briefs (coalesce(business_id, '00000000-0000-0000-0000-000000000000'::uuid), day);
+
+alter table public.ai_briefs enable row level security;
+create policy ai_briefs_admin_all on public.ai_briefs
+  for all to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+revoke all on public.ai_briefs from anon;
+
+-- ===========================================================================
 -- Configuration du projet
 -- ===========================================================================
 
@@ -1039,7 +1061,8 @@ insert into supabase_migrations.schema_migrations (version, name) values
   ('20261025000600', 'keywords'),
   ('20261025000700', 'hardening'),
   ('20261025000800', 'more_networks'),
-  ('20261025000900', 'finances')
+  ('20261025000900', 'finances'),
+  ('20261025001000', 'ai')
 on conflict do nothing;
 
 -- Adresse du projet, lue par pg_cron pour appeler les Edge Functions (pas un secret).

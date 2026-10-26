@@ -440,3 +440,69 @@
     animation: none;
   }
 }
+
+/* --- Assistant IA : le petit personnage --------------------------------- */
+@keyframes ai-blink {
+  0%, 92%, 100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes ai-look {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  30% {
+    transform: translateX(-1.6px);
+  }
+  65% {
+    transform: translateX(1.6px);
+  }
+}
+@keyframes ai-talk {
+  0%, 100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+@keyframes ai-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  to {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+.ai-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ai-blink 4.2s infinite;
+}
+.ai-thinking .ai-pupils {
+  animation: ai-look 1.4s var(--ease-apple) infinite;
+}
+.ai-mouth {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scaleY(0.35);
+}
+.ai-speaking .ai-mouth {
+  animation: ai-talk 0.32s ease-in-out infinite;
+}
+.ai-ring {
+  animation: ai-ring 1.4s var(--ease-apple) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-eyes,
+  .ai-thinking .ai-pupils,
+  .ai-speaking .ai-mouth,
+  .ai-ring {
+    animation: none;
+  }
+}

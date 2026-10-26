@@ -1,13 +1,11 @@
 "use server";
 
-import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
+import { claude as client, friendlyError, MODEL, NO_KEY } from "@/lib/ai/claude";
 import { requireAdmin } from "@/lib/auth";
 import { NETWORKS } from "@/lib/social/networks";
 import type { SocialNetwork } from "@/lib/types";
-
-const MODEL = "claude-opus-5-5";
 
 const STYLE: Record<SocialNetwork, string> = {
   instagram: "Instagram : court, direct, accrocheur dès la première ligne, quelques emojis bienvenus, hashtags pertinents regroupés à la fin (10 au maximum).",
@@ -24,19 +22,6 @@ const STYLE: Record<SocialNetwork, string> = {
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
-function client() {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
-  return new Anthropic();
-}
-
-function friendlyError(error: unknown): string {
-  if (error instanceof Anthropic.AuthenticationError) return "Clé Claude invalide : vérifie ANTHROPIC_API_KEY.";
-  if (error instanceof Anthropic.RateLimitError) return "Trop de demandes à Claude, réessaie dans un instant.";
-  if (error instanceof Anthropic.APIConnectionError) return "Claude est injoignable pour le moment.";
-  if (error instanceof Anthropic.APIError) return `Erreur de Claude (${error.status ?? "?"}).`;
-  return "L'IA n'a pas pu répondre.";
-}
-
 /** Adapte une description commune à chaque réseau choisi. Rien n'est publié : Bastien relit toujours. */
 export async function adaptCaptions(input: {
   caption: string;
@@ -46,7 +31,7 @@ export async function adaptCaptions(input: {
 }): Promise<Result<Partial<Record<SocialNetwork, string>>>> {
   await requireAdmin();
   const anthropic = client();
-  if (!anthropic) return { ok: false, error: "Ajoute ANTHROPIC_API_KEY dans les variables d'environnement de Vercel." };
+  if (!anthropic) return { ok: false, error: NO_KEY };
   const networks = [...new Set(input.networks)].filter((n) => n in NETWORKS);
   if (!input.caption.trim() || !networks.length) return { ok: false, error: "Écris une description et choisis au moins un compte." };
 
@@ -91,7 +76,7 @@ export async function adaptCaptions(input: {
 export async function translateCaption(input: { text: string; target: "de" | "it" }): Promise<Result<string>> {
   await requireAdmin();
   const anthropic = client();
-  if (!anthropic) return { ok: false, error: "Ajoute ANTHROPIC_API_KEY dans les variables d'environnement de Vercel." };
+  if (!anthropic) return { ok: false, error: NO_KEY };
   if (!input.text.trim()) return { ok: false, error: "Rien à traduire." };
 
   const schema = z.object({ translation: z.string() });

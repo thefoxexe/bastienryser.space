@@ -15,6 +15,7 @@ import { listActivity, listBusinesses, listPosts, metricsLast30Days, type PostSu
 import { siteStatuses } from "@/lib/metrics";
 import { periodFrom } from "@/lib/finance";
 import { KpiStrip } from "@/components/kpi-strip";
+import { BriefCard } from "@/components/ai/brief-card";
 import { formatDate, formatNumber, formatTime, TIME_ZONE, zurichDayKey } from "@/lib/format";
 import { NETWORKS } from "@/lib/social/networks";
 import { retryTarget } from "./b/[slug]/reseaux/actions";
@@ -61,6 +62,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       />
 
       {/* Chiffres clés, tous business confondus : chaque tuile ouvre son détail */}
+      <BriefCard slug={null} />
       <KpiStrip businesses={businesses} period={period} base="/" />
 
       {/* À traiter */}

@@ -36,3 +36,12 @@ export async function requireAdmin() {
   if (!viewer.isAdmin) redirect("/connexion");
   return viewer;
 }
+
+// Pour les routes d'API : répond par oui ou non au lieu de rediriger vers la connexion.
+export async function isAdmin() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  if (!data?.claims) return false;
+  const { data: admin } = await supabase.from("admins").select("user_id").eq("user_id", data.claims.sub).maybeSingle();
+  return Boolean(admin);
+}

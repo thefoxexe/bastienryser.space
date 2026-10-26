@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { ShieldAlert } from "lucide-react";
 import { Sidebar } from "@/components/shell/sidebar";
 import { SplashGate } from "@/components/splash-gate";
+import { Assistant } from "@/components/ai/assistant";
 import { Button } from "@/components/ui";
 import { listAlerts } from "@/lib/alerts";
 import { getViewer } from "@/lib/auth";
@@ -49,7 +50,9 @@ export default async function PanelLayout({ children }: LayoutProps<"/">) {
           alerts: alerts.filter((a) => a.business_id === b.id).length,
         }))}
       />
-      <div className="min-w-0 flex-1 pb-[env(safe-area-inset-bottom)]">{children}</div>
+      {/* Marge basse : le bouton de l'assistant ne cache jamais la fin d'une page. */}
+      <div className="min-w-0 flex-1 pb-[calc(84px+env(safe-area-inset-bottom))]">{children}</div>
+      <Assistant />
       <SplashGate />
     </div>
   );

@@ -63,7 +63,10 @@ export default async function SearchPage({ params, searchParams }: PageProps<"/b
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[13px] text-muted">D&apos;après la Search Console. Google livre les chiffres avec 2 à 3 jours de décalage.</p>
+        <p className="max-w-2xl text-[13px] text-muted">
+          D&apos;après la Search Console, avec 2 à 3 jours de décalage. Un clic ici, c&apos;est quelqu&apos;un qui arrive depuis Google ; les Visites
+          comptent toutes les sources (Google, accès direct, réseaux, liens), mesurées par un autre outil.
+        </p>
         <PeriodChips base={`${base}/recherche`} current={period} />
       </div>
 

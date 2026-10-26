@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { CalendarClock, Megaphone, PenSquare, Plug } from "lucide-react";
 import { ActivityFeed } from "@/components/activity-feed";
 import { KpiStrip } from "@/components/kpi-strip";
+import { BriefCard } from "@/components/ai/brief-card";
 import { NetworkChip } from "@/components/network-icon";
 import { PostRow } from "@/components/posts/post-row";
 import { Page } from "@/components/shell/page";
@@ -40,6 +41,7 @@ export default async function BusinessOverview({ params, searchParams }: PagePro
   return (
     <Page>
       {/* Le même tableau de bord que l'accueil, avec les seuls chiffres de ce business. */}
+      <BriefCard slug={business.slug} />
       <KpiStrip businesses={[business]} business={business} period={period} base={`/b/${business.slug}`} />
 
       {social ? (
