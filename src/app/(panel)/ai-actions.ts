@@ -29,7 +29,7 @@ const BriefSchema = z.object({
 export type Brief = z.infer<typeof BriefSchema> & { created_at: string };
 export type BriefResult = { ok: true; brief: Brief } | { ok: false; error: string };
 
-const SYSTEM = `Tu es l'assistant intégré au panel privé de Bastien (bastienryser.space), qui gère ses business suisses.
+const SYSTEM = `Tu es l'assistant intégré au panel privé de Bastien, « Bastien's Space » (bastienryser.space), qui gère ses business suisses.
 Tu lui écris le brief du jour quand il ouvre le panel : ce qui a bougé, ce qui ne va pas, et quoi faire.
 
 Règles :

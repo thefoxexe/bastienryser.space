@@ -13,11 +13,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: { default: "bastienryser", template: "%s · bastienryser" },
+  title: { default: "Bastien's Space", template: "%s · Bastien's Space" },
   robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
-  applicationName: "bastienryser",
+  applicationName: "Bastien's Space",
   // Écran d'accueil iPhone : plein écran, barre d'état transparente au-dessus de l'app.
-  appleWebApp: { capable: true, title: "bastienryser", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "Bastien's Space", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {

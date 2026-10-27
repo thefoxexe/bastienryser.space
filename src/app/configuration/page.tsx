@@ -13,7 +13,7 @@ export default function SetupPage() {
     <main className="flex flex-1 flex-col items-center justify-center px-5 py-16">
       <div className="animate-rise w-full max-w-[420px]">
         <div className="mb-8 flex flex-col items-center text-center">
-          <LogoMark className="mb-7 size-14" title="bastienryser" />
+          <LogoMark className="mb-7 size-14" title="Bastien's Space" />
           <h1 className="text-[32px] font-semibold leading-tight tracking-[-0.03em]">Presque prêt</h1>
           <p className="mt-2 text-[15px] leading-relaxed text-muted">
             Le site est en ligne, mais la base de données n&apos;est pas encore branchée.

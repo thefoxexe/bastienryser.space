@@ -13,6 +13,12 @@ const toKey = (base64: string) => {
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 };
 
+function report(res: Awaited<ReturnType<typeof sendTestPush>>) {
+  if ("error" in res) return res.error;
+  if (res.sent) return `Envoyée à ${res.sent} appareil${res.sent > 1 ? "s" : ""}.`;
+  return res.errors.length ? `Envoi refusé par le service de notifications : ${res.errors[0]}` : "Aucun appareil enregistré : désactive puis réactive.";
+}
+
 /** Active les notifications push sur cet appareil (app installée ou navigateur). */
 export function PushToggle() {
   const [state, setState] = useState<State>("loading");
@@ -29,7 +35,10 @@ export function PushToggle() {
       }
       if (Notification.permission === "denied") return setState("denied");
       const reg = await navigator.serviceWorker.getRegistration();
-      setState((await reg?.pushManager.getSubscription()) ? "on" : "off");
+      const sub = await reg?.pushManager.getSubscription();
+      // L'appareil est abonné : on s'assure que le serveur le connaît (il a pu l'oublier).
+      if (sub) await savePushSubscription(sub.toJSON(), navigator.userAgent);
+      setState(sub ? "on" : "off");
     })().catch(() => setState("unsupported"));
   }, []);
 
@@ -52,7 +61,7 @@ export function PushToggle() {
         if (!saved.ok) return setMessage(saved.error);
         setState("on");
         const test = await sendTestPush();
-        setMessage("error" in test ? test.error : "Notification d'essai envoyée.");
+        setMessage(report(test));
       } catch {
         setMessage("Le navigateur a refusé l'abonnement. Sur Brave : Réglages › Confidentialité › activer « Utiliser les services Google pour les notifications push ».");
       }
@@ -72,8 +81,7 @@ export function PushToggle() {
 
   const test = () =>
     start(async () => {
-      const res = await sendTestPush();
-      setMessage("error" in res ? res.error : `Envoyée à ${res.sent} appareil${res.sent > 1 ? "s" : ""}.`);
+      setMessage(report(await sendTestPush()));
     });
 
   return (

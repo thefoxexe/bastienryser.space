@@ -30,7 +30,7 @@ export default async function LoginPage() {
 
       <div className="relative w-full max-w-[380px]">
         <div className="animate-rise mb-8 flex flex-col items-center text-center">
-          <LogoMark className="mb-6 size-14" title="bastienryser" />
+          <LogoMark className="mb-6 size-14" title="Bastien's Space" />
           <h1 className="text-[34px] font-semibold leading-tight tracking-[-0.035em]">Bon retour.</h1>
           <p className="mt-1.5 text-balance text-[15px] text-muted">Tes posts, tes chiffres, tes sites. Au même endroit.</p>
         </div>

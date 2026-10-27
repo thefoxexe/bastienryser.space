@@ -39,8 +39,8 @@ export async function removePushSubscription(endpoint: string): Promise<Result> 
   return { ok: true };
 }
 
-export async function sendTestPush(): Promise<{ sent: number } | { error: string }> {
+export async function sendTestPush(): Promise<{ sent: number; errors: string[] } | { error: string }> {
   await requireAdmin();
-  const res = await callEdgeFunction<{ sent?: number; error?: string }>("push", { action: "test" }, 20000);
-  return typeof res?.sent === "number" ? { sent: res.sent } : { error: res?.error ?? "Envoi impossible." };
+  const res = await callEdgeFunction<{ sent?: number; errors?: string[]; error?: string }>("push", { action: "test" }, 20000);
+  return typeof res?.sent === "number" ? { sent: res.sent, errors: res.errors ?? [] } : { error: res?.error ?? "Envoi impossible." };
 }

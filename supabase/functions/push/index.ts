@@ -31,22 +31,29 @@ async function sendAll(db: SupabaseClient, payload: Payload) {
   const keys = await vapidKeys(db);
   const { data: subs } = await db.from("push_subscriptions").select("endpoint, p256dh, auth");
   let sent = 0;
+  const errors: string[] = [];
   for (const s of subs ?? []) {
     try {
-      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), {
+      // Chiffrement et signature VAPID par web-push, envoi par fetch (plus fiable sous Deno que son client https).
+      const request = webpush.generateRequestDetails({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), {
         vapidDetails: { subject: SUBJECT, publicKey: keys.publicKey, privateKey: keys.privateKey },
         TTL: 60 * 60 * 24,
       });
+      const res = await fetch(request.endpoint, { method: request.method, headers: request.headers as Record<string, string>, body: new Uint8Array(request.body as Uint8Array) as BodyInit });
+      if (!res.ok) throw { statusCode: res.status, body: await res.text() };
       await db.from("push_subscriptions").update({ last_sent_at: new Date().toISOString(), last_error: null }).eq("endpoint", s.endpoint);
       sent++;
     } catch (e) {
-      const status = (e as { statusCode?: number }).statusCode;
-      // Appareil désabonné ou notifications retirées : on oublie l'abonnement.
-      if (status === 404 || status === 410) await db.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
-      else await db.from("push_subscriptions").update({ last_error: String((e as Error).message ?? e).slice(0, 300) }).eq("endpoint", s.endpoint);
+      const err = e as { statusCode?: number; body?: string; message?: string };
+      const detail = `${err.statusCode ?? "?"} ${err.body || err.message || String(e)}`.slice(0, 300);
+      console.error("push send", s.endpoint.slice(0, 60), detail);
+      errors.push(detail);
+      // Seul 410 (Gone) signifie à coup sûr que l'appareil s'est désabonné.
+      if (err.statusCode === 410) await db.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
+      else await db.from("push_subscriptions").update({ last_error: detail }).eq("endpoint", s.endpoint);
     }
   }
-  return { sent, total: (subs ?? []).length };
+  return { sent, total: (subs ?? []).length, errors };
 }
 
 const day = (offset: number) => new Date(Date.now() - offset * 86400_000).toISOString().slice(0, 10);
@@ -98,7 +105,7 @@ Deno.serve(async (req) => {
   try {
     if (!cron && body.action === "key") return json({ publicKey: (await vapidKeys(db)).publicKey });
     if (!cron && body.action === "test") {
-      const result = await sendAll(db, { title: "bastienryser.space", body: "Les notifications fonctionnent. Rendez-vous lundi pour le résumé de la semaine.", url: "/", tag: "test" });
+      const result = await sendAll(db, { title: "Bastien's Space", body: "Les notifications fonctionnent. Rendez-vous lundi pour le résumé de la semaine.", url: "/", tag: "test" });
       return json(result);
     }
     const result = await sendAll(db, await weeklySummary(db));

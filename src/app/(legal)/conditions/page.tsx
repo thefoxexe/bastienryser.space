@@ -12,7 +12,7 @@ export default function TermsPage() {
 
       <h2>Objet</h2>
       <p>
-        bastienryser.space est un outil privé qui permet à son propriétaire de préparer, programmer et publier des contenus sur ses propres comptes de
+        Bastien&apos;s Space (bastienryser.space) est un outil privé qui permet à son propriétaire de préparer, programmer et publier des contenus sur ses propres comptes de
         réseaux sociaux, et d&apos;en consulter les statistiques. L&apos;accès est réservé au propriétaire ; aucune inscription n&apos;est ouverte au
         public.
       </p>

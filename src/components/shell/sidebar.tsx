@@ -115,7 +115,7 @@ export function Sidebar({
   return (
     <>
       {/* Barre du haut sur mobile */}
-      <div className="material sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-3 border-b border-border px-4 pt-[env(safe-area-inset-top)] lg:hidden">
+      <div className="sticky top-0 z-30 bg-[color-mix(in_oklab,var(--bg)_94%,transparent)] backdrop-blur-xl backdrop-saturate-150 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-3 border-b border-border px-4 pt-[env(safe-area-inset-top)] lg:hidden">
         <button type="button" onClick={() => setOpen(true)} className="grid size-9 place-items-center rounded-full" aria-label="Ouvrir le menu">
           <Menu className="size-[18px]" />
         </button>

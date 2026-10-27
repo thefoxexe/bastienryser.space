@@ -10,7 +10,7 @@ export default function PrivacyPage() {
       <h1>Politique de confidentialité</h1>
       <p>Dernière mise à jour : 25 octobre 2026.</p>
       <p>
-        bastienryser.space est un outil privé de gestion de contenus. Il est utilisé uniquement par son propriétaire, Bastien Ryser, pour publier
+        Bastien&apos;s Space (bastienryser.space) est un outil privé de gestion de contenus. Il est utilisé uniquement par son propriétaire, Bastien Ryser, pour publier
         sur ses propres comptes de réseaux sociaux et consulter leurs statistiques. Aucun compte ne peut y être créé par des tiers.
       </p>
 

@@ -1,6 +1,6 @@
 // Service worker minimal : rend l'app installable et affiche une page hors ligne.
 // Aucune page du panel n'est mise en cache : les données privées ne restent jamais sur l'appareil.
-const CACHE = "br-offline-v2";
+const CACHE = "br-offline-v3";
 const OFFLINE = "/offline.html";
 
 self.addEventListener("install", (event) => {
@@ -28,7 +28,7 @@ self.addEventListener("push", (event) => {
     data = { body: event.data ? event.data.text() : "" };
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || "bastienryser.space", {
+    self.registration.showNotification(data.title || "Bastien's Space", {
       body: data.body || "",
       icon: "/icon-192.png",
       badge: "/icon-192.png",

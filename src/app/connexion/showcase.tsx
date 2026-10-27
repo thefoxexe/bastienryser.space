@@ -124,7 +124,7 @@ function PostCard() {
         <span className="grid size-7 place-items-center rounded-full bg-ink text-ink-text">
           <LogoMark className="size-4" />
         </span>
-        <span className="flex-1 text-[13px] font-semibold">bastienryser.space</span>
+        <span className="flex-1 text-[13px] font-semibold">Bastien&apos;s Space</span>
         <BrandMark brand="instagram" className="size-4" />
       </div>
       <div className="relative aspect-[4/5] overflow-hidden rounded-[14px] bg-[linear-gradient(160deg,#2c2c2e,#0b0b0c)]">
@@ -218,7 +218,7 @@ function Notification() {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between text-[12px]">
-            <span className="font-semibold">bastienryser</span>
+            <span className="font-semibold">Bastien&apos;s Space</span>
             <span className="text-faint">maintenant</span>
           </div>
           <p className="text-[13px] font-medium">Mot-clé en hausse</p>

@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 /** Application installable (écran d'accueil iPhone, Android, ordinateur). */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "bastienryser",
-    short_name: "bastienryser",
+    name: "Bastien's Space",
+    short_name: "Bastien's Space",
     description: "Posts, chiffres et sites de tes business, au même endroit.",
     id: "/",
     start_url: "/",
