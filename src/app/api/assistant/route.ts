@@ -8,6 +8,7 @@ import { isAdmin } from "@/lib/auth";
 import { listBusinesses, listPosts } from "@/lib/data";
 import { financeSummary, listEntries } from "@/lib/finance";
 import { keywordRankings } from "@/lib/keywords";
+import { listProjects } from "@/lib/projects";
 import { lastDays, listConnectors } from "@/lib/metrics";
 import { createClient } from "@/lib/supabase/server";
 
@@ -61,6 +62,36 @@ async function businessBySlug(slug: string) {
 }
 
 const tools = [
+  betaZodTool({
+    name: "chantiers",
+    description: "Chantiers (projets internes) d'un business : statut, échéance, avancement, tâches restantes avec échéances et priorités, montants liés.",
+    inputSchema: z.object({ slug: z.string() }),
+    run: async ({ slug }) => {
+      const b = await businessBySlug(slug);
+      const supabase = await createClient();
+      const projects = await listProjects(b.id);
+      if (!projects.length) return "Aucun chantier pour ce business.";
+      const { data: tasks } = await supabase
+        .from("project_tasks")
+        .select("project_id,title,status,priority,due_date")
+        .in("project_id", projects.map((p) => p.id))
+        .neq("status", "done")
+        .order("position");
+      return JSON.stringify(
+        projects.map((p) => ({
+          nom: p.name,
+          client: p.client,
+          statut: p.status,
+          echeance: p.due_date,
+          avancement: `${p.tasks.done}/${p.tasks.total}`,
+          en_retard: p.tasks.late,
+          encaisse_chf: p.money.income,
+          charges_chf: p.money.expenses,
+          a_faire: (tasks ?? []).filter((t) => t.project_id === p.id).map((t) => ({ tache: t.title, statut: t.status, priorite: t.priority, echeance: t.due_date })),
+        })),
+      );
+    },
+  }),
   betaZodTool({
     name: "analyser_page",
     description:

@@ -120,6 +120,8 @@ const entrySchema = z.object({
   label: z.string().trim().min(1, "Indique un libellé.").max(160),
   category: z.string().trim().max(60).optional(),
   reference: z.string().trim().max(60).optional(),
+  // Saisie depuis un chantier : l'écriture lui est rattachée.
+  projectId: z.string().uuid().optional().or(z.literal("")),
 });
 
 export async function addEntry(_prev: EntryState, formData: FormData): Promise<EntryState> {
@@ -136,9 +138,11 @@ export async function addEntry(_prev: EntryState, formData: FormData): Promise<E
     label: e.label,
     category: e.category || null,
     reference: e.reference || null,
+    project_id: e.projectId || null,
   });
   if (error) return { error: "Enregistrement impossible." };
   revalidatePath(`/b/${e.slug}/donnees`, "layout");
+  if (e.projectId) revalidatePath(`/b/${e.slug}/chantiers`, "layout");
   revalidatePath("/");
   return { ok: true, nonce: Date.now() };
 }

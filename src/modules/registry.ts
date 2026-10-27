@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Activity, Megaphone } from "lucide-react";
+import { Activity, FolderKanban, Megaphone } from "lucide-react";
 
 export type ModuleTab = { href: string; label: string };
 
@@ -44,6 +44,14 @@ export const MODULES: ModuleDefinition[] = [
       { href: "/sites", label: "Sites web" },
       { href: "/connecteurs", label: "Connecteurs" },
     ],
+  },
+  {
+    id: "projects",
+    label: "Chantiers",
+    description: "Projets internes avec leurs tâches, échéances, pièces jointes et factures liées.",
+    icon: FolderKanban,
+    basePath: "chantiers",
+    tabs: [{ href: "", label: "Chantiers" }],
   },
 ];
 

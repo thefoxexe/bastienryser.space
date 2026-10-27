@@ -19,7 +19,7 @@ const MODES: { value: Mode; label: string }[] = [
 ];
 
 /** Saisie rapide d'une facture encaissée, d'une charge ou d'un virement (reçu ou envoyé). */
-export function EntryForm({ businessId, slug, today }: { businessId: string; slug: string; today: string }) {
+export function EntryForm({ businessId, slug, today, projectId }: { businessId: string; slug: string; today: string; projectId?: string }) {
   const [state, action, pending] = useActionState<EntryState, FormData>(addEntry, {});
   const [mode, setMode] = useState<Mode>("income");
   const [direction, setDirection] = useState<"income" | "expense">("income");
@@ -31,6 +31,7 @@ export function EntryForm({ businessId, slug, today }: { businessId: string; slu
     <form key={state.nonce ?? 0} action={action} className="flex flex-col gap-3">
       <input type="hidden" name="businessId" value={businessId} />
       <input type="hidden" name="slug" value={slug} />
+      {projectId ? <input type="hidden" name="projectId" value={projectId} /> : null}
       <input type="hidden" name="kind" value={kind} />
       <div className="grid grid-cols-3 gap-1 rounded-full bg-fill p-1">
         {MODES.map((m) => (
