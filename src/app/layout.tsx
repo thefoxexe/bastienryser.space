@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { cookies } from "next/headers";
 import { RegisterServiceWorker } from "@/components/pwa";
+import { SplashGate } from "@/components/splash-gate";
 import "./globals.css";
 
 // San Francisco est utilisée en priorité sur les appareils Apple (voir globals.css) ; Inter prend le relais ailleurs.
@@ -41,6 +42,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col font-sans">
         {children}
+        <SplashGate />
         <RegisterServiceWorker />
       </body>
     </html>

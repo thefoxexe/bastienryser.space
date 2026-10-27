@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { ShieldAlert } from "lucide-react";
 import { Sidebar } from "@/components/shell/sidebar";
-import { SplashGate } from "@/components/splash-gate";
+import { SplashReady } from "@/components/splash-gate";
 import { Assistant } from "@/components/ai/assistant";
 import { Button } from "@/components/ui";
 import { listAlerts } from "@/lib/alerts";
@@ -28,6 +28,7 @@ export default async function PanelLayout({ children }: LayoutProps<"/">) {
             </Button>
           </form>
         </div>
+        <SplashReady />
       </main>
     );
   }
@@ -53,7 +54,7 @@ export default async function PanelLayout({ children }: LayoutProps<"/">) {
       {/* Marge basse : le bouton de l'assistant ne cache jamais la fin d'une page. */}
       <div className="min-w-0 flex-1 pb-[calc(84px+env(safe-area-inset-bottom))]">{children}</div>
       <Assistant />
-      <SplashGate />
+      <SplashReady />
     </div>
   );
 }
