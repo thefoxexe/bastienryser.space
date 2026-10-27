@@ -226,61 +226,119 @@ export async function unlinkEntry(formData: FormData) {
 // --- Import par l'IA ---------------------------------------------------------
 
 const Extracted = z.object({
-  summary: z.string().describe("Résumé du document en 2 ou 3 phrases."),
+  summary: z.string().describe("Ce qui ressort de la séance ou du document, en 2 ou 3 phrases."),
+  report: z
+    .string()
+    .describe(
+      "Compte rendu propre en Markdown, uniquement avec ce que contient le document : ## Contexte, ## Décisions, ## Infos clés (budget, délais, contacts, accès, contenus), ## À fournir par le client, ## Questions ouvertes. Omettre une section vide.",
+    ),
+  project: z
+    .object({
+      name: z.string().describe("Nom court du chantier, ex. « Site boulangerie-dupont.ch »."),
+      client: z.string().nullable().describe("Nom du client ou de l'entreprise cliente, si mentionné."),
+      description: z.string().describe("Objectif et périmètre en 1 à 3 phrases."),
+      due_date: z.string().nullable().describe("Date de livraison AAAA-MM-JJ si elle est fixée, sinon null."),
+    })
+    .describe("Proposition de chantier (sert seulement à créer un nouveau chantier depuis ce document)."),
   tasks: z
     .array(
       z.object({
-        title: z.string().describe("Tâche courte et actionnable, commençant par un verbe (« Intégrer la page Contact »)."),
-        notes: z.string().describe("Détails utiles tirés du document (contenu, contraintes, contact), ou chaîne vide."),
-        priority: z.enum(["low", "normal", "high"]),
-        due_date: z.string().nullable().describe("Échéance AAAA-MM-JJ si le document en donne une (même relative à la date du jour), sinon null."),
+        title: z
+          .string()
+          .describe(
+            "Tâche courte et actionnable, commençant par un verbe (« Intégrer la page Contact »). Pour ce que le client doit fournir : « Obtenir du client : logo en haute définition ».",
+          ),
+        notes: z.string().describe("Détails utiles tirés du document (contenu demandé, contraintes, qui a dit quoi), ou chaîne vide."),
+        priority: z.enum(["low", "normal", "high"]).describe("high : bloquant, urgent ou promis au client à une date."),
+        due_date: z.string().nullable().describe("Échéance AAAA-MM-JJ si le document en donne une (même relative : « d'ici vendredi »), sinon null."),
       }),
     )
-    .describe("Toutes les actions à faire, dans un ordre logique de réalisation, sans doublon avec les tâches existantes."),
+    .describe("Toutes les actions à faire, dans l'ordre logique de réalisation, sans doublon avec les tâches existantes."),
 });
 
 export type ExtractedTasks = z.infer<typeof Extracted>;
 
 const TEXT_TYPES = /\.(txt|md|markdown|csv|json|html?|rtf|srt|vtt)$/i;
+const MAX_CHARS = 400_000;
+
+const SYSTEM = `Tu aides Bastien, indépendant suisse (sites web, contenus, conseil), à transformer ses séances et documents en chantier organisé.
+Le document est souvent une transcription automatique brute d'une séance client (TurboScribe, Whisper…) : interlocuteurs « Speaker 1 / Speaker 2 », minutages, hésitations, phrases coupées, fautes de reconnaissance. Ignore le bruit et reconstitue le sens ; Bastien est en général celui qui pose les questions et propose les solutions.
+
+Tâches :
+- Ce que Bastien doit faire, ce qu'il a promis, ce qui a été décidé ; une tâche par action concrète, regroupée quand c'est la même action.
+- Ce que le client doit fournir ou valider devient « Obtenir du client : … » (logo, textes, photos, accès, validation de maquette…).
+- Reprends fidèlement les chiffres, noms, dates, budgets et choix du document. N'invente rien : pas de tâche générique qui n'a pas été évoquée.
+- Convertis les échéances relatives (« la semaine prochaine », « avant Noël ») en dates à partir de la date du jour.
+Français, style net et professionnel.`;
+
+type Block = { type: "text"; text: string } | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } };
+
+/** Texte d'un fichier texte, quel que soit son encodage courant (UTF-8, UTF-16 avec BOM). */
+function decodeText(buffer: Buffer) {
+  if (buffer[0] === 0xff && buffer[1] === 0xfe) return buffer.subarray(2).toString("utf16le");
+  if (buffer[0] === 0xfe && buffer[1] === 0xff) return Buffer.from(buffer.subarray(2)).swap16().toString("utf16le");
+  return buffer.toString("utf8").replace(/^﻿/, "");
+}
+
+async function readDocument(input: { path?: string; name?: string; text?: string }, prefix: string): Promise<Block | string> {
+  if (input.text?.trim()) return { type: "text", text: `Document collé :\n"""\n${input.text.slice(0, MAX_CHARS)}\n"""` };
+  if (!input.path?.startsWith(prefix)) return "Ajoute un fichier ou colle un texte.";
+  const supabase = await createClient();
+  const { data: blob } = await supabase.storage.from("project-files").download(input.path);
+  if (!blob) return "Fichier introuvable.";
+  const name = input.name ?? input.path;
+  const buffer = Buffer.from(await blob.arrayBuffer());
+  if (/\.pdf$/i.test(name)) return { type: "document", source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") } };
+  if (/\.docx$/i.test(name)) return { type: "text", text: `Document Word « ${name} » :\n"""\n${(await mammoth.extractRawText({ buffer })).value.slice(0, MAX_CHARS)}\n"""` };
+  if (TEXT_TYPES.test(name)) return { type: "text", text: `Fichier « ${name} » :\n"""\n${decodeText(buffer).slice(0, MAX_CHARS)}\n"""` };
+  return "Format non pris en charge : texte (.txt, .md, .srt…), PDF ou Word (.docx).";
+}
+
+/** Envoi d'un document avant la création du chantier (rangé ensuite dans le chantier créé). */
+export async function prepareInboxUpload(input: { businessId: string; name: string; size: number }) {
+  await requireAdmin();
+  if (input.size > MAX_FILE) return { error: "Fichier trop lourd (50 Mo max)." } as const;
+  const ext = (input.name.match(/\.([a-z0-9]{1,8})$/i)?.[1] ?? "bin").toLowerCase();
+  const path = `inbox/${z.string().uuid().parse(input.businessId)}/${randomUUID()}.${ext}`;
+  const supabase = await createClient();
+  const { data, error } = await supabase.storage.from("project-files").createSignedUploadUrl(path);
+  if (error || !data) return { error: "Impossible de préparer l'envoi." } as const;
+  return { path, token: data.token } as const;
+}
 
 /**
- * Lit un compte rendu (fichier déjà envoyé dans le stockage, ou texte collé) et propose des tâches.
- * Rien n'est créé ici : Bastien valide la liste avant l'ajout.
+ * Lit une transcription de séance, un compte rendu ou un brief (fichier envoyé ou texte collé)
+ * et propose tâches, compte rendu et, pour un nouveau chantier, son nom et son client.
+ * Rien n'est créé ici : Bastien valide avant l'ajout.
  */
-export async function extractTasks(input: { projectId: string; path?: string; name?: string; text?: string }): Promise<{ ok: true; data: ExtractedTasks } | { ok: false; error: string }> {
+export async function extractTasks(input: {
+  projectId?: string;
+  businessId?: string;
+  path?: string;
+  name?: string;
+  text?: string;
+}): Promise<{ ok: true; data: ExtractedTasks } | { ok: false; error: string }> {
   await requireAdmin();
   const anthropic = claude();
   if (!anthropic) return { ok: false, error: NO_KEY };
-  const project = await projectOf(input.projectId);
-  if (!project) return { ok: false, error: "Chantier introuvable." };
   const supabase = await createClient();
+  const project = input.projectId ? await projectOf(input.projectId) : null;
+  if (input.projectId && !project) return { ok: false, error: "Chantier introuvable." };
+  if (!project && !input.businessId) return { ok: false, error: "Choisis un business." };
+  const prefix = project ? `${project.id}/` : `inbox/${input.businessId}/`;
+  const doc = await readDocument(input, prefix);
+  if (typeof doc === "string") return { ok: false, error: doc };
 
-  type Block = { type: "text"; text: string } | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } };
-  let doc: Block | null = null;
-  if (input.text?.trim()) doc = { type: "text", text: `Document collé :\n"""\n${input.text.slice(0, 200_000)}\n"""` };
-  else if (input.path?.startsWith(`${input.projectId}/`)) {
-    const { data: blob } = await supabase.storage.from("project-files").download(input.path);
-    if (!blob) return { ok: false, error: "Fichier introuvable." };
-    const name = input.name ?? input.path;
-    const buffer = Buffer.from(await blob.arrayBuffer());
-    if (/\.pdf$/i.test(name)) doc = { type: "document", source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") } };
-    else if (/\.docx$/i.test(name)) doc = { type: "text", text: `Document Word « ${name} » :\n"""\n${(await mammoth.extractRawText({ buffer })).value.slice(0, 200_000)}\n"""` };
-    else if (TEXT_TYPES.test(name)) doc = { type: "text", text: `Fichier « ${name} » :\n"""\n${buffer.toString("utf8").slice(0, 200_000)}\n"""` };
-    else return { ok: false, error: "Format non pris en charge : PDF, Word (.docx) ou texte (.txt, .md…)." };
-  }
-  if (!doc) return { ok: false, error: "Ajoute un fichier ou colle un texte." };
-
-  const { data: existing } = await supabase.from("project_tasks").select("title").eq("project_id", input.projectId).limit(200);
+  const { data: existing } = project ? await supabase.from("project_tasks").select("title").eq("project_id", project.id).limit(200) : { data: [] };
+  const { data: business } = await supabase.from("businesses").select("name, description").eq("id", project?.business_id ?? input.businessId!).maybeSingle();
   try {
     const response = await anthropic.beta.messages.parse({
       model: MODEL,
-      max_tokens: 16000,
+      max_tokens: 20000,
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
-      output_config: { effort: "medium", format: betaZodOutputFormat(Extracted) },
-      system:
-        "Tu transformes des comptes rendus (séance client, brief, transcription, cahier des charges) en liste de tâches pour le chantier d'un indépendant suisse. " +
-        "Ne garde que ce qui est à faire ; reprends fidèlement les informations du document sans rien inventer. Français, tâches concises.",
+      output_config: { effort: "high", format: betaZodOutputFormat(Extracted) },
+      system: SYSTEM,
       messages: [
         {
           role: "user",
@@ -289,9 +347,10 @@ export async function extractTasks(input: { projectId: string; path?: string; na
             {
               type: "text",
               text:
-                `Chantier : « ${project.name} ». Date du jour : ${lastDays(1)[0]}.\n` +
+                `Business : ${business?.name ?? "?"}${business?.description ? ` (${business.description})` : ""}. Date du jour : ${lastDays(1)[0]}.\n` +
+                (project ? `Chantier existant : « ${project.name} ».\n` : "Ce document servira à créer un nouveau chantier.\n") +
                 (existing?.length ? `Tâches déjà présentes (ne pas les répéter) :\n${existing.map((t) => `- ${t.title}`).join("\n")}\n` : "") +
-                "Extrais les tâches de ce document.",
+                "Organise ce document en tâches et en compte rendu.",
             },
           ],
         },
@@ -304,35 +363,89 @@ export async function extractTasks(input: { projectId: string; path?: string; na
   }
 }
 
-const bulkSchema = z.object({
-  projectId: z.string().uuid(),
-  slug: z.string().min(1),
-  tasks: z
-    .array(
-      z.object({
-        title: z.string().trim().min(1).max(200),
-        notes: z.string().trim().max(4000).optional(),
-        priority: z.enum(["low", "normal", "high"]),
-        due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
-      }),
-    )
-    .min(1)
-    .max(200),
-});
+const taskList = z
+  .array(
+    z.object({
+      title: z.string().trim().min(1).max(200),
+      notes: z.string().trim().max(4000).optional(),
+      priority: z.enum(["low", "normal", "high"]),
+      due_date: z
+        .string()
+        .nullable()
+        .transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null)),
+    }),
+  )
+  .max(200);
+
+async function insertTasks(projectId: string, tasks: z.output<typeof taskList>) {
+  if (!tasks.length) return null;
+  const supabase = await createClient();
+  const { data: last } = await supabase.from("project_tasks").select("position").eq("project_id", projectId).order("position", { ascending: false }).limit(1).maybeSingle();
+  const start = (last?.position ?? 0) + 1;
+  const { error } = await supabase
+    .from("project_tasks")
+    .insert(tasks.map((t, i) => ({ project_id: projectId, title: t.title, notes: t.notes || null, priority: t.priority, due_date: t.due_date, position: start + i })));
+  return error;
+}
+
+/** Le compte rendu de l'IA, gardé en fichier Markdown dans le chantier. */
+async function saveReport(projectId: string, report: string) {
+  if (!report.trim()) return;
+  const supabase = await createClient();
+  const path = `${projectId}/${randomUUID()}.md`;
+  const body = Buffer.from(report, "utf8");
+  const { error } = await supabase.storage.from("project-files").upload(path, body, { contentType: "text/markdown; charset=utf-8" });
+  if (!error) await supabase.from("project_files").insert({ project_id: projectId, storage_path: path, name: `Compte rendu ${lastDays(1)[0]}.md`, size: body.length, mime: "text/markdown" });
+}
+
+const bulkSchema = z.object({ projectId: z.string().uuid(), slug: z.string().min(1), tasks: taskList, report: z.string().max(60_000).optional() });
 
 export async function addTasks(input: z.input<typeof bulkSchema>): Promise<FormState> {
   await requireAdmin();
   const parsed = bulkSchema.safeParse(input);
   if (!parsed.success) return { error: "Liste invalide." };
-  const { projectId, slug, tasks } = parsed.data;
+  const { projectId, slug, tasks, report } = parsed.data;
   if (!(await projectOf(projectId))) return { error: "Chantier introuvable." };
-  const supabase = await createClient();
-  const { data: last } = await supabase.from("project_tasks").select("position").eq("project_id", projectId).order("position", { ascending: false }).limit(1).maybeSingle();
-  const start = (last?.position ?? 0) + 1;
-  const { error } = await supabase.from("project_tasks").insert(
-    tasks.map((t, i) => ({ project_id: projectId, title: t.title, notes: t.notes || null, priority: t.priority, due_date: t.due_date, position: start + i })),
-  );
-  if (error) return { error: "Ajout impossible." };
+  if (await insertTasks(projectId, tasks)) return { error: "Ajout impossible." };
+  if (report) await saveReport(projectId, report);
   refresh(slug);
   return { ok: true };
+}
+
+const fromDocSchema = z.object({
+  businessId: z.string().uuid(),
+  slug: z.string().min(1),
+  project: z.object({
+    name: z.string().trim().min(1).max(120),
+    client: z.string().trim().max(120).nullable(),
+    description: z.string().trim().max(4000),
+    due_date: z.string().nullable(),
+  }),
+  tasks: taskList,
+  report: z.string().max(60_000).optional(),
+  file: z.object({ path: z.string(), name: z.string().max(200), size: z.number(), mime: z.string() }).optional(),
+});
+
+/** Crée un chantier complet depuis un document : chantier, tâches, transcription jointe et compte rendu. */
+export async function createProjectFromDocument(input: z.input<typeof fromDocSchema>): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  await requireAdmin();
+  const parsed = fromDocSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Données invalides." };
+  const { businessId, slug, project: p, tasks, report, file } = parsed.data;
+  const supabase = await createClient();
+  const due = p.due_date && /^\d{4}-\d{2}-\d{2}$/.test(p.due_date) ? p.due_date : null;
+  const { data: created, error } = await supabase
+    .from("projects")
+    .insert({ business_id: businessId, name: p.name, client: p.client || null, description: p.description || null, due_date: due })
+    .select("id")
+    .single();
+  if (error || !created) return { ok: false, error: "Création impossible." };
+  if (await insertTasks(created.id, tasks)) return { ok: false, error: "Chantier créé, mais les tâches n'ont pas pu être ajoutées." };
+  // La transcription reste où elle a été envoyée ; elle est simplement rattachée au chantier.
+  if (file?.path.startsWith(`inbox/${businessId}/`)) {
+    await supabase.from("project_files").insert({ project_id: created.id, storage_path: file.path, name: file.name, size: file.size, mime: file.mime || null });
+  }
+  if (report) await saveReport(created.id, report);
+  refresh(slug);
+  return { ok: true, id: created.id };
 }

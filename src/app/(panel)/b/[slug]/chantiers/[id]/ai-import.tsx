@@ -1,31 +1,50 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { FileText, Loader2, Sparkles, Upload } from "lucide-react";
 import { AiAvatar } from "@/components/ai/avatar";
-import { Button, Textarea } from "@/components/ui";
-import { useCloseDialog } from "@/components/ui/dialog";
-import { cn } from "@/components/ui/cn";
 import { formatDay } from "@/components/charts/format";
+import { Button, Input, Select, Textarea } from "@/components/ui";
+import { cn } from "@/components/ui/cn";
+import { useCloseDialog } from "@/components/ui/dialog";
 import { createUploadClient } from "@/lib/supabase/browser";
-import { addTasks, extractTasks, prepareFileUpload, recordFile, type ExtractedTasks } from "../actions";
+import { addTasks, createProjectFromDocument, extractTasks, prepareFileUpload, prepareInboxUpload, recordFile, type ExtractedTasks } from "../actions";
+import type { BusinessChoice } from "../project-form";
 
-const ACCEPT = ".pdf,.docx,.txt,.md,.markdown,.csv,.json,.html,.srt,.vtt";
+const ACCEPT = ".txt,.md,.markdown,.srt,.vtt,.csv,.json,.html,.pdf,.docx";
+const isDate = (v: string | null) => Boolean(v && /^\d{4}-\d{2}-\d{2}$/.test(v));
+
+type Props =
+  /** Ajout de tâches à un chantier existant. */
+  | { projectId: string; slug: string; businessId?: never; businesses?: never }
+  /** Création d'un chantier depuis le document (business fixé ou à choisir). */
+  | { projectId?: never; slug?: string; businessId?: string; businesses?: BusinessChoice[] };
 
 /**
- * Import d'un compte rendu (PDF, Word, texte, ou texte collé) : Claude propose des tâches,
- * Bastien coche celles à garder avant l'ajout. Le fichier est aussi gardé en pièce jointe.
+ * Transcription de séance (TurboScribe…), compte rendu, brief ou e-mail → tâches, compte rendu propre
+ * et, au besoin, un nouveau chantier. Bastien relit et coche avant que quoi que ce soit soit créé.
  */
-export function AiImport({ projectId, slug }: { projectId: string; slug: string }) {
+export function AiImport(props: Props) {
+  const router = useRouter();
+  const close = useCloseDialog();
+  const creating = !props.projectId;
+  const [business, setBusiness] = useState<BusinessChoice | undefined>(props.businesses?.[0]);
+  const businessId = props.businessId ?? business?.id;
+  const slug = props.slug ?? business?.slug ?? "";
+
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [uploaded, setUploaded] = useState<{ path: string; name: string; size: number; mime: string } | null>(null);
   const [result, setResult] = useState<ExtractedTasks | null>(null);
   const [keep, setKeep] = useState<boolean[]>([]);
+  const [keepReport, setKeepReport] = useState(true);
+  const [name, setName] = useState("");
+  const [client, setClient] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const input = useRef<HTMLInputElement>(null);
-  const close = useCloseDialog();
 
   const analyse = () =>
     start(async () => {
@@ -34,118 +53,179 @@ export function AiImport({ projectId, slug }: { projectId: string; slug: string 
       let path: string | undefined;
       if (file) {
         setStep("Envoi du fichier…");
-        const prep = await prepareFileUpload({ projectId, name: file.name, size: file.size });
+        const prep = props.projectId
+          ? await prepareFileUpload({ projectId: props.projectId, name: file.name, size: file.size })
+          : await prepareInboxUpload({ businessId: businessId!, name: file.name, size: file.size });
         if ("error" in prep) {
           setStep(null);
           return setError(prep.error ?? "Envoi impossible.");
         }
-        const { error: upErr } = await createUploadClient().storage.from("project-files").uploadToSignedUrl(prep.path, prep.token, file, { contentType: file.type || "application/octet-stream" });
+        const { error: upErr } = await createUploadClient()
+          .storage.from("project-files")
+          .uploadToSignedUrl(prep.path, prep.token, file, { contentType: file.type || "text/plain" });
         if (upErr) {
           setStep(null);
           return setError("Envoi du fichier impossible.");
         }
-        await recordFile({ projectId, slug, path: prep.path, name: file.name, size: file.size, mime: file.type });
+        if (props.projectId) await recordFile({ projectId: props.projectId, slug, path: prep.path, name: file.name, size: file.size, mime: file.type });
+        else setUploaded({ path: prep.path, name: file.name, size: file.size, mime: file.type });
         path = prep.path;
       }
-      setStep("Lecture par l'IA…");
-      const res = await extractTasks({ projectId, path, name: file?.name, text: file ? undefined : text });
+      setStep("L'IA lit le document…");
+      const res = await extractTasks({ projectId: props.projectId, businessId, path, name: file?.name, text: file ? undefined : text });
       setStep(null);
       if (!res.ok) return setError(res.error);
       setResult(res.data);
       setKeep(res.data.tasks.map(() => true));
+      setName(res.data.project.name);
+      setClient(res.data.project.client ?? "");
     });
 
   const save = () =>
     start(async () => {
       if (!result) return;
-      const tasks = result.tasks.filter((_, i) => keep[i]).map((t) => ({ ...t, due_date: t.due_date && /^\d{4}-\d{2}-\d{2}$/.test(t.due_date) ? t.due_date : null }));
-      if (!tasks.length) return;
-      const res = await addTasks({ projectId, slug, tasks });
-      if (res.error) return setError(res.error);
-      setResult(null);
-      setText("");
-      setFile(null);
+      const tasks = result.tasks.filter((_, i) => keep[i]);
+      const report = keepReport ? result.report : undefined;
+      if (props.projectId) {
+        if (!tasks.length) return;
+        const res = await addTasks({ projectId: props.projectId, slug, tasks, report });
+        if (res.error) return setError(res.error);
+        close();
+        return;
+      }
+      const res = await createProjectFromDocument({
+        businessId: businessId!,
+        slug,
+        project: { ...result.project, name: name.trim() || result.project.name, client: client.trim() || null },
+        tasks,
+        report,
+        file: uploaded ?? undefined,
+      });
+      if (!res.ok) return setError(res.error);
       close();
+      router.push(`/b/${slug}/chantiers/${res.id}`);
     });
 
   const count = keep.filter(Boolean).length;
 
-  return (
-    <div className="flex flex-col gap-4">
-      {result ? (
-        <>
-          <div className="flex gap-3 rounded-[14px] bg-fill p-3.5">
-            <AiAvatar className="size-8" />
-            <p className="text-[13px] leading-relaxed">{result.summary}</p>
+  if (result) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex gap-3 rounded-[14px] bg-fill p-3.5">
+          <AiAvatar className="size-8" />
+          <p className="text-[13px] leading-relaxed">{result.summary}</p>
+        </div>
+
+        {creating ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom du chantier" aria-label="Nom du chantier" />
+            <Input value={client} onChange={(e) => setClient(e.target.value)} placeholder="Client" aria-label="Client" />
           </div>
-          <ul className="flex flex-col gap-1">
+        ) : null}
+
+        <div>
+          <p className="mb-1 px-2 text-[12px] font-medium text-muted">
+            {result.tasks.length} tâche{result.tasks.length > 1 ? "s" : ""} proposée{result.tasks.length > 1 ? "s" : ""} · décoche ce que tu ne veux pas
+          </p>
+          <ul className="flex flex-col">
             {result.tasks.map((t, i) => (
               <li key={i}>
-                <label className="flex cursor-pointer items-start gap-3 rounded-[12px] px-2 py-2 hover:bg-fill">
+                <label className={cn("flex cursor-pointer items-start gap-3 rounded-[12px] px-2 py-2 transition hover:bg-fill", !keep[i] && "opacity-45")}>
                   <input type="checkbox" checked={keep[i]} onChange={() => setKeep((k) => k.map((v, j) => (j === i ? !v : v)))} className="mt-1 accent-[var(--text)]" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-[14px] font-medium">{t.title}</span>
-                    {t.notes ? <span className="block text-[12px] text-muted">{t.notes}</span> : null}
+                    {t.notes ? <span className="block text-[12px] leading-relaxed text-muted">{t.notes}</span> : null}
                   </span>
-                  <span className="shrink-0 text-[12px] text-muted">
-                    {t.priority === "high" ? <span className="text-danger">Haute · </span> : null}
-                    {t.due_date && /^\d{4}-\d{2}-\d{2}$/.test(t.due_date) ? formatDay(t.due_date) : null}
+                  <span className="shrink-0 text-right text-[12px] text-muted">
+                    {t.priority === "high" ? <span className="block text-danger">Prioritaire</span> : null}
+                    {isDate(t.due_date) ? formatDay(t.due_date!) : null}
                   </span>
                 </label>
               </li>
             ))}
           </ul>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" onClick={save} disabled={pending || !count}>
-              {pending ? <Loader2 className="animate-spin" /> : null} Ajouter {count} tâche{count > 1 ? "s" : ""}
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => setResult(null)} disabled={pending}>
-              Annuler
-            </Button>
-          </div>
-        </>
-      ) : (
-        <>
-          <button
-            type="button"
-            onClick={() => input.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              const f = e.dataTransfer.files[0];
-              if (f) setFile(f);
+        </div>
+
+        {result.report.trim() ? (
+          <details className="group rounded-[14px] bg-fill">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-3 text-[13px] font-medium">
+              Compte rendu de la séance
+              <span className="text-[12px] font-normal text-muted group-open:hidden">Lire</span>
+            </summary>
+            <div className="max-h-72 overflow-y-auto whitespace-pre-wrap px-3.5 pb-3.5 text-[13px] leading-relaxed text-text/85">{result.report.replace(/^#+\s*/gm, "").replace(/\*\*/g, "")}</div>
+          </details>
+        ) : null}
+        <label className="flex items-center gap-2 px-1 text-[13px]">
+          <input type="checkbox" checked={keepReport} onChange={(e) => setKeepReport(e.target.checked)} className="accent-[var(--text)]" />
+          Garder le compte rendu dans les fichiers du chantier
+        </label>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" onClick={save} disabled={pending || (!creating && !count)}>
+            {pending ? <Loader2 className="animate-spin" /> : null}
+            {creating ? `Créer le chantier · ${count} tâche${count > 1 ? "s" : ""}` : `Ajouter ${count} tâche${count > 1 ? "s" : ""}`}
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => setResult(null)} disabled={pending}>
+            Recommencer
+          </Button>
+        </div>
+        {error ? <p className="text-[13px] text-danger">{error}</p> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {props.businesses && !props.businessId ? (
+        <Select value={business?.id} onChange={(e) => setBusiness(props.businesses!.find((b) => b.id === e.target.value))} aria-label="Business">
+          {props.businesses.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </Select>
+      ) : null}
+      <button
+        type="button"
+        onClick={() => input.current?.click()}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          const f = e.dataTransfer.files[0];
+          if (f) setFile(f);
+        }}
+        className={cn("flex items-center gap-3 rounded-[16px] border border-dashed border-border-strong px-4 py-5 text-left transition hover:bg-fill", file && "border-solid bg-fill")}
+      >
+        {file ? <FileText className="size-6 shrink-0" /> : <Upload className="size-6 shrink-0 text-muted" />}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-medium">{file ? file.name : "Déposer la transcription"}</span>
+          <span className="block text-[12px] text-muted">
+            {file ? `${Math.max(1, Math.round(file.size / 1024))} Ko · gardée en pièce jointe` : "Le .txt de TurboScribe tel quel, ou un PDF, un Word, un compte rendu"}
+          </span>
+        </span>
+        {file ? (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              setFile(null);
             }}
-            className={cn("flex items-center gap-3 rounded-[14px] border border-dashed border-border-strong px-4 py-4 text-left transition hover:bg-fill", file && "border-solid bg-fill")}
+            className="text-[12px] text-muted hover:text-text"
           >
-            {file ? <FileText className="size-5 shrink-0" /> : <Upload className="size-5 shrink-0 text-muted" />}
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[14px] font-medium">{file ? file.name : "Déposer un compte rendu"}</span>
-              <span className="block text-[12px] text-muted">{file ? `${Math.round(file.size / 1024)} Ko · gardé en pièce jointe` : "PDF, Word (.docx) ou texte (.txt, .md)"}</span>
-            </span>
-            {file ? (
-              <span
-                role="button"
-                tabIndex={0}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFile(null);
-                }}
-                className="text-[12px] text-muted hover:text-text"
-              >
-                Retirer
-              </span>
-            ) : null}
-          </button>
-          <input ref={input} type="file" accept={ACCEPT} hidden onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          {!file ? <Textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="…ou colle ici le résumé de ta séance, un e-mail du client, des notes vocales transcrites." /> : null}
-          <div className="flex flex-wrap items-center gap-3">
-            <Button type="button" onClick={analyse} disabled={pending || (!file && !text.trim())}>
-              {pending ? <Loader2 className="animate-spin" /> : <Sparkles />} Créer les tâches avec l&apos;IA
-            </Button>
-            {step ? <span className="text-[13px] text-muted">{step}</span> : null}
-          </div>
-        </>
-      )}
+            Retirer
+          </span>
+        ) : null}
+      </button>
+      <input ref={input} type="file" accept={ACCEPT} hidden onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+      {!file ? <Textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="…ou colle ici la transcription, ton résumé ChatGPT, un e-mail du client." /> : null}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="button" onClick={analyse} disabled={pending || (!file && !text.trim()) || (creating && !businessId)}>
+          {pending ? <Loader2 className="animate-spin" /> : <Sparkles />} {creating ? "Préparer le chantier" : "Créer les tâches"}
+        </Button>
+        {step ? <span className="text-[13px] text-muted">{step}</span> : null}
+      </div>
+      <p className="text-[12px] text-faint">Une séance d&apos;une heure se lit en 20 à 40 secondes. Rien n&apos;est créé avant ta validation.</p>
       {error ? <p className="text-[13px] text-danger">{error}</p> : null}
     </div>
   );

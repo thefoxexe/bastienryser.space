@@ -17,6 +17,8 @@ import { FilesCard } from "./files-card";
 import { TaskList } from "./task-list";
 
 export const metadata: Metadata = { title: "Chantier" };
+// Lecture d'une longue séance par l'IA (Server Actions de la page).
+export const maxDuration = 300;
 
 const TONE = { active: "success", paused: "warning", done: "neutral" } as const;
 const chf = { kind: "currency", currency: "chf" } as const;
@@ -72,8 +74,8 @@ export default async function ProjectPage({ params }: PageProps<"/b/[slug]/chant
                   <Sparkles /> Importer un compte rendu
                 </>
               }
-              title="Importer un compte rendu"
-              description="PDF, Word, texte ou résumé collé : l'IA propose les tâches, tu choisis lesquelles garder."
+              title="Importer une séance ou un compte rendu"
+              description="La transcription TurboScribe telle quelle, un PDF, un Word ou un texte collé : l'IA propose les tâches et un compte rendu."
             >
               <AiImport projectId={project.id} slug={business.slug} />
             </DialogButton>
