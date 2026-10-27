@@ -7,6 +7,7 @@ import { Button } from "@/components/ui";
 import { listAlerts } from "@/lib/alerts";
 import { getViewer } from "@/lib/auth";
 import { listBusinesses } from "@/lib/data";
+import { countDueTasks } from "@/lib/projects";
 
 export default async function PanelLayout({ children }: LayoutProps<"/">) {
   const viewer = await getViewer();
@@ -33,7 +34,7 @@ export default async function PanelLayout({ children }: LayoutProps<"/">) {
     );
   }
 
-  const [businesses, alerts, cookieStore] = await Promise.all([listBusinesses(), listAlerts(), cookies()]);
+  const [businesses, alerts, cookieStore, dueTasks] = await Promise.all([listBusinesses(), listAlerts(), cookies(), countDueTasks().catch(() => 0)]);
   const themeCookie = cookieStore.get("theme")?.value;
   const theme = themeCookie === "light" || themeCookie === "dark" ? themeCookie : "system";
 
@@ -43,6 +44,7 @@ export default async function PanelLayout({ children }: LayoutProps<"/">) {
         email={viewer.email}
         theme={theme}
         alerts={alerts.length}
+        dueTasks={dueTasks}
         businesses={businesses.map((b) => ({
           slug: b.slug,
           name: b.name,

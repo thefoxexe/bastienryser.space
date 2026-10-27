@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { LayoutGrid, LogOut, Menu, Plus, Settings, X } from "lucide-react";
+import { FolderKanban, LayoutGrid, LogOut, Menu, Plus, Settings, X } from "lucide-react";
 import { BusinessMark } from "@/components/business-mark";
 import { Logo, LogoMark } from "@/components/logo";
 import { cn } from "@/components/ui/cn";
@@ -22,11 +22,14 @@ export function Sidebar({
   email,
   theme,
   alerts,
+  dueTasks = 0,
 }: {
   businesses: SidebarBusiness[];
   email: string | null;
   theme: "light" | "dark" | "system";
   alerts: number;
+  /** Tâches de chantier dues aujourd'hui ou en retard. */
+  dueTasks?: number;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -52,6 +55,9 @@ export function Sidebar({
       <nav className="flex-1 overflow-y-auto px-3 pb-4 pt-2">
         <NavLink href="/" active={pathname === "/"} icon={<LayoutGrid />} badge={alerts}>
           Tableau de bord
+        </NavLink>
+        <NavLink href="/chantiers" active={pathname === "/chantiers"} icon={<FolderKanban />} badge={dueTasks}>
+          Chantiers
         </NavLink>
 
         <div className="mb-1 mt-7 flex items-center justify-between px-3">

@@ -108,3 +108,47 @@ export async function getProject(businessId: string, id: string) {
     unlinked: ((unlinked ?? []) as LedgerEntry[]).map(num),
   };
 }
+
+export type OpenTask = ProjectTask & { project: { id: string; name: string }; business: { slug: string; name: string } };
+
+/**
+ * Tâches à faire, tous chantiers en cours confondus (ou ceux d'un business) :
+ * retards d'abord, puis par échéance, puis priorité haute, puis le reste.
+ */
+export async function listOpenTasks(options: { businessId?: string; limit?: number } = {}): Promise<OpenTask[]> {
+  const supabase = await createClient();
+  let q = supabase
+    .from("project_tasks")
+    .select(`${TASK_COLUMNS}, projects!inner(id,name,status,business_id,businesses!inner(slug,name))`)
+    .neq("status", "done")
+    .neq("projects.status", "done")
+    .limit(500);
+  if (options.businessId) q = q.eq("projects.business_id", options.businessId);
+  const { data } = await q;
+  type Row = ProjectTask & { projects: { id: string; name: string; businesses: { slug: string; name: string } } };
+  const rank = { high: 0, normal: 1, low: 2 } as const;
+  const rows = ((data ?? []) as unknown as Row[]).sort(
+    (a, b) =>
+      (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999") ||
+      Number(b.status === "doing") - Number(a.status === "doing") ||
+      rank[a.priority] - rank[b.priority] ||
+      a.position - b.position,
+  );
+  return rows.slice(0, options.limit ?? 500).map(({ projects, ...t }) => ({
+    ...t,
+    project: { id: projects.id, name: projects.name },
+    business: { slug: projects.businesses.slug, name: projects.businesses.name },
+  }));
+}
+
+/** Nombre de tâches en retard ou dues aujourd'hui (badge du menu). */
+export async function countDueTasks(): Promise<number> {
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from("project_tasks")
+    .select("id, projects!inner(status)", { count: "exact", head: true })
+    .neq("status", "done")
+    .neq("projects.status", "done")
+    .lte("due_date", today());
+  return count ?? 0;
+}

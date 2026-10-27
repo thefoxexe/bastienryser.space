@@ -1,13 +1,31 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { Button, Field, FormError, Input, Select, Textarea } from "@/components/ui";
 import type { Project } from "@/lib/projects";
 import { createProject, updateProject, type FormState } from "./actions";
 
 /** Création ou modification d'un chantier. */
-export function ProjectForm({ businessId, slug, project, onDone }: { businessId: string; slug: string; project?: Project; onDone?: () => void }) {
+export type BusinessChoice = { id: string; slug: string; name: string };
+
+export function ProjectForm({
+  businessId,
+  slug,
+  businesses,
+  project,
+  onDone,
+}: {
+  businessId?: string;
+  slug?: string;
+  /** Depuis la vue de tous les chantiers : le business se choisit dans le formulaire. */
+  businesses?: BusinessChoice[];
+  project?: Project;
+  onDone?: () => void;
+}) {
+  const [chosen, setChosen] = useState<BusinessChoice | undefined>(businesses?.[0]);
+  const bizId = businessId ?? chosen?.id ?? "";
+  const bizSlug = slug ?? chosen?.slug ?? "";
   const [state, action, pending] = useActionState<FormState, FormData>(async (prev, data) => {
     const res = await (project ? updateProject : createProject)(prev, data);
     if (res.ok) onDone?.();
@@ -15,8 +33,19 @@ export function ProjectForm({ businessId, slug, project, onDone }: { businessId:
   }, {});
   return (
     <form action={action} className="flex flex-col gap-4">
-      <input type="hidden" name="businessId" value={businessId} />
-      <input type="hidden" name="slug" value={slug} />
+      <input type="hidden" name="businessId" value={bizId} />
+      <input type="hidden" name="slug" value={bizSlug} />
+      {businesses && !businessId ? (
+        <Field label="Business" htmlFor="p-biz">
+          <Select id="p-biz" value={chosen?.id} onChange={(e) => setChosen(businesses.find((b) => b.id === e.target.value))}>
+            {businesses.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : null}
       {project ? <input type="hidden" name="id" value={project.id} /> : null}
       <Field label="Nom du chantier" htmlFor="p-name">
         <Input id="p-name" name="name" required defaultValue={project?.name} placeholder="Ex. Site tatatitatata.ch" />

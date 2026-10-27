@@ -27,7 +27,11 @@ const optionalText = (max: number) =>
     .optional()
     .transform((v) => v || null);
 
-const refresh = (slug: string) => revalidatePath(`/b/${slug}/chantiers`, "layout");
+const refresh = (slug: string) => {
+  revalidatePath(`/b/${slug}/chantiers`, "layout");
+  revalidatePath("/chantiers");
+  revalidatePath("/");
+};
 
 /** Le chantier appartient bien au business de la page (les identifiants viennent du formulaire). */
 async function projectOf(id: string) {

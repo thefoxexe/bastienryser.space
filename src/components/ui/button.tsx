@@ -27,6 +27,8 @@ export function buttonClass(variant: Variant = "primary", size: Size = "md", cla
   return cn(base, variants[variant], sizes[size], className);
 }
 
+export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size };
+
 export function Button({
   variant = "primary",
   size = "md",

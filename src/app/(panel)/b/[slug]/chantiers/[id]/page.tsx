@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowUpRight, CalendarClock, ChevronLeft, Link2Off, Trash2 } from "lucide-react";
+import { ArrowUpRight, CalendarClock, ChevronLeft, Link2Off, Plus, Sparkles, Trash2 } from "lucide-react";
 import { formatDay, formatValue } from "@/components/charts/format";
 import { Badge, Button, Card, CardHeader, Select } from "@/components/ui";
+import { DialogButton } from "@/components/ui/dialog";
 import { cn } from "@/components/ui/cn";
 import { getBusiness } from "@/lib/data";
 import { lastDays } from "@/lib/metrics";
@@ -63,7 +64,19 @@ export default async function ProjectPage({ params }: PageProps<"/b/[slug]/chant
             </div>
             {project.description ? <p className="mt-3 max-w-3xl whitespace-pre-line text-[14px] leading-relaxed text-text/85">{project.description}</p> : null}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <DialogButton
+              size="sm"
+              label={
+                <>
+                  <Sparkles /> Importer un compte rendu
+                </>
+              }
+              title="Importer un compte rendu"
+              description="PDF, Word, texte ou résumé collé : l'IA propose les tâches, tu choisis lesquelles garder."
+            >
+              <AiImport projectId={project.id} slug={business.slug} />
+            </DialogButton>
             <EditProject businessId={business.id} slug={business.slug} project={project} />
             <form action={deleteProject}>
               <input type="hidden" name="id" value={project.id} />
@@ -101,7 +114,7 @@ export default async function ProjectPage({ params }: PageProps<"/b/[slug]/chant
         </div>
       </section>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Card>
           <CardHeader title="Tâches" description="Coche ce qui est fait ; touche une tâche pour ses notes, son échéance et sa priorité." />
           <div className="pt-4">
@@ -109,80 +122,76 @@ export default async function ProjectPage({ params }: PageProps<"/b/[slug]/chant
           </div>
         </Card>
 
-        <div className="flex flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-6">
           <Card>
-            <CardHeader title="Importer un compte rendu" description="L'IA lit le document et propose les tâches ; tu choisis lesquelles garder." />
-            <div className="pt-4">
-              <AiImport projectId={project.id} slug={business.slug} />
+            <CardHeader
+              title="Finances"
+              action={
+                <DialogButton size="sm" variant="secondary" label={<><Plus /> Écriture</>} title="Nouvelle écriture" description="Facture, charge ou virement, rattaché à ce chantier.">
+                  <EntryForm businessId={business.id} slug={business.slug} today={today} projectId={project.id} />
+                </DialogButton>
+              }
+            />
+            <div className="flex flex-col gap-3 p-5 pt-3 sm:p-6 sm:pt-3">
+              {entries.length ? (
+                <ul className="flex flex-col">
+                  {entries.map((e) => (
+                    <li key={e.id} className="group flex items-center gap-2 py-1.5">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[14px]">{e.label}</span>
+                        <span className="block text-[12px] text-muted">
+                          {formatDay(e.day)}
+                          {e.reference ? ` · n° ${e.reference}` : ""}
+                        </span>
+                      </span>
+                      <span className={cn("tabular shrink-0 text-[14px] font-medium", e.kind === "income" ? "text-green-text" : "text-muted")}>
+                        {e.kind === "income" ? "+" : "−"}
+                        {formatValue(e.amount, { kind: "currency", currency: e.currency })}
+                      </span>
+                      <form action={unlinkEntry}>
+                        <input type="hidden" name="entryId" value={e.id} />
+                        <input type="hidden" name="slug" value={business.slug} />
+                        <button type="submit" title="Détacher du chantier" aria-label={`Détacher ${e.label}`} className="grid size-7 place-items-center rounded-full text-faint hover:bg-fill hover:text-text sm:opacity-0 sm:group-hover:opacity-100">
+                          <Link2Off className="size-3.5" />
+                        </button>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[13px] text-muted">Aucune facture ni charge liée.</p>
+              )}
+              {unlinked.length ? (
+                <form action={linkEntry} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                  <input type="hidden" name="projectId" value={project.id} />
+                  <input type="hidden" name="slug" value={business.slug} />
+                  <Select name="entryId" className="w-full min-w-0" aria-label="Écriture à lier" defaultValue="">
+                    <option value="" disabled>
+                      Lier une écriture existante…
+                    </option>
+                    {unlinked.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {formatDay(e.day)} · {e.label} · {e.kind === "income" ? "+" : "−"}
+                        {formatValue(e.amount, { kind: "currency", currency: e.currency })}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button type="submit" size="sm" variant="secondary">
+                    Lier
+                  </Button>
+                </form>
+              ) : null}
             </div>
           </Card>
 
           <Card>
-            <CardHeader title="Pièces jointes" />
-            <div className="pt-4">
+            <CardHeader title="Fichiers" />
+            <div className="pt-3">
               <FilesCard projectId={project.id} slug={business.slug} files={files} />
             </div>
           </Card>
         </div>
       </div>
-
-      <Card>
-        <CardHeader title="Factures et dépenses" description="Les écritures liées à ce chantier comptent aussi dans les finances du business." />
-        <div className="grid gap-6 p-5 pt-4 sm:p-6 sm:pt-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="flex min-w-0 flex-col gap-4">
-            {entries.length ? (
-              <ul className="divide-y divide-border">
-                {entries.map((e) => (
-                  <li key={e.id} className="group flex items-center gap-3 py-2.5">
-                    <span className="tabular w-14 shrink-0 text-[12px] text-muted">{formatDay(e.day)}</span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[14px] font-medium">{e.label}</span>
-                      <span className="block truncate text-[12px] text-muted">{[e.category, e.reference ? `n° ${e.reference}` : null].filter(Boolean).join(" · ")}</span>
-                    </span>
-                    <span className={cn("tabular shrink-0 text-[14px] font-medium", e.kind === "income" ? "text-green-text" : "text-muted")}>
-                      {e.kind === "income" ? "+" : "−"}
-                      {formatValue(e.amount, { kind: "currency", currency: e.currency })}
-                    </span>
-                    <form action={unlinkEntry}>
-                      <input type="hidden" name="entryId" value={e.id} />
-                      <input type="hidden" name="slug" value={business.slug} />
-                      <Button type="submit" variant="ghost" size="icon" title="Détacher du chantier" aria-label={`Détacher ${e.label}`} className="sm:opacity-0 sm:group-hover:opacity-100">
-                        <Link2Off />
-                      </Button>
-                    </form>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-[13px] text-muted">Aucune écriture liée pour l&apos;instant.</p>
-            )}
-            {unlinked.length ? (
-              <form action={linkEntry} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-                <input type="hidden" name="projectId" value={project.id} />
-                <input type="hidden" name="slug" value={business.slug} />
-                <Select name="entryId" className="w-full min-w-0" aria-label="Écriture à lier" defaultValue="">
-                  <option value="" disabled>
-                    Lier une écriture existante…
-                  </option>
-                  {unlinked.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {formatDay(e.day)} · {e.label} · {e.kind === "income" ? "+" : "−"}
-                      {formatValue(e.amount, { kind: "currency", currency: e.currency })}
-                    </option>
-                  ))}
-                </Select>
-                <Button type="submit" size="sm" variant="secondary">
-                  Lier
-                </Button>
-              </form>
-            ) : null}
-          </div>
-          <div className="min-w-0 rounded-[18px] bg-fill p-4">
-            <p className="mb-3 text-[14px] font-semibold">Nouvelle écriture pour ce chantier</p>
-            <EntryForm businessId={business.id} slug={business.slug} today={today} projectId={project.id} />
-          </div>
-        </div>
-      </Card>
     </>
   );
 }

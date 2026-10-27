@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { FileText, Loader2, Sparkles, Upload } from "lucide-react";
 import { AiAvatar } from "@/components/ai/avatar";
 import { Button, Textarea } from "@/components/ui";
+import { useCloseDialog } from "@/components/ui/dialog";
 import { cn } from "@/components/ui/cn";
 import { formatDay } from "@/components/charts/format";
 import { createUploadClient } from "@/lib/supabase/browser";
@@ -24,6 +25,7 @@ export function AiImport({ projectId, slug }: { projectId: string; slug: string 
   const [step, setStep] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const input = useRef<HTMLInputElement>(null);
+  const close = useCloseDialog();
 
   const analyse = () =>
     start(async () => {
@@ -63,12 +65,13 @@ export function AiImport({ projectId, slug }: { projectId: string; slug: string 
       setResult(null);
       setText("");
       setFile(null);
+      close();
     });
 
   const count = keep.filter(Boolean).length;
 
   return (
-    <div className="flex flex-col gap-4 p-5 pt-0 sm:p-6 sm:pt-0">
+    <div className="flex flex-col gap-4">
       {result ? (
         <>
           <div className="flex gap-3 rounded-[14px] bg-fill p-3.5">
