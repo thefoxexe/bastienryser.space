@@ -5,7 +5,7 @@ import { Card, CardHeader } from "@/components/ui";
 import { lastDays } from "@/lib/metrics";
 import type { OpenTask } from "@/lib/projects";
 
-/** Encart « À faire » : les prochaines tâches des chantiers, cochables sans quitter la page. Rien s'il n'y en a pas. */
+/** Encart « À faire » : les prochaines tâches des projets, cochables sans quitter la page. Rien s'il n'y en a pas. */
 export function TodoCard({ tasks, href, showBusiness = true }: { tasks: OpenTask[]; href: string; showBusiness?: boolean }) {
   if (!tasks.length) return null;
   return (
@@ -14,7 +14,7 @@ export function TodoCard({ tasks, href, showBusiness = true }: { tasks: OpenTask
         title="À faire"
         action={
           <Link href={href} className="flex items-center gap-0.5 text-[13px] text-muted hover:text-text">
-            Chantiers <ChevronRight className="size-4" />
+            Projets <ChevronRight className="size-4" />
           </Link>
         }
       />

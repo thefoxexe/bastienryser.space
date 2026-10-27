@@ -63,14 +63,14 @@ async function businessBySlug(slug: string) {
 
 const tools = [
   betaZodTool({
-    name: "chantiers",
-    description: "Chantiers (projets internes) d'un business : statut, échéance, avancement, tâches restantes avec échéances et priorités, montants liés.",
+    name: "projets",
+    description: "Projets (projets internes) d'un business : statut, échéance, avancement, tâches restantes avec échéances et priorités, montants liés.",
     inputSchema: z.object({ slug: z.string() }),
     run: async ({ slug }) => {
       const b = await businessBySlug(slug);
       const supabase = await createClient();
       const projects = await listProjects(b.id);
-      if (!projects.length) return "Aucun chantier pour ce business.";
+      if (!projects.length) return "Aucun projet pour ce business.";
       const { data: tasks } = await supabase
         .from("project_tasks")
         .select("project_id,title,status,priority,due_date")

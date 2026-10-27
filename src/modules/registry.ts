@@ -47,11 +47,11 @@ export const MODULES: ModuleDefinition[] = [
   },
   {
     id: "projects",
-    label: "Chantiers",
+    label: "Projets",
     description: "Projets internes avec leurs tâches, échéances, pièces jointes et factures liées.",
     icon: FolderKanban,
-    basePath: "chantiers",
-    tabs: [{ href: "", label: "Chantiers" }],
+    basePath: "projets",
+    tabs: [{ href: "", label: "Projets" }],
   },
 ];
 

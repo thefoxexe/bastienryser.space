@@ -6,7 +6,7 @@ import { Button, Field, FormError, Input, Select, Textarea } from "@/components/
 import type { Project } from "@/lib/projects";
 import { createProject, updateProject, type FormState } from "./actions";
 
-/** Création ou modification d'un chantier. */
+/** Création ou modification d'un projet. */
 export type BusinessChoice = { id: string; slug: string; name: string };
 
 export function ProjectForm({
@@ -18,7 +18,7 @@ export function ProjectForm({
 }: {
   businessId?: string;
   slug?: string;
-  /** Depuis la vue de tous les chantiers : le business se choisit dans le formulaire. */
+  /** Depuis la vue de tous les projets : le business se choisit dans le formulaire. */
   businesses?: BusinessChoice[];
   project?: Project;
   onDone?: () => void;
@@ -47,7 +47,7 @@ export function ProjectForm({
         </Field>
       ) : null}
       {project ? <input type="hidden" name="id" value={project.id} /> : null}
-      <Field label="Nom du chantier" htmlFor="p-name">
+      <Field label="Nom du projet" htmlFor="p-name">
         <Input id="p-name" name="name" required defaultValue={project?.name} placeholder="Ex. Site tatatitatata.ch" />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -77,7 +77,7 @@ export function ProjectForm({
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={pending}>
           {pending ? <Loader2 className="animate-spin" /> : null}
-          {project ? "Enregistrer" : "Créer le chantier"}
+          {project ? "Enregistrer" : "Créer le projet"}
         </Button>
         {state.ok ? (
           <span className="flex items-center gap-1 text-[13px] text-success">

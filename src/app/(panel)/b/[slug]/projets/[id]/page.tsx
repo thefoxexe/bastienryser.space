@@ -16,14 +16,14 @@ import { EditProject } from "./edit-project";
 import { FilesCard } from "./files-card";
 import { TaskList } from "./task-list";
 
-export const metadata: Metadata = { title: "Chantier" };
+export const metadata: Metadata = { title: "Projet" };
 // Lecture d'une longue séance par l'IA (Server Actions de la page).
 export const maxDuration = 300;
 
 const TONE = { active: "success", paused: "warning", done: "neutral" } as const;
 const chf = { kind: "currency", currency: "chf" } as const;
 
-export default async function ProjectPage({ params }: PageProps<"/b/[slug]/chantiers/[id]">) {
+export default async function ProjectPage({ params }: PageProps<"/b/[slug]/projets/[id]">) {
   const { slug, id } = await params;
   const business = await getBusiness(slug);
   const data = await getProject(business.id, id);
@@ -38,8 +38,8 @@ export default async function ProjectPage({ params }: PageProps<"/b/[slug]/chant
 
   return (
     <>
-      <Link href={`/b/${business.slug}/chantiers`} className="-mb-2 flex w-fit items-center gap-1 text-[13px] text-muted hover:text-text">
-        <ChevronLeft className="size-4" /> Chantiers
+      <Link href={`/b/${business.slug}/projets`} className="-mb-2 flex w-fit items-center gap-1 text-[13px] text-muted hover:text-text">
+        <ChevronLeft className="size-4" /> Projets
       </Link>
 
       <section className="rounded-[22px] bg-surface p-5 shadow-card sm:p-6">
@@ -83,7 +83,7 @@ export default async function ProjectPage({ params }: PageProps<"/b/[slug]/chant
             <form action={deleteProject}>
               <input type="hidden" name="id" value={project.id} />
               <input type="hidden" name="slug" value={business.slug} />
-              <Button type="submit" size="icon" variant="ghost" title="Supprimer le chantier" aria-label="Supprimer le chantier">
+              <Button type="submit" size="icon" variant="ghost" title="Supprimer le projet" aria-label="Supprimer le projet">
                 <Trash2 />
               </Button>
             </form>
@@ -108,7 +108,7 @@ export default async function ProjectPage({ params }: PageProps<"/b/[slug]/chant
             <p className="tabular text-[17px] font-semibold">{formatValue(income, chf)}</p>
           </div>
           <div>
-            <p className="text-[12px] text-muted">Résultat du chantier</p>
+            <p className="text-[12px] text-muted">Résultat du projet</p>
             <p className={cn("tabular text-[17px] font-semibold", income - expenses > 0 ? "text-green-text" : income - expenses < 0 ? "text-danger" : "")}>
               {formatValue(income - expenses, chf)}
             </p>
@@ -129,7 +129,7 @@ export default async function ProjectPage({ params }: PageProps<"/b/[slug]/chant
             <CardHeader
               title="Finances"
               action={
-                <DialogButton size="sm" variant="secondary" label={<><Plus /> Écriture</>} title="Nouvelle écriture" description="Facture, charge ou virement, rattaché à ce chantier.">
+                <DialogButton size="sm" variant="secondary" label={<><Plus /> Écriture</>} title="Nouvelle écriture" description="Facture, charge ou virement, rattaché à ce projet.">
                   <EntryForm businessId={business.id} slug={business.slug} today={today} projectId={project.id} />
                 </DialogButton>
               }
@@ -153,7 +153,7 @@ export default async function ProjectPage({ params }: PageProps<"/b/[slug]/chant
                       <form action={unlinkEntry}>
                         <input type="hidden" name="entryId" value={e.id} />
                         <input type="hidden" name="slug" value={business.slug} />
-                        <button type="submit" title="Détacher du chantier" aria-label={`Détacher ${e.label}`} className="grid size-7 place-items-center rounded-full text-faint hover:bg-fill hover:text-text sm:opacity-0 sm:group-hover:opacity-100">
+                        <button type="submit" title="Détacher du projet" aria-label={`Détacher ${e.label}`} className="grid size-7 place-items-center rounded-full text-faint hover:bg-fill hover:text-text sm:opacity-0 sm:group-hover:opacity-100">
                           <Link2Off className="size-3.5" />
                         </button>
                       </form>

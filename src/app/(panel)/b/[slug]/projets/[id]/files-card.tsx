@@ -9,7 +9,7 @@ import { deleteFile, prepareFileUpload, recordFile } from "../actions";
 
 const size = (b: number) => (b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} Mo` : `${Math.max(1, Math.round(b / 1024))} Ko`);
 
-/** Pièces jointes du chantier : envoi direct vers le stockage privé, téléchargement par lien signé. */
+/** Pièces jointes du projet : envoi direct vers le stockage privé, téléchargement par lien signé. */
 export function FilesCard({ projectId, slug, files }: { projectId: string; slug: string; files: ProjectFile[] }) {
   const input = useRef<HTMLInputElement>(null);
   const [pending, start] = useTransition();
@@ -54,7 +54,7 @@ export function FilesCard({ projectId, slug, files }: { projectId: string; slug:
           ))}
         </ul>
       ) : (
-        <p className="text-[13px] text-muted">Maquettes, contrats, accès, comptes rendus : tout ce qui concerne ce chantier.</p>
+        <p className="text-[13px] text-muted">Maquettes, contrats, accès, comptes rendus : tout ce qui concerne ce projet.</p>
       )}
       <input ref={input} type="file" multiple hidden onChange={(e) => upload(e.target.files)} />
       <Button type="button" size="sm" variant="secondary" onClick={() => input.current?.click()} disabled={pending} className="self-start">

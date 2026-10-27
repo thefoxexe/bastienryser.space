@@ -9,13 +9,13 @@ import { Card, CardHeader, EmptyState, PageHeader } from "@/components/ui";
 import { listBusinesses } from "@/lib/data";
 import { lastDays } from "@/lib/metrics";
 import { listOpenTasks, listProjects } from "@/lib/projects";
-import { NewProject } from "../b/[slug]/chantiers/new-project";
+import { NewProject } from "../b/[slug]/projets/new-project";
 
-export const metadata: Metadata = { title: "Chantiers" };
+export const metadata: Metadata = { title: "Projets" };
 // Lecture d'une longue séance par l'IA (Server Actions de la page).
 export const maxDuration = 300;
 
-/** Tous les chantiers et tout ce qu'il reste à faire, tous business confondus. */
+/** Tous les projets et tout ce qu'il reste à faire, tous business confondus. */
 export default async function AllProjectsPage() {
   const businesses = (await listBusinesses()).filter((b) => b.modules.includes("projects"));
   const [tasks, perBusiness] = await Promise.all([listOpenTasks({ limit: 60 }), Promise.all(businesses.map((b) => listProjects(b.id)))]);
@@ -27,7 +27,7 @@ export default async function AllProjectsPage() {
   return (
     <Page>
       <PageHeader
-        title="Chantiers"
+        title="Projets"
         description={
           tasks.length
             ? `${tasks.length} tâche${tasks.length > 1 ? "s" : ""} à faire${late ? `, dont ${late} en retard` : ""}.`
@@ -41,26 +41,26 @@ export default async function AllProjectsPage() {
           {groups.length ? (
             groups.map(({ business, projects }) => (
               <section key={business.id} className="flex flex-col gap-3">
-                <Link href={`/b/${business.slug}/chantiers`} className="flex w-fit items-center gap-2 text-[15px] font-semibold tracking-tight hover:opacity-70">
+                <Link href={`/b/${business.slug}/projets`} className="flex w-fit items-center gap-2 text-[15px] font-semibold tracking-tight hover:opacity-70">
                   <BusinessMark name={business.name} color={business.color} logoUrl={business.logo_url} size="sm" />
                   {business.name}
                 </Link>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   {projects.map((p) => (
-                    <ProjectCard key={p.id} project={p} href={`/b/${business.slug}/chantiers/${p.id}`} />
+                    <ProjectCard key={p.id} project={p} href={`/b/${business.slug}/projets/${p.id}`} />
                   ))}
                 </div>
               </section>
             ))
           ) : (
             <Card>
-              <EmptyState icon={<FolderKanban />} title="Aucun chantier en cours" description="Crée un chantier pour un site, une campagne ou n'importe quel projet." />
+              <EmptyState icon={<FolderKanban />} title="Aucun projet en cours" description="Crée un projet pour un site, une campagne ou n'importe quel projet." />
             </Card>
           )}
         </div>
 
         <Card className="lg:sticky lg:top-6">
-          <CardHeader title="À faire" description="Coche directement ici ; touche une tâche pour ouvrir son chantier." />
+          <CardHeader title="À faire" description="Coche directement ici ; touche une tâche pour ouvrir son projet." />
           <div className="pt-2">
             <TodoList tasks={tasks} today={today} empty="Tout est fait. Belle journée." />
           </div>

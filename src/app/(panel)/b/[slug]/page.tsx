@@ -46,7 +46,7 @@ export default async function BusinessOverview({ params, searchParams }: PagePro
       <BriefCard slug={business.slug} />
       <KpiStrip businesses={[business]} business={business} period={period} base={`/b/${business.slug}`} />
 
-      <TodoCard tasks={await listOpenTasks({ businessId: business.id, limit: 6 })} href={`/b/${business.slug}/chantiers`} showBusiness={false} />
+      <TodoCard tasks={await listOpenTasks({ businessId: business.id, limit: 6 })} href={`/b/${business.slug}/projets`} showBusiness={false} />
 
       {social ? (
         <>

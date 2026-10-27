@@ -67,7 +67,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       <BriefCard slug={null} />
       <KpiStrip businesses={businesses} period={period} base="/" />
 
-      <TodoCard tasks={await listOpenTasks({ limit: 6 })} href={"/chantiers"} />
+      <TodoCard tasks={await listOpenTasks({ limit: 6 })} href={"/projets"} />
 
       {/* À traiter */}
       {alerts.length ? (

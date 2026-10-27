@@ -28,24 +28,24 @@ const optionalText = (max: number) =>
     .transform((v) => v || null);
 
 const refresh = (slug: string) => {
-  revalidatePath(`/b/${slug}/chantiers`, "layout");
-  revalidatePath("/chantiers");
+  revalidatePath(`/b/${slug}/projets`, "layout");
+  revalidatePath("/projets");
   revalidatePath("/");
 };
 
-/** Le chantier appartient bien au business de la page (les identifiants viennent du formulaire). */
+/** Le projet appartient bien au business de la page (les identifiants viennent du formulaire). */
 async function projectOf(id: string) {
   const supabase = await createClient();
   const { data } = await supabase.from("projects").select("id,business_id,name").eq("id", id).maybeSingle();
   return data;
 }
 
-// --- Chantiers ---------------------------------------------------------------
+// --- Projets ---------------------------------------------------------------
 
 const projectSchema = z.object({
   businessId: z.string().uuid(),
   slug: z.string().min(1),
-  name: z.string().trim().min(1, "Donne un nom au chantier.").max(120),
+  name: z.string().trim().min(1, "Donne un nom au projet.").max(120),
   client: optionalText(120),
   url: optionalText(300),
   description: optionalText(4000),
@@ -63,9 +63,9 @@ export async function createProject(_prev: FormState, formData: FormData): Promi
     .insert({ business_id: p.businessId, name: p.name, client: p.client, url: p.url, description: p.description, due_date: p.dueDate })
     .select("id")
     .single();
-  if (error || !data) return { error: "Création impossible. La migration des chantiers est-elle appliquée ?" };
+  if (error || !data) return { error: "Création impossible. La migration des projets est-elle appliquée ?" };
   refresh(p.slug);
-  redirect(`/b/${p.slug}/chantiers/${data.id}`);
+  redirect(`/b/${p.slug}/projets/${data.id}`);
 }
 
 export async function updateProject(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -93,7 +93,7 @@ export async function deleteProject(formData: FormData) {
   if (files?.length) await supabase.storage.from("project-files").remove(files.map((f) => f.storage_path));
   await supabase.from("projects").delete().eq("id", id);
   refresh(slug);
-  redirect(`/b/${slug}/chantiers`);
+  redirect(`/b/${slug}/projets`);
 }
 
 // --- Tâches -----------------------------------------------------------------
@@ -112,7 +112,7 @@ export async function addTask(_prev: FormState, formData: FormData): Promise<For
   const parsed = taskSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Saisie invalide." };
   const t = parsed.data;
-  if (!(await projectOf(t.projectId))) return { error: "Chantier introuvable." };
+  if (!(await projectOf(t.projectId))) return { error: "Projet introuvable." };
   const supabase = await createClient();
   const { data: last } = await supabase.from("project_tasks").select("position").eq("project_id", t.projectId).order("position", { ascending: false }).limit(1).maybeSingle();
   const { error } = await supabase
@@ -169,13 +169,13 @@ const MAX_FILE = 50 * 1024 * 1024;
 /** Prépare un envoi direct vers le stockage (le fichier ne transite pas par le serveur du site). */
 export async function prepareFileUpload(input: { projectId: string; name: string; size: number }) {
   await requireAdmin();
-  if (!(await projectOf(input.projectId))) return { error: "Chantier introuvable." } as const;
+  if (!(await projectOf(input.projectId))) return { error: "Projet introuvable." } as const;
   if (input.size > MAX_FILE) return { error: "Fichier trop lourd (50 Mo max)." } as const;
   const ext = (input.name.match(/\.([a-z0-9]{1,8})$/i)?.[1] ?? "bin").toLowerCase();
   const path = `${input.projectId}/${randomUUID()}.${ext}`;
   const supabase = await createClient();
   const { data, error } = await supabase.storage.from("project-files").createSignedUploadUrl(path);
-  if (error || !data) return { error: "Impossible de préparer l'envoi. La migration des chantiers est-elle appliquée ?" } as const;
+  if (error || !data) return { error: "Impossible de préparer l'envoi. La migration des projets est-elle appliquée ?" } as const;
   return { path, token: data.token } as const;
 }
 
@@ -253,7 +253,7 @@ export type ExtractedTasks = z.infer<typeof Extracted>;
 const TEXT_TYPES = /\.(txt|md|markdown|csv|json|html?|rtf|srt|vtt)$/i;
 const MAX_CHARS = 400_000;
 
-const SYSTEM = `Tu aides Bastien, indépendant suisse (sites web, contenus, conseil), à transformer ses séances et documents en tâches pour un de ses chantiers.
+const SYSTEM = `Tu aides Bastien, indépendant suisse (sites web, contenus, conseil), à transformer ses séances et documents en tâches pour un de ses projets.
 Le document est souvent une transcription automatique brute d'une séance client (TurboScribe, Whisper…) : interlocuteurs « Speaker 1 / Speaker 2 », minutages, hésitations, phrases coupées, fautes de reconnaissance. Ignore le bruit et reconstitue le sens ; Bastien est en général celui qui pose les questions et propose les solutions.
 
 Tâches :
@@ -288,7 +288,7 @@ async function readDocument(input: { path?: string; name?: string; text?: string
 
 /**
  * Lit une transcription de séance, un compte rendu ou un brief (fichier envoyé ou texte collé)
- * et propose les tâches du chantier et un compte rendu propre.
+ * et propose les tâches du projet et un compte rendu propre.
  * Rien n'est créé ici : Bastien valide avant l'ajout.
  */
 export async function extractTasks(input: { projectId: string; path?: string; name?: string; text?: string }): Promise<{ ok: true; data: ExtractedTasks } | { ok: false; error: string }> {
@@ -297,7 +297,7 @@ export async function extractTasks(input: { projectId: string; path?: string; na
   if (!anthropic) return { ok: false, error: NO_KEY };
   const supabase = await createClient();
   const project = await projectOf(input.projectId);
-  if (!project) return { ok: false, error: "Chantier introuvable." };
+  if (!project) return { ok: false, error: "Projet introuvable." };
   const doc = await readDocument(input, `${project.id}/`);
   if (typeof doc === "string") return { ok: false, error: doc };
 
@@ -322,7 +322,7 @@ export async function extractTasks(input: { projectId: string; path?: string; na
               type: "text",
               text:
                 `Business : ${business?.name ?? "?"}${business?.description ? ` (${business.description})` : ""}. Date du jour : ${lastDays(1)[0]}.\n` +
-                `Chantier : « ${project.name} ».\n` +
+                `Projet : « ${project.name} ».\n` +
                 (existing?.length ? `Tâches déjà présentes (ne pas les répéter) :\n${existing.map((t) => `- ${t.title}`).join("\n")}\n` : "") +
                 "Organise ce document en tâches et en compte rendu.",
             },
@@ -362,7 +362,7 @@ async function insertTasks(projectId: string, tasks: z.output<typeof taskList>) 
   return error;
 }
 
-/** Le compte rendu de l'IA, gardé en fichier Markdown dans le chantier. */
+/** Le compte rendu de l'IA, gardé en fichier Markdown dans le projet. */
 async function saveReport(projectId: string, report: string) {
   if (!report.trim()) return;
   const supabase = await createClient();
@@ -379,7 +379,7 @@ export async function addTasks(input: z.input<typeof bulkSchema>): Promise<FormS
   const parsed = bulkSchema.safeParse(input);
   if (!parsed.success) return { error: "Liste invalide." };
   const { projectId, slug, tasks, report } = parsed.data;
-  if (!(await projectOf(projectId))) return { error: "Chantier introuvable." };
+  if (!(await projectOf(projectId))) return { error: "Projet introuvable." };
   if (await insertTasks(projectId, tasks)) return { error: "Ajout impossible." };
   if (report) await saveReport(projectId, report);
   refresh(slug);

@@ -11,7 +11,7 @@ import { addTask, deleteTask, updateTask } from "../actions";
 const NEXT: Record<TaskStatus, TaskStatus> = { todo: "doing", doing: "done", done: "todo" };
 const STATUS: Record<TaskStatus, string> = { todo: "À faire", doing: "En cours", done: "Fait" };
 
-/** Tâches d'un chantier : cocher, passer en cours, échéance, priorité, notes ; les terminées peuvent être masquées. */
+/** Tâches d'un projet : cocher, passer en cours, échéance, priorité, notes ; les terminées peuvent être masquées. */
 export function TaskList({ projectId, slug, tasks, today }: { projectId: string; slug: string; tasks: ProjectTask[]; today: string }) {
   const [hideDone, setHideDone] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);

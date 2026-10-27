@@ -7,7 +7,7 @@ import { STATUS_LABEL, type ProjectSummary } from "@/lib/projects";
 
 const TONE = { active: "success", paused: "warning", done: "neutral" } as const;
 
-/** Carte d'un chantier : avancement, prochaine tâche, échéance, retards et résultat. */
+/** Carte d'un projet : avancement, prochaine tâche, échéance, retards et résultat. */
 export function ProjectCard({ project: p, href, subtitle }: { project: ProjectSummary; href: string; subtitle?: string }) {
   const pct = p.tasks.total ? Math.round((p.tasks.done / p.tasks.total) * 100) : 0;
   const net = p.money.income - p.money.expenses;

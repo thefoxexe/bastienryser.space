@@ -110,7 +110,7 @@ export function AiImport({ projectId, slug }: { projectId: string; slug: string 
         ) : null}
         <label className="flex items-center gap-2 px-1 text-[13px]">
           <input type="checkbox" checked={keepReport} onChange={(e) => setKeepReport(e.target.checked)} className="accent-[var(--text)]" />
-          Garder le compte rendu dans les fichiers du chantier
+          Garder le compte rendu dans les fichiers du projet
         </label>
 
         <div className="flex flex-wrap items-center gap-2">

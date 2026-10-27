@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useOptimistic, useTransition } from "react";
 import { Check, Flag } from "lucide-react";
-import { updateTask } from "@/app/(panel)/b/[slug]/chantiers/actions";
+import { updateTask } from "@/app/(panel)/b/[slug]/projets/actions";
 import { formatDay } from "@/components/charts/format";
 import { cn } from "@/components/ui/cn";
 import type { OpenTask } from "@/lib/projects";
@@ -19,7 +19,7 @@ function due(day: string | null, today: string) {
   return { label: formatDay(day), late: false };
 }
 
-/** Tâches à faire de plusieurs chantiers : on coche directement ici, sans ouvrir le chantier. */
+/** Tâches à faire de plusieurs projets : on coche directement ici, sans ouvrir le projet. */
 export function TodoList({ tasks, today, showBusiness = true, empty = "Rien à faire pour l'instant." }: { tasks: OpenTask[]; today: string; showBusiness?: boolean; empty?: string }) {
   const [, start] = useTransition();
   const [list, remove] = useOptimistic(tasks, (all, id: string) => all.filter((t) => t.id !== id));
@@ -45,7 +45,7 @@ export function TodoList({ tasks, today, showBusiness = true, empty = "Rien à f
             >
               <Check className="size-3 text-green opacity-0 transition group-hover:opacity-100" strokeWidth={3} />
             </button>
-            <Link href={`/b/${t.business.slug}/chantiers/${t.project.id}`} className="min-w-0 flex-1">
+            <Link href={`/b/${t.business.slug}/projets/${t.project.id}`} className="min-w-0 flex-1">
               <span className="flex items-center gap-1.5">
                 <span className="truncate text-[14px] font-medium">{t.title}</span>
                 {t.priority === "high" ? <Flag className="size-3 shrink-0 text-danger" aria-label="Priorité haute" /> : null}

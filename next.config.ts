@@ -24,6 +24,13 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // Anciennes adresses des projets (appelés « chantiers » au début).
+  async redirects() {
+    return [
+      { source: "/chantiers", destination: "/projets", permanent: true },
+      { source: "/b/:slug/chantiers/:path*", destination: "/b/:slug/projets/:path*", permanent: true },
+    ];
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

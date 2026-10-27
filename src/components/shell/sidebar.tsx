@@ -28,7 +28,7 @@ export function Sidebar({
   email: string | null;
   theme: "light" | "dark" | "system";
   alerts: number;
-  /** Tâches de chantier dues aujourd'hui ou en retard. */
+  /** Tâches de projet dues aujourd'hui ou en retard. */
   dueTasks?: number;
 }) {
   const pathname = usePathname();
@@ -56,8 +56,8 @@ export function Sidebar({
         <NavLink href="/" active={pathname === "/"} icon={<LayoutGrid />} badge={alerts}>
           Tableau de bord
         </NavLink>
-        <NavLink href="/chantiers" active={pathname === "/chantiers"} icon={<FolderKanban />} badge={dueTasks}>
-          Chantiers
+        <NavLink href="/projets" active={pathname === "/projets"} icon={<FolderKanban />} badge={dueTasks}>
+          Projets
         </NavLink>
 
         <div className="mb-1 mt-7 flex items-center justify-between px-3">

@@ -47,7 +47,7 @@ export const PRIORITY_LABEL: Record<TaskPriority, string> = { low: "Basse", norm
 
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich" }).format(new Date());
 
-/** Chantiers d'un business, avec l'avancement des tâches et les montants liés (CHF). */
+/** Projets d'un business, avec l'avancement des tâches et les montants liés (CHF). */
 export async function listProjects(businessId: string): Promise<ProjectSummary[]> {
   const supabase = await createClient();
   const { data: projects } = await supabase.from("projects").select(PROJECT_COLUMNS).eq("business_id", businessId).order("created_at", { ascending: false });
@@ -112,7 +112,7 @@ export async function getProject(businessId: string, id: string) {
 export type OpenTask = ProjectTask & { project: { id: string; name: string }; business: { slug: string; name: string } };
 
 /**
- * Tâches à faire, tous chantiers en cours confondus (ou ceux d'un business) :
+ * Tâches à faire, tous projets en cours confondus (ou ceux d'un business) :
  * retards d'abord, puis par échéance, puis priorité haute, puis le reste.
  */
 export async function listOpenTasks(options: { businessId?: string; limit?: number } = {}): Promise<OpenTask[]> {
