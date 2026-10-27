@@ -1,46 +1,25 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { FileText, Loader2, Sparkles, Upload } from "lucide-react";
 import { AiAvatar } from "@/components/ai/avatar";
 import { formatDay } from "@/components/charts/format";
-import { Button, Input, Select, Textarea } from "@/components/ui";
+import { Button, Textarea } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { useCloseDialog } from "@/components/ui/dialog";
 import { createUploadClient } from "@/lib/supabase/browser";
-import { addTasks, createProjectFromDocument, extractTasks, prepareFileUpload, prepareInboxUpload, recordFile, type ExtractedTasks } from "../actions";
-import type { BusinessChoice } from "../project-form";
+import { addTasks, extractTasks, prepareFileUpload, recordFile, type ExtractedTasks } from "../actions";
 
 const ACCEPT = ".txt,.md,.markdown,.srt,.vtt,.csv,.json,.html,.pdf,.docx";
 const isDate = (v: string | null) => Boolean(v && /^\d{4}-\d{2}-\d{2}$/.test(v));
 
-type Props =
-  /** Ajout de tâches à un chantier existant. */
-  | { projectId: string; slug: string; businessId?: never; businesses?: never }
-  /** Création d'un chantier depuis le document (business fixé ou à choisir). */
-  | { projectId?: never; slug?: string; businessId?: string; businesses?: BusinessChoice[] };
-
-/**
- * Transcription de séance (TurboScribe…), compte rendu, brief ou e-mail → tâches, compte rendu propre
- * et, au besoin, un nouveau chantier. Bastien relit et coche avant que quoi que ce soit soit créé.
- */
-export function AiImport(props: Props) {
-  const router = useRouter();
+export function AiImport({ projectId, slug }: { projectId: string; slug: string }) {
   const close = useCloseDialog();
-  const creating = !props.projectId;
-  const [business, setBusiness] = useState<BusinessChoice | undefined>(props.businesses?.[0]);
-  const businessId = props.businessId ?? business?.id;
-  const slug = props.slug ?? business?.slug ?? "";
-
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [uploaded, setUploaded] = useState<{ path: string; name: string; size: number; mime: string } | null>(null);
   const [result, setResult] = useState<ExtractedTasks | null>(null);
   const [keep, setKeep] = useState<boolean[]>([]);
   const [keepReport, setKeepReport] = useState(true);
-  const [name, setName] = useState("");
-  const [client, setClient] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -53,9 +32,7 @@ export function AiImport(props: Props) {
       let path: string | undefined;
       if (file) {
         setStep("Envoi du fichier…");
-        const prep = props.projectId
-          ? await prepareFileUpload({ projectId: props.projectId, name: file.name, size: file.size })
-          : await prepareInboxUpload({ businessId: businessId!, name: file.name, size: file.size });
+        const prep = await prepareFileUpload({ projectId, name: file.name, size: file.size });
         if ("error" in prep) {
           setStep(null);
           return setError(prep.error ?? "Envoi impossible.");
@@ -67,18 +44,15 @@ export function AiImport(props: Props) {
           setStep(null);
           return setError("Envoi du fichier impossible.");
         }
-        if (props.projectId) await recordFile({ projectId: props.projectId, slug, path: prep.path, name: file.name, size: file.size, mime: file.type });
-        else setUploaded({ path: prep.path, name: file.name, size: file.size, mime: file.type });
+        await recordFile({ projectId, slug, path: prep.path, name: file.name, size: file.size, mime: file.type });
         path = prep.path;
       }
       setStep("L'IA lit le document…");
-      const res = await extractTasks({ projectId: props.projectId, businessId, path, name: file?.name, text: file ? undefined : text });
+      const res = await extractTasks({ projectId, path, name: file?.name, text: file ? undefined : text });
       setStep(null);
       if (!res.ok) return setError(res.error);
       setResult(res.data);
       setKeep(res.data.tasks.map(() => true));
-      setName(res.data.project.name);
-      setClient(res.data.project.client ?? "");
     });
 
   const save = () =>
@@ -86,24 +60,10 @@ export function AiImport(props: Props) {
       if (!result) return;
       const tasks = result.tasks.filter((_, i) => keep[i]);
       const report = keepReport ? result.report : undefined;
-      if (props.projectId) {
-        if (!tasks.length) return;
-        const res = await addTasks({ projectId: props.projectId, slug, tasks, report });
-        if (res.error) return setError(res.error);
-        close();
-        return;
-      }
-      const res = await createProjectFromDocument({
-        businessId: businessId!,
-        slug,
-        project: { ...result.project, name: name.trim() || result.project.name, client: client.trim() || null },
-        tasks,
-        report,
-        file: uploaded ?? undefined,
-      });
-      if (!res.ok) return setError(res.error);
+      if (!tasks.length) return;
+      const res = await addTasks({ projectId, slug, tasks, report });
+      if (res.error) return setError(res.error);
       close();
-      router.push(`/b/${slug}/chantiers/${res.id}`);
     });
 
   const count = keep.filter(Boolean).length;
@@ -115,13 +75,6 @@ export function AiImport(props: Props) {
           <AiAvatar className="size-8" />
           <p className="text-[13px] leading-relaxed">{result.summary}</p>
         </div>
-
-        {creating ? (
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom du chantier" aria-label="Nom du chantier" />
-            <Input value={client} onChange={(e) => setClient(e.target.value)} placeholder="Client" aria-label="Client" />
-          </div>
-        ) : null}
 
         <div>
           <p className="mb-1 px-2 text-[12px] font-medium text-muted">
@@ -161,9 +114,9 @@ export function AiImport(props: Props) {
         </label>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" onClick={save} disabled={pending || (!creating && !count)}>
+          <Button type="button" onClick={save} disabled={pending || !count}>
             {pending ? <Loader2 className="animate-spin" /> : null}
-            {creating ? `Créer le chantier · ${count} tâche${count > 1 ? "s" : ""}` : `Ajouter ${count} tâche${count > 1 ? "s" : ""}`}
+            Ajouter {count} tâche{count > 1 ? "s" : ""}
           </Button>
           <Button type="button" variant="ghost" onClick={() => setResult(null)} disabled={pending}>
             Recommencer
@@ -176,15 +129,6 @@ export function AiImport(props: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      {props.businesses && !props.businessId ? (
-        <Select value={business?.id} onChange={(e) => setBusiness(props.businesses!.find((b) => b.id === e.target.value))} aria-label="Business">
-          {props.businesses.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </Select>
-      ) : null}
       <button
         type="button"
         onClick={() => input.current?.click()}
@@ -220,8 +164,8 @@ export function AiImport(props: Props) {
       <input ref={input} type="file" accept={ACCEPT} hidden onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
       {!file ? <Textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="…ou colle ici la transcription, ton résumé ChatGPT, un e-mail du client." /> : null}
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" onClick={analyse} disabled={pending || (!file && !text.trim()) || (creating && !businessId)}>
-          {pending ? <Loader2 className="animate-spin" /> : <Sparkles />} {creating ? "Préparer le chantier" : "Créer les tâches"}
+        <Button type="button" onClick={analyse} disabled={pending || (!file && !text.trim())}>
+          {pending ? <Loader2 className="animate-spin" /> : <Sparkles />} Créer les tâches
         </Button>
         {step ? <span className="text-[13px] text-muted">{step}</span> : null}
       </div>

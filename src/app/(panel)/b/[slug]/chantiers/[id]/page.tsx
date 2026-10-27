@@ -71,7 +71,7 @@ export default async function ProjectPage({ params }: PageProps<"/b/[slug]/chant
               size="sm"
               label={
                 <>
-                  <Sparkles /> Importer un compte rendu
+                  <Sparkles /> Importer une séance
                 </>
               }
               title="Importer une séance ou un compte rendu"

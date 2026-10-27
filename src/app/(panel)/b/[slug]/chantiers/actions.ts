@@ -232,14 +232,6 @@ const Extracted = z.object({
     .describe(
       "Compte rendu propre en Markdown, uniquement avec ce que contient le document : ## Contexte, ## Décisions, ## Infos clés (budget, délais, contacts, accès, contenus), ## À fournir par le client, ## Questions ouvertes. Omettre une section vide.",
     ),
-  project: z
-    .object({
-      name: z.string().describe("Nom court du chantier, ex. « Site boulangerie-dupont.ch »."),
-      client: z.string().nullable().describe("Nom du client ou de l'entreprise cliente, si mentionné."),
-      description: z.string().describe("Objectif et périmètre en 1 à 3 phrases."),
-      due_date: z.string().nullable().describe("Date de livraison AAAA-MM-JJ si elle est fixée, sinon null."),
-    })
-    .describe("Proposition de chantier (sert seulement à créer un nouveau chantier depuis ce document)."),
   tasks: z
     .array(
       z.object({
@@ -261,7 +253,7 @@ export type ExtractedTasks = z.infer<typeof Extracted>;
 const TEXT_TYPES = /\.(txt|md|markdown|csv|json|html?|rtf|srt|vtt)$/i;
 const MAX_CHARS = 400_000;
 
-const SYSTEM = `Tu aides Bastien, indépendant suisse (sites web, contenus, conseil), à transformer ses séances et documents en chantier organisé.
+const SYSTEM = `Tu aides Bastien, indépendant suisse (sites web, contenus, conseil), à transformer ses séances et documents en tâches pour un de ses chantiers.
 Le document est souvent une transcription automatique brute d'une séance client (TurboScribe, Whisper…) : interlocuteurs « Speaker 1 / Speaker 2 », minutages, hésitations, phrases coupées, fautes de reconnaissance. Ignore le bruit et reconstitue le sens ; Bastien est en général celui qui pose les questions et propose les solutions.
 
 Tâches :
@@ -294,43 +286,25 @@ async function readDocument(input: { path?: string; name?: string; text?: string
   return "Format non pris en charge : texte (.txt, .md, .srt…), PDF ou Word (.docx).";
 }
 
-/** Envoi d'un document avant la création du chantier (rangé ensuite dans le chantier créé). */
-export async function prepareInboxUpload(input: { businessId: string; name: string; size: number }) {
-  await requireAdmin();
-  if (input.size > MAX_FILE) return { error: "Fichier trop lourd (50 Mo max)." } as const;
-  const ext = (input.name.match(/\.([a-z0-9]{1,8})$/i)?.[1] ?? "bin").toLowerCase();
-  const path = `inbox/${z.string().uuid().parse(input.businessId)}/${randomUUID()}.${ext}`;
-  const supabase = await createClient();
-  const { data, error } = await supabase.storage.from("project-files").createSignedUploadUrl(path);
-  if (error || !data) return { error: "Impossible de préparer l'envoi." } as const;
-  return { path, token: data.token } as const;
-}
-
 /**
  * Lit une transcription de séance, un compte rendu ou un brief (fichier envoyé ou texte collé)
- * et propose tâches, compte rendu et, pour un nouveau chantier, son nom et son client.
+ * et propose les tâches du chantier et un compte rendu propre.
  * Rien n'est créé ici : Bastien valide avant l'ajout.
  */
-export async function extractTasks(input: {
-  projectId?: string;
-  businessId?: string;
-  path?: string;
-  name?: string;
-  text?: string;
-}): Promise<{ ok: true; data: ExtractedTasks } | { ok: false; error: string }> {
+export async function extractTasks(input: { projectId: string; path?: string; name?: string; text?: string }): Promise<{ ok: true; data: ExtractedTasks } | { ok: false; error: string }> {
   await requireAdmin();
   const anthropic = claude();
   if (!anthropic) return { ok: false, error: NO_KEY };
   const supabase = await createClient();
-  const project = input.projectId ? await projectOf(input.projectId) : null;
-  if (input.projectId && !project) return { ok: false, error: "Chantier introuvable." };
-  if (!project && !input.businessId) return { ok: false, error: "Choisis un business." };
-  const prefix = project ? `${project.id}/` : `inbox/${input.businessId}/`;
-  const doc = await readDocument(input, prefix);
+  const project = await projectOf(input.projectId);
+  if (!project) return { ok: false, error: "Chantier introuvable." };
+  const doc = await readDocument(input, `${project.id}/`);
   if (typeof doc === "string") return { ok: false, error: doc };
 
-  const { data: existing } = project ? await supabase.from("project_tasks").select("title").eq("project_id", project.id).limit(200) : { data: [] };
-  const { data: business } = await supabase.from("businesses").select("name, description").eq("id", project?.business_id ?? input.businessId!).maybeSingle();
+  const [{ data: existing }, { data: business }] = await Promise.all([
+    supabase.from("project_tasks").select("title").eq("project_id", project.id).limit(200),
+    supabase.from("businesses").select("name, description").eq("id", project.business_id).maybeSingle(),
+  ]);
   try {
     const response = await anthropic.beta.messages.parse({
       model: MODEL,
@@ -348,7 +322,7 @@ export async function extractTasks(input: {
               type: "text",
               text:
                 `Business : ${business?.name ?? "?"}${business?.description ? ` (${business.description})` : ""}. Date du jour : ${lastDays(1)[0]}.\n` +
-                (project ? `Chantier existant : « ${project.name} ».\n` : "Ce document servira à créer un nouveau chantier.\n") +
+                `Chantier : « ${project.name} ».\n` +
                 (existing?.length ? `Tâches déjà présentes (ne pas les répéter) :\n${existing.map((t) => `- ${t.title}`).join("\n")}\n` : "") +
                 "Organise ce document en tâches et en compte rendu.",
             },
@@ -410,42 +384,4 @@ export async function addTasks(input: z.input<typeof bulkSchema>): Promise<FormS
   if (report) await saveReport(projectId, report);
   refresh(slug);
   return { ok: true };
-}
-
-const fromDocSchema = z.object({
-  businessId: z.string().uuid(),
-  slug: z.string().min(1),
-  project: z.object({
-    name: z.string().trim().min(1).max(120),
-    client: z.string().trim().max(120).nullable(),
-    description: z.string().trim().max(4000),
-    due_date: z.string().nullable(),
-  }),
-  tasks: taskList,
-  report: z.string().max(60_000).optional(),
-  file: z.object({ path: z.string(), name: z.string().max(200), size: z.number(), mime: z.string() }).optional(),
-});
-
-/** Crée un chantier complet depuis un document : chantier, tâches, transcription jointe et compte rendu. */
-export async function createProjectFromDocument(input: z.input<typeof fromDocSchema>): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  await requireAdmin();
-  const parsed = fromDocSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Données invalides." };
-  const { businessId, slug, project: p, tasks, report, file } = parsed.data;
-  const supabase = await createClient();
-  const due = p.due_date && /^\d{4}-\d{2}-\d{2}$/.test(p.due_date) ? p.due_date : null;
-  const { data: created, error } = await supabase
-    .from("projects")
-    .insert({ business_id: businessId, name: p.name, client: p.client || null, description: p.description || null, due_date: due })
-    .select("id")
-    .single();
-  if (error || !created) return { ok: false, error: "Création impossible." };
-  if (await insertTasks(created.id, tasks)) return { ok: false, error: "Chantier créé, mais les tâches n'ont pas pu être ajoutées." };
-  // La transcription reste où elle a été envoyée ; elle est simplement rattachée au chantier.
-  if (file?.path.startsWith(`inbox/${businessId}/`)) {
-    await supabase.from("project_files").insert({ project_id: created.id, storage_path: file.path, name: file.name, size: file.size, mime: file.mime || null });
-  }
-  if (report) await saveReport(created.id, report);
-  refresh(slug);
-  return { ok: true, id: created.id };
 }

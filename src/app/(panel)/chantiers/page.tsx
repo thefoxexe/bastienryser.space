@@ -9,7 +9,6 @@ import { Card, CardHeader, EmptyState, PageHeader } from "@/components/ui";
 import { listBusinesses } from "@/lib/data";
 import { lastDays } from "@/lib/metrics";
 import { listOpenTasks, listProjects } from "@/lib/projects";
-import { FromMeeting } from "../b/[slug]/chantiers/from-meeting";
 import { NewProject } from "../b/[slug]/chantiers/new-project";
 
 export const metadata: Metadata = { title: "Chantiers" };
@@ -34,14 +33,7 @@ export default async function AllProjectsPage() {
             ? `${tasks.length} tâche${tasks.length > 1 ? "s" : ""} à faire${late ? `, dont ${late} en retard` : ""}.`
             : "Tes projets en cours et ce qu'il reste à faire."
         }
-        actions={
-          choices.length ? (
-            <div className="flex flex-wrap gap-2">
-              <FromMeeting businesses={choices} />
-              <NewProject businesses={choices} />
-            </div>
-          ) : null
-        }
+        actions={choices.length ? <NewProject businesses={choices} /> : null}
       />
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">

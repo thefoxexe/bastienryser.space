@@ -5,7 +5,6 @@ import { ProjectCard } from "@/components/project-card";
 import { Card, EmptyState } from "@/components/ui";
 import { getBusiness } from "@/lib/data";
 import { listProjects } from "@/lib/projects";
-import { FromMeeting } from "./from-meeting";
 import { NewProject } from "./new-project";
 
 export const metadata: Metadata = { title: "Chantiers" };
@@ -29,10 +28,7 @@ export default async function ProjectsPage({ params, searchParams }: PageProps<"
           Un chantier regroupe ce qu&apos;il reste à faire, les fichiers et les factures d&apos;un projet. Importe un compte rendu (PDF, Word, texte) : l&apos;IA
           en tire les tâches.
         </p>
-        <div className="flex flex-wrap gap-2">
-          <FromMeeting businessId={business.id} slug={business.slug} />
-          <NewProject businessId={business.id} slug={business.slug} />
-        </div>
+        <NewProject businessId={business.id} slug={business.slug} />
       </div>
 
       {shown.length ? (
