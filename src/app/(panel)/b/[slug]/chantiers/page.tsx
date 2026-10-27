@@ -32,7 +32,7 @@ export default async function ProjectsPage({ params, searchParams }: PageProps<"
       </div>
 
       {shown.length ? (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {shown.map((p) => (
             <ProjectCard key={p.id} project={p} href={`/b/${business.slug}/chantiers/${p.id}`} />
           ))}

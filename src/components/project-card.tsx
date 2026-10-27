@@ -12,7 +12,7 @@ export function ProjectCard({ project: p, href, subtitle }: { project: ProjectSu
   const pct = p.tasks.total ? Math.round((p.tasks.done / p.tasks.total) * 100) : 0;
   const net = p.money.income - p.money.expenses;
   return (
-    <Link href={href} className={cn("group flex flex-col gap-4 rounded-[22px] bg-surface p-5 shadow-card transition hover:shadow-pop", p.status === "done" && "opacity-70")}>
+    <Link href={href} className={cn("group flex min-w-0 flex-col gap-4 rounded-[22px] bg-surface p-5 shadow-card transition hover:shadow-pop", p.status === "done" && "opacity-70")}>
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-[17px] font-semibold tracking-tight">{p.name}</h3>
@@ -37,7 +37,7 @@ export function ProjectCard({ project: p, href, subtitle }: { project: ProjectSu
 
       <div className="flex flex-col gap-1 text-[13px]">
         {p.tasks.next ? (
-          <span className="truncate">
+          <span className="line-clamp-2 break-words">
             <span className="text-muted">Prochaine : </span>
             {p.tasks.next.title}
           </span>

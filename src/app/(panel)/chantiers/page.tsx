@@ -45,7 +45,7 @@ export default async function AllProjectsPage() {
                   <BusinessMark name={business.name} color={business.color} logoUrl={business.logo_url} size="sm" />
                   {business.name}
                 </Link>
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   {projects.map((p) => (
                     <ProjectCard key={p.id} project={p} href={`/b/${business.slug}/chantiers/${p.id}`} />
                   ))}
