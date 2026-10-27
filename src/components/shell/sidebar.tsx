@@ -7,6 +7,7 @@ import { FolderKanban, LayoutGrid, LogOut, Menu, Plus, Settings, X } from "lucid
 import { BusinessMark } from "@/components/business-mark";
 import { Logo, LogoMark } from "@/components/logo";
 import { cn } from "@/components/ui/cn";
+import { Elapsed } from "@/components/elapsed";
 import { ThemeToggle } from "./theme-toggle";
 
 export type SidebarBusiness = {
@@ -23,6 +24,7 @@ export function Sidebar({
   theme,
   alerts,
   dueTasks = 0,
+  timer = null,
 }: {
   businesses: SidebarBusiness[];
   email: string | null;
@@ -30,6 +32,8 @@ export function Sidebar({
   alerts: number;
   /** Tâches de projet dues aujourd'hui ou en retard. */
   dueTasks?: number;
+  /** Chrono de pointage en cours, affiché sous « Projets ». */
+  timer?: { started_at: string; project_id: string; project: string; slug: string } | null;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -59,6 +63,16 @@ export function Sidebar({
         <NavLink href="/projets" active={pathname === "/projets"} icon={<FolderKanban />} badge={dueTasks}>
           Projets
         </NavLink>
+        {timer ? (
+          <Link
+            href={`/b/${timer.slug}/projets/${timer.project_id}`}
+            className="mx-1 mt-1 flex items-center gap-2 rounded-[10px] bg-[color-mix(in_oklab,var(--green)_10%,transparent)] px-3 py-2 text-[13px]"
+          >
+            <span className="dot-glow size-1.5 shrink-0 animate-pulse rounded-full" />
+            <span className="min-w-0 flex-1 truncate text-muted">{timer.project}</span>
+            <Elapsed since={timer.started_at} className="tabular shrink-0 font-medium" />
+          </Link>
+        ) : null}
 
         <div className="mb-1 mt-7 flex items-center justify-between px-3">
           <span className="text-[12px] font-medium text-faint">Business</span>

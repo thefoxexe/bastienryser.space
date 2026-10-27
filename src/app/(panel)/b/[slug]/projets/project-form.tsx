@@ -64,6 +64,11 @@ export function ProjectForm({
       <Field label="Description" htmlFor="p-desc">
         <Textarea id="p-desc" name="description" rows={3} defaultValue={project?.description ?? ""} placeholder="Objectif, périmètre, budget…" />
       </Field>
+      {project && "hourly_rate" in project ? (
+        <Field label="Tarif horaire (CHF)" htmlFor="p-rate" hint="Facultatif : donne la valeur du temps pointé.">
+          <Input id="p-rate" name="hourlyRate" inputMode="decimal" defaultValue={project.hourly_rate ?? ""} placeholder="Ex. 95" />
+        </Field>
+      ) : null}
       {project ? (
         <Field label="Statut" htmlFor="p-status">
           <Select id="p-status" name="status" defaultValue={project.status}>

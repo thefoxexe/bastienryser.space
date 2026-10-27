@@ -1,6 +1,6 @@
 -- Installation complète de bastienryser.space (généré par supabase/scripts/build-setup.mjs, ne pas modifier à la main).
 -- À coller en une fois dans Supabase > SQL Editor > New query, puis Run, sur un projet neuf.
--- Contient 14 migrations, l'adresse du projet pour les tâches automatiques et l'accès admin.
+-- Contient 15 migrations, l'adresse du projet pour les tâches automatiques et l'accès admin.
 
 -- ===========================================================================
 -- 20261025000000_socle.sql
@@ -1176,6 +1176,33 @@ create policy project_files_storage_delete on storage.objects for delete to auth
 update public.businesses set modules = array_append(modules, 'projects') where not ('projects' = any (modules));
 
 -- ===========================================================================
+-- 20261025001400_time.sql
+-- ===========================================================================
+
+-- Pointage des heures par projet : chrono (une seule session en cours à la fois) ou saisie manuelle.
+
+alter table public.projects add column hourly_rate numeric(10, 2) check (hourly_rate is null or hourly_rate >= 0);
+
+create table public.project_time_entries (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects (id) on delete cascade,
+  task_id uuid references public.project_tasks (id) on delete set null,
+  started_at timestamptz not null,
+  -- null : chrono en cours.
+  ended_at timestamptz check (ended_at is null or ended_at >= started_at),
+  note text check (note is null or length(note) <= 300),
+  created_at timestamptz not null default now()
+);
+create index on public.project_time_entries (project_id, started_at desc);
+-- Un seul chrono en cours, tous projets confondus.
+create unique index project_time_entries_one_running on public.project_time_entries ((true)) where ended_at is null;
+
+alter table public.project_time_entries enable row level security;
+create policy project_time_entries_admin_all on public.project_time_entries
+  for all to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+revoke all on public.project_time_entries from anon;
+
+-- ===========================================================================
 -- Configuration du projet
 -- ===========================================================================
 
@@ -1196,7 +1223,8 @@ insert into supabase_migrations.schema_migrations (version, name) values
   ('20261025001000', 'ai'),
   ('20261025001100', 'ai_memory'),
   ('20261025001200', 'push'),
-  ('20261025001300', 'projects')
+  ('20261025001300', 'projects'),
+  ('20261025001400', 'time')
 on conflict do nothing;
 
 -- Adresse du projet, lue par pg_cron pour appeler les Edge Functions (pas un secret).

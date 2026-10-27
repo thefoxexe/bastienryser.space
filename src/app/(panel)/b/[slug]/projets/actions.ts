@@ -50,6 +50,12 @@ const projectSchema = z.object({
   url: optionalText(300),
   description: optionalText(4000),
   dueDate: optionalDate,
+  hourlyRate: z
+    .string()
+    .optional()
+    // Absent : champ non affiché (migration du pointage pas encore appliquée) ; vide : pas de tarif.
+    .transform((v) => (v === undefined ? undefined : v.trim() ? Number(v.replace(/['\s]/g, "").replace(",", ".")) : null))
+    .refine((v) => v == null || (Number.isFinite(v) && v >= 0 && v < 100000), "Tarif horaire invalide."),
 });
 
 export async function createProject(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -76,7 +82,16 @@ export async function updateProject(_prev: FormState, formData: FormData): Promi
   const supabase = await createClient();
   const { error } = await supabase
     .from("projects")
-    .update({ name: p.name, client: p.client, url: p.url, description: p.description, due_date: p.dueDate, status: p.status, updated_at: new Date().toISOString() })
+    .update({
+      name: p.name,
+      client: p.client,
+      url: p.url,
+      description: p.description,
+      due_date: p.dueDate,
+      status: p.status,
+      updated_at: new Date().toISOString(),
+      ...(p.hourlyRate !== undefined ? { hourly_rate: p.hourlyRate } : {}),
+    })
     .eq("id", p.id)
     .eq("business_id", p.businessId);
   if (error) return { error: "Enregistrement impossible." };
@@ -384,4 +399,76 @@ export async function addTasks(input: z.input<typeof bulkSchema>): Promise<FormS
   if (report) await saveReport(projectId, report);
   refresh(slug);
   return { ok: true };
+}
+
+// --- Pointage des heures -----------------------------------------------------
+
+/** Démarre le chrono sur un projet (et arrête celui qui tournait ailleurs). */
+export async function startTimer(input: { projectId: string; slug: string; taskId?: string | null }): Promise<FormState> {
+  await requireAdmin();
+  if (!(await projectOf(input.projectId))) return { error: "Projet introuvable." };
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+  await supabase.from("project_time_entries").update({ ended_at: now }).is("ended_at", null);
+  const { error } = await supabase
+    .from("project_time_entries")
+    .insert({ project_id: input.projectId, task_id: input.taskId || null, started_at: now });
+  if (error) return { error: "Chrono indisponible : la migration du pointage est-elle appliquée ?" };
+  refresh(input.slug);
+  return { ok: true };
+}
+
+export async function stopTimer(input: { slug: string; note?: string }): Promise<FormState> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const patch: Record<string, unknown> = { ended_at: new Date().toISOString() };
+  if (input.note?.trim()) patch.note = input.note.trim().slice(0, 300);
+  await supabase.from("project_time_entries").update(patch).is("ended_at", null);
+  refresh(input.slug);
+  return { ok: true };
+}
+
+const manualTime = z.object({
+  projectId: z.string().uuid(),
+  slug: z.string().min(1),
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide."),
+  // « 1:30 », « 1h30 », « 1,5 » ou « 90 » (minutes si plus de 12).
+  duration: z
+    .string()
+    .trim()
+    .transform((v) => {
+      const hm = v.match(/^(\d{1,2})\s*[:h]\s*(\d{1,2})?$/i);
+      if (hm) return Number(hm[1]) * 60 + Number(hm[2] ?? 0);
+      const n = Number(v.replace(",", "."));
+      if (!Number.isFinite(n)) return NaN;
+      return n > 12 ? Math.round(n) : Math.round(n * 60);
+    })
+    .refine((m) => Number.isFinite(m) && m > 0 && m <= 24 * 60, "Durée invalide (ex. 1:30 ou 1,5)."),
+  note: optionalText(300),
+  taskId: z.string().uuid().optional().or(z.literal("")),
+});
+
+export async function addTime(_prev: FormState, formData: FormData): Promise<FormState & { nonce?: number }> {
+  await requireAdmin();
+  const parsed = manualTime.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Saisie invalide." };
+  const t = parsed.data;
+  if (!(await projectOf(t.projectId))) return { error: "Projet introuvable." };
+  // Saisie manuelle : la session est posée à 9 h (heure de Zurich environ) le jour indiqué.
+  const start = new Date(`${t.day}T08:00:00Z`);
+  const end = new Date(start.getTime() + t.duration * 60000);
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("project_time_entries")
+    .insert({ project_id: t.projectId, task_id: t.taskId || null, started_at: start.toISOString(), ended_at: end.toISOString(), note: t.note });
+  if (error) return { error: "Enregistrement impossible : la migration du pointage est-elle appliquée ?" };
+  refresh(t.slug);
+  return { ok: true, nonce: Date.now() };
+}
+
+export async function deleteTime(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+  await supabase.from("project_time_entries").delete().eq("id", String(formData.get("id")));
+  refresh(String(formData.get("slug")));
 }

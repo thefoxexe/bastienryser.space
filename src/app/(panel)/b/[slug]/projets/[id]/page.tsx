@@ -8,13 +8,14 @@ import { DialogButton } from "@/components/ui/dialog";
 import { cn } from "@/components/ui/cn";
 import { getBusiness } from "@/lib/data";
 import { lastDays } from "@/lib/metrics";
-import { getProject, STATUS_LABEL } from "@/lib/projects";
+import { getProject, runningTimer, STATUS_LABEL } from "@/lib/projects";
 import { EntryForm } from "../../donnees/finances/entry-form";
 import { deleteProject, linkEntry, unlinkEntry } from "../actions";
 import { AiImport } from "./ai-import";
 import { EditProject } from "./edit-project";
 import { FilesCard } from "./files-card";
 import { TaskList } from "./task-list";
+import { TimeCard } from "./time-card";
 
 export const metadata: Metadata = { title: "Projet" };
 // Lecture d'une longue séance par l'IA (Server Actions de la page).
@@ -26,10 +27,13 @@ const chf = { kind: "currency", currency: "chf" } as const;
 export default async function ProjectPage({ params }: PageProps<"/b/[slug]/projets/[id]">) {
   const { slug, id } = await params;
   const business = await getBusiness(slug);
-  const data = await getProject(business.id, id);
+  const [data, running] = await Promise.all([getProject(business.id, id), runningTimer().catch(() => null)]);
   if (!data) notFound();
-  const { project, tasks, files, entries, unlinked } = data;
+  const { project, tasks, files, entries, unlinked, time } = data;
   const today = lastDays(1)[0];
+  // Lundi de la semaine en cours (heure de Zurich), pour le total « cette semaine ».
+  const weekday = (new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7;
+  const weekStart = lastDays(weekday + 1)[0];
   const done = tasks.filter((t) => t.status === "done").length;
   const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
   const late = tasks.filter((t) => t.status !== "done" && t.due_date && t.due_date < today).length;
@@ -125,6 +129,20 @@ export default async function ProjectPage({ params }: PageProps<"/b/[slug]/proje
         </Card>
 
         <div className="flex min-w-0 flex-col gap-6">
+          <Card>
+            <CardHeader title="Temps" />
+            <TimeCard
+              projectId={project.id}
+              slug={business.slug}
+              entries={time}
+              tasks={tasks.filter((t) => t.status !== "done").map((t) => ({ id: t.id, title: t.title }))}
+              running={running}
+              hourlyRate={project.hourly_rate ? Number(project.hourly_rate) : null}
+              today={today}
+              weekStart={weekStart}
+            />
+          </Card>
+
           <Card>
             <CardHeader
               title="Finances"

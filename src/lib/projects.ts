@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { LedgerEntry } from "@/lib/finance";
+import { minutesOf } from "@/lib/time";
 
 export type ProjectStatus = "active" | "paused" | "done";
 export type TaskStatus = "todo" | "doing" | "done";
@@ -15,6 +16,8 @@ export type Project = {
   description: string | null;
   status: ProjectStatus;
   due_date: string | null;
+  /** Tarif horaire en CHF, facultatif : donne la valeur du temps pointé. */
+  hourly_rate?: number | null;
   created_at: string;
 };
 
@@ -36,9 +39,15 @@ export type ProjectFile = { id: string; name: string; size: number; mime: string
 export type ProjectSummary = Project & {
   tasks: { total: number; done: number; late: number; next: { title: string; due_date: string | null } | null };
   money: { income: number; expenses: number };
+  minutes: number;
 };
 
-const PROJECT_COLUMNS = "id,business_id,name,client,url,description,status,due_date,created_at";
+export type TimeEntry = { id: string; task_id: string | null; started_at: string; ended_at: string | null; note: string | null; minutes: number };
+
+
+
+// « * » : les colonnes ajoutées plus tard (tarif horaire) apparaissent dès que la migration est appliquée.
+const PROJECT_COLUMNS = "*";
 const TASK_COLUMNS = "id,project_id,title,notes,status,priority,due_date,position,done_at,created_at";
 
 export const STATUS_LABEL: Record<ProjectStatus, string> = { active: "En cours", paused: "En pause", done: "Terminé" };
@@ -53,9 +62,10 @@ export async function listProjects(businessId: string): Promise<ProjectSummary[]
   const { data: projects } = await supabase.from("projects").select(PROJECT_COLUMNS).eq("business_id", businessId).order("created_at", { ascending: false });
   const ids = (projects ?? []).map((p) => p.id);
   if (!ids.length) return [];
-  const [{ data: tasks }, { data: entries }] = await Promise.all([
+  const [{ data: tasks }, { data: entries }, { data: time }] = await Promise.all([
     supabase.from("project_tasks").select("project_id,title,status,due_date,position").in("project_id", ids).order("position"),
     supabase.from("ledger_entries").select("project_id,kind,amount").in("project_id", ids),
+    supabase.from("project_time_entries").select("project_id,started_at,ended_at").in("project_id", ids),
   ]);
   const now = today();
   return (projects as Project[]).map((p) => {
@@ -76,6 +86,7 @@ export async function listProjects(businessId: string): Promise<ProjectSummary[]
         income: money.filter((e) => e.kind === "income").reduce((a, e) => a + Number(e.amount), 0),
         expenses: money.filter((e) => e.kind === "expense").reduce((a, e) => a + Number(e.amount), 0),
       },
+      minutes: (time ?? []).filter((t) => t.project_id === p.id).reduce((a, t) => a + minutesOf(t), 0),
     };
   });
 }
@@ -84,7 +95,7 @@ export async function getProject(businessId: string, id: string) {
   const supabase = await createClient();
   const { data: project } = await supabase.from("projects").select(PROJECT_COLUMNS).eq("id", id).eq("business_id", businessId).maybeSingle();
   if (!project) return null;
-  const [{ data: tasks }, { data: files }, { data: linked }, { data: unlinked }] = await Promise.all([
+  const [{ data: tasks }, { data: files }, { data: linked }, { data: unlinked }, { data: time }] = await Promise.all([
     supabase.from("project_tasks").select(TASK_COLUMNS).eq("project_id", id).order("position").order("created_at"),
     supabase.from("project_files").select("id,name,size,mime,created_at,storage_path").eq("project_id", id).order("created_at", { ascending: false }),
     supabase.from("ledger_entries").select("id,business_id,day,kind,amount,currency,label,category,reference").eq("project_id", id).order("day", { ascending: false }),
@@ -95,6 +106,7 @@ export async function getProject(businessId: string, id: string) {
       .is("project_id", null)
       .order("day", { ascending: false })
       .limit(60),
+    supabase.from("project_time_entries").select("id,task_id,started_at,ended_at,note").eq("project_id", id).order("started_at", { ascending: false }).limit(500),
   ]);
   const signed = files?.length
     ? (await supabase.storage.from("project-files").createSignedUrls(files.map((f) => f.storage_path), 3600, { download: true })).data ?? []
@@ -106,6 +118,7 @@ export async function getProject(businessId: string, id: string) {
     files: (files ?? []).map((f, i): ProjectFile => ({ id: f.id, name: f.name, size: Number(f.size), mime: f.mime, created_at: f.created_at, url: signed[i]?.signedUrl ?? null })),
     entries: ((linked ?? []) as LedgerEntry[]).map(num),
     unlinked: ((unlinked ?? []) as LedgerEntry[]).map(num),
+    time: (time ?? []).map((t): TimeEntry => ({ ...t, minutes: minutesOf(t) })),
   };
 }
 
@@ -151,4 +164,17 @@ export async function countDueTasks(): Promise<number> {
     .neq("projects.status", "done")
     .lte("due_date", today());
   return count ?? 0;
+}
+
+/** Chrono en cours (tous projets), pour l'afficher partout dans le panel. */
+export async function runningTimer() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("project_time_entries")
+    .select("id,started_at,project_id,projects!inner(name,businesses!inner(slug))")
+    .is("ended_at", null)
+    .maybeSingle();
+  if (!data) return null;
+  const p = data.projects as unknown as { name: string; businesses: { slug: string } };
+  return { id: data.id as string, started_at: data.started_at as string, project_id: data.project_id as string, project: p.name, slug: p.businesses.slug };
 }

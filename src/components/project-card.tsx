@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Timer } from "lucide-react";
 import { formatDay, formatValue } from "@/components/charts/format";
 import { Badge } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { STATUS_LABEL, type ProjectSummary } from "@/lib/projects";
+import { formatMinutes } from "@/lib/time";
 
 const TONE = { active: "success", paused: "warning", done: "neutral" } as const;
 
@@ -51,6 +52,11 @@ export function ProjectCard({ project: p, href, subtitle }: { project: ProjectSu
             </span>
           ) : null}
           {p.tasks.late ? <span className="text-danger">{p.tasks.late} en retard</span> : null}
+          {p.minutes ? (
+            <span className="flex items-center gap-1 tabular">
+              <Timer className="size-3.5" /> {formatMinutes(p.minutes)}
+            </span>
+          ) : null}
           {p.money.income || p.money.expenses ? (
             <span className={cn("tabular", net > 0 ? "text-green-text" : net < 0 ? "text-danger" : "")}>
               {net >= 0 ? "+" : "−"}
