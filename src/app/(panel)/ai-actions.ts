@@ -10,7 +10,7 @@ import { lastDays } from "@/lib/metrics";
 import { createClient } from "@/lib/supabase/server";
 
 const BriefSchema = z.object({
-  headline: z.string().describe("Une phrase : l'essentiel du jour."),
+  headline: z.string().describe("Une seule phrase d'accroche, 15 mots au plus : l'essentiel du jour, chiffré si possible."),
   points: z
     .array(
       z.object({
@@ -58,7 +58,12 @@ export async function getBrief(slug: string | null, force = false): Promise<Brie
   if (!anthropic) return { ok: false, error: NO_KEY };
 
   const scope = business ? [business] : await listBusinesses();
-  const digests = await Promise.all(scope.map((b) => businessDigest(b, 28)));
+  const memoriesQ = supabase.from("ai_memories").select("content").order("created_at").limit(100);
+  const [digests, { data: memories }] = await Promise.all([
+    Promise.all(scope.map((b) => businessDigest(b, 28))),
+    business ? memoriesQ.or(`business_id.eq.${business.id},business_id.is.null`) : memoriesQ,
+  ]);
+  const known = memories?.length ? `\n\nCe que tu sais déjà (mémorisé avec Bastien) :\n${memories.map((m) => `- ${m.content}`).join("\n")}` : "";
 
   try {
     const response = await anthropic.beta.messages.parse({
@@ -73,7 +78,7 @@ export async function getBrief(slug: string | null, force = false): Promise<Brie
           role: "user",
           content:
             `Date du jour : ${today}. ${business ? `Brief pour ${business.name}.` : "Brief de l'accueil : tous les business réunis, un point par business qui le mérite."}\n\n` +
-            `Données (JSON, 28 derniers jours comparés aux 28 précédents) :\n${JSON.stringify(digests)}`,
+            `Données (JSON, 28 derniers jours comparés aux 28 précédents) :\n${JSON.stringify(digests)}${known}`,
         },
       ],
     });

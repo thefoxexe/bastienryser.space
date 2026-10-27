@@ -3,14 +3,15 @@ import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { claude, friendlyError, MODEL, NO_KEY, textOf } from "@/lib/ai/claude";
 import { businessDigest, DIGEST_GUIDE } from "@/lib/ai/insights";
+import { auditPage } from "@/lib/ai/site-audit";
 import { isAdmin } from "@/lib/auth";
 import { listBusinesses, listPosts } from "@/lib/data";
 import { financeSummary, listEntries } from "@/lib/finance";
 import { keywordRankings } from "@/lib/keywords";
-import { lastDays } from "@/lib/metrics";
+import { lastDays, listConnectors } from "@/lib/metrics";
 import { createClient } from "@/lib/supabase/server";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const Body = z.object({
   slug: z.string().max(80).nullable().optional(),
@@ -36,13 +37,19 @@ const METRICS = {
 } as const;
 
 const SYSTEM = `Tu es l'assistant intégré au panel privé de Bastien (bastienryser.space), qui gère ses business suisses : réseaux sociaux, sites web, visites, recherche Google, finances.
-Tu réponds à ses questions sur ses chiffres et tu l'aides à comprendre et régler les problèmes.
+Tu es à la fois son analyste et son conseiller : expert en SEO (surtout local, en Suisse romande), en marketing digital et en gestion financière d'une petite entreprise ou d'un indépendant en Suisse.
 
-Règles :
-- Français, tutoiement, réponses courtes et concrètes (souvent lues à voix haute) : 2 à 6 phrases, ou une courte liste à tirets si c'est plus clair. Pas d'emoji, pas de titres.
-- Va chercher les chiffres avec les outils avant de répondre ; n'invente jamais un chiffre ni une donnée. Si une donnée n'existe pas, dis-le.
-- Quand tu identifies un problème, donne la cause probable (annoncée comme probable) et l'action à faire, en citant l'endroit du panel s'il y en a un (Données › Connecteurs, Réseaux sociaux › Comptes…).
-- Les business se désignent par leur slug dans les outils ; appelle liste_business si tu ne le connais pas.
+Comment tu travailles :
+- Tu connais ses business : appelle liste_business, lis ce que tu as mémorisé (plus bas), et va chercher les chiffres avec les outils avant de répondre. N'invente jamais un chiffre ni une donnée ; si une donnée manque, dis-le.
+- Quand Bastien t'apprend quelque chose de durable sur un business (offre, prix, clients visés, zone, concurrents, objectifs, contraintes), enregistre-le avec memoriser, en une phrase factuelle. Ne mémorise ni mot de passe ni donnée bancaire.
+- Pour le SEO : appuie-toi sur les requêtes Search Console (requetes_google, pages_google) et sur la page réelle (analyser_page : titre, description, titres, données structurées, robots.txt, sitemap). Donne des recommandations précises et prêtes à appliquer : le titre et la description exacts à mettre, la page à créer, le texte à ajouter, la fiche Google Business Profile à compléter, les liens à obtenir. Priorise par impact.
+- Pour les finances : lis les vrais chiffres (finances), puis conseille sur la trésorerie, les prix et les marges, les charges, la facturation et les relances, l'épargne d'impôts et de charges sociales, et les pistes de financement (banque, cautionnement, aides publiques). Pour les règles fiscales, TVA, AVS et aides, donne le principe et dis de vérifier les montants et seuils en vigueur auprès de l'administration ou d'une fiduciaire : ne présente jamais un seuil ou un taux comme certain si tu n'en es pas sûr.
+- Tu ne navigues pas sur internet : analyser_page ne lit que les sites des business du panel.
+
+Forme :
+- Français, tutoiement, direct et concret. Tes réponses sont souvent lues à voix haute : va à l'essentiel (2 à 6 phrases), ou une courte liste à tirets pour un plan d'action. Pas d'emoji, pas de titres.
+- Quand tu identifies un problème : la cause probable (annoncée comme probable), puis l'action, en citant l'endroit du panel s'il y en a un (Données › Connecteurs, Réseaux sociaux › Comptes…).
+- Les business se désignent par leur slug dans les outils.
 
 ${DIGEST_GUIDE}`;
 
@@ -54,6 +61,31 @@ async function businessBySlug(slug: string) {
 }
 
 const tools = [
+  betaZodTool({
+    name: "analyser_page",
+    description:
+      "Lit une page d'un site du panel comme Google la voit : titre, meta description, H1/H2, canonical, robots, données structurées, images sans alt, liens, nombre de mots ; à la racine, aussi robots.txt et sitemap. Limité aux sites des business du panel.",
+    inputSchema: z.object({ url: z.string().min(3).max(500) }),
+    run: async ({ url }) => {
+      const websites = (await listBusinesses()).flatMap((b) => b.websites);
+      return JSON.stringify(await auditPage(url, websites));
+    },
+  }),
+  betaZodTool({
+    name: "pages_google",
+    description: "Pages d'un business qui reçoivent des clics Google (Search Console, 28 jours) et, si Analytics est branché, pages les plus vues et canaux d'acquisition.",
+    inputSchema: z.object({ slug: z.string() }),
+    run: async ({ slug }) => {
+      const b = await businessBySlug(slug);
+      const connectors = await listConnectors(b.id);
+      const gsc = connectors.find((c) => c.kind === "search_console");
+      const ga = connectors.find((c) => c.kind === "google_analytics");
+      return JSON.stringify({
+        search_console: gsc ? { site: gsc.config.site_url, pages: gsc.snapshot.pages ?? [], requetes: gsc.snapshot.queries ?? [] } : null,
+        analytics: ga ? { pages: ga.snapshot.pages ?? [], canaux: ga.snapshot.channels ?? [] } : null,
+      });
+    },
+  }),
   betaZodTool({
     name: "liste_business",
     description: "Liste les business gérés dans le panel (nom, slug, sites web).",
@@ -138,6 +170,43 @@ const tools = [
   }),
 ];
 
+function memoryTools() {
+  return [
+    betaZodTool({
+      name: "memoriser",
+      description: "Enregistre durablement un fait sur un business (ou général si pas de slug) pour s'en souvenir dans les prochaines conversations.",
+      inputSchema: z.object({ contenu: z.string().min(3).max(600), slug: z.string().optional() }),
+      run: async ({ contenu, slug }) => {
+        const supabase = await createClient();
+        const business = slug ? await businessBySlug(slug) : null;
+        const { error } = await supabase.from("ai_memories").insert({ business_id: business?.id ?? null, content: contenu.trim() });
+        return error ? `Impossible d'enregistrer (${error.message}). La table ai_memories est peut-être absente.` : "Mémorisé.";
+      },
+    }),
+    betaZodTool({
+      name: "oublier",
+      description: "Supprime un souvenir devenu faux ou inutile, par son identifiant (donné dans la liste des souvenirs).",
+      inputSchema: z.object({ id: z.string().uuid() }),
+      run: async ({ id }) => {
+        const supabase = await createClient();
+        const { error } = await supabase.from("ai_memories").delete().eq("id", id);
+        return error ? `Impossible de supprimer (${error.message}).` : "Oublié.";
+      },
+    }),
+  ];
+}
+
+async function memories() {
+  const supabase = await createClient();
+  const [{ data }, businesses] = await Promise.all([
+    supabase.from("ai_memories").select("id,business_id,content,created_at").order("created_at").limit(300),
+    listBusinesses(),
+  ]);
+  if (!data?.length) return "Aucun souvenir enregistré pour l'instant.";
+  const name = new Map(businesses.map((b) => [b.id, b.slug]));
+  return data.map((m) => `- [${m.id}] ${m.business_id ? `(${name.get(m.business_id) ?? "?"}) ` : "(général) "}${m.content}`).join("\n");
+}
+
 export async function POST(request: Request) {
   if (!(await isAdmin())) return Response.json({ error: "Non autorisé." }, { status: 401 });
   const parsed = Body.safeParse(await request.json().catch(() => null));
@@ -147,6 +216,7 @@ export async function POST(request: Request) {
 
   const { slug, messages } = parsed.data;
   const context = slug ? `Bastien regarde actuellement la page du business « ${slug} ».` : "Bastien est sur l'accueil du panel (tous les business).";
+  const known = await memories().catch(() => "Mémoire indisponible.");
 
   try {
     const runner = anthropic.beta.messages.toolRunner({
@@ -155,9 +225,13 @@ export async function POST(request: Request) {
       max_iterations: 10,
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
-      output_config: { effort: "medium" },
-      system: `${SYSTEM}\n\nDate du jour : ${lastDays(1)[0]}. ${context}`,
-      tools,
+      output_config: { effort: "high" },
+      // Le prompt fixe d'abord (mis en cache), puis ce qui change à chaque conversation.
+      system: [
+        { type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } },
+        { type: "text", text: `Date du jour : ${lastDays(1)[0]}. ${context}\n\nCe que tu as mémorisé :\n${known}` },
+      ],
+      tools: [...tools, ...memoryTools()],
       messages: messages.map((m): Anthropic.Beta.BetaMessageParam => ({ role: m.role, content: m.content })),
     });
     const final = await runner;

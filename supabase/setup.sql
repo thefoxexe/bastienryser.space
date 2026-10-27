@@ -1,6 +1,6 @@
 -- Installation complète de bastienryser.space (généré par supabase/scripts/build-setup.mjs, ne pas modifier à la main).
 -- À coller en une fois dans Supabase > SQL Editor > New query, puis Run, sur un projet neuf.
--- Contient 11 migrations, l'adresse du projet pour les tâches automatiques et l'accès admin.
+-- Contient 12 migrations, l'adresse du projet pour les tâches automatiques et l'accès admin.
 
 -- ===========================================================================
 -- 20261025000000_socle.sql
@@ -1045,6 +1045,27 @@ create policy ai_briefs_admin_all on public.ai_briefs
 revoke all on public.ai_briefs from anon;
 
 -- ===========================================================================
+-- 20261025001100_ai_memory.sql
+-- ===========================================================================
+
+-- Mémoire de l'assistant : ce qu'il sait d'un business (offre, clients, objectifs…) ou de Bastien en général.
+
+create table public.ai_memories (
+  id uuid primary key default gen_random_uuid(),
+  -- null : valable pour tous les business.
+  business_id uuid references public.businesses (id) on delete cascade,
+  content text not null check (length(btrim(content)) between 1 and 600),
+  created_at timestamptz not null default now()
+);
+
+create index on public.ai_memories (business_id, created_at);
+
+alter table public.ai_memories enable row level security;
+create policy ai_memories_admin_all on public.ai_memories
+  for all to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+revoke all on public.ai_memories from anon;
+
+-- ===========================================================================
 -- Configuration du projet
 -- ===========================================================================
 
@@ -1062,7 +1083,8 @@ insert into supabase_migrations.schema_migrations (version, name) values
   ('20261025000700', 'hardening'),
   ('20261025000800', 'more_networks'),
   ('20261025000900', 'finances'),
-  ('20261025001000', 'ai')
+  ('20261025001000', 'ai'),
+  ('20261025001100', 'ai_memory')
 on conflict do nothing;
 
 -- Adresse du projet, lue par pg_cron pour appeler les Edge Functions (pas un secret).

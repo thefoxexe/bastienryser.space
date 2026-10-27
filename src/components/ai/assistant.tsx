@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { ArrowUp, Loader2, Mic, Square, Volume2, VolumeX, X } from "lucide-react";
+import type { Brief } from "@/app/(panel)/ai-actions";
 import { AiAvatar, type AvatarState } from "@/components/ai/avatar";
+import { BRIEF_EVENT } from "@/components/ai/brief-card";
 import { cn } from "@/components/ui/cn";
 
 type Message = { role: "user" | "assistant"; content: string; error?: boolean };
 
-const SUGGESTIONS = ["Fais-moi le point", "Qu'est-ce qui ne va pas ?", "Pourquoi ma position Google change ?", "Combien j'ai encaissé ce mois ?"];
+const SUGGESTIONS = ["Fais-moi le point", "Audit SEO de mon site", "Pourquoi ma position Google change ?", "Comment améliorer ma trésorerie ?", "Qu'est-ce qui ne va pas ?"];
 
 /** Rendu léger des réponses : paragraphes, listes à tirets et **gras**. */
 function Rich({ text }: { text: string }) {
@@ -62,6 +64,23 @@ export function Assistant() {
   useEffect(() => {
     if (!open) speechSynthesis?.cancel();
   }, [open]);
+
+  // Un clic sur le brief ouvre l'assistant, qui le détaille (et le lit) ; on enchaîne ensuite avec des questions.
+  const speakRef = useRef<(text: string) => void>(() => {});
+  useEffect(() => {
+    speakRef.current = speak;
+  });
+  useEffect(() => {
+    const onBrief = (e: Event) => {
+      const brief = (e as CustomEvent<Brief>).detail;
+      const text = `${brief.headline}\n${brief.points.map((p) => `- ${p.text}`).join("\n")}\n\nTu veux que je creuse un point ?`;
+      setOpen(true);
+      setMessages((m) => [...m, { role: "user", content: "Détaille-moi le brief du jour." }, { role: "assistant", content: text }]);
+      speakRef.current(text);
+    };
+    window.addEventListener(BRIEF_EVENT, onBrief);
+    return () => window.removeEventListener(BRIEF_EVENT, onBrief);
+  }, []);
 
   function speak(text: string) {
     if (!voice || typeof speechSynthesis === "undefined") return;
