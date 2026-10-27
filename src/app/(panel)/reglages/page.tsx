@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { removeFactor } from "./actions";
 import { setArchived } from "./business/actions";
+import { PushToggle } from "./push-toggle";
 import { TwoFactorSetup } from "./two-factor";
 
 export const metadata: Metadata = { title: "Réglages" };
@@ -30,6 +31,7 @@ export default async function SettingsPage() {
         <nav className="hidden flex-col gap-1 text-sm lg:flex">
           <a href="#profil" className="rounded-lg px-3 py-1.5 text-muted hover:bg-surface-2 hover:text-text">Profil</a>
           <a href="#securite" className="rounded-lg px-3 py-1.5 text-muted hover:bg-surface-2 hover:text-text">Sécurité</a>
+          <a href="#notifications" className="rounded-lg px-3 py-1.5 text-muted hover:bg-surface-2 hover:text-text">Notifications</a>
           <a href="#business" className="rounded-lg px-3 py-1.5 text-muted hover:bg-surface-2 hover:text-text">Business</a>
           <Link href="/reglages/systeme" className="rounded-lg px-3 py-1.5 text-muted hover:bg-surface-2 hover:text-text">État du système</Link>
         </nav>
@@ -56,6 +58,16 @@ export default async function SettingsPage() {
                 <p className="text-sm font-medium">{viewer.email}</p>
                 <p className="text-[13px] text-muted">Administrateur</p>
               </div>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title={<span id="notifications">Notifications</span>}
+              description="Chaque lundi matin, le résumé de ta semaine (visiteurs, clics Google, encaissements) sur ton téléphone ou ton ordinateur."
+            />
+            <div className="p-5">
+              <PushToggle />
             </div>
           </Card>
 

@@ -11,6 +11,11 @@ import { createClient } from "@/lib/supabase/server";
 
 const BriefSchema = z.object({
   headline: z.string().describe("Une seule phrase d'accroche, 15 mots au plus : l'essentiel du jour, chiffré si possible."),
+  spoken: z
+    .string()
+    .describe(
+      "Le brief tel que tu le dirais à voix haute à Bastien, en 2 ou 3 phrases naturelles et parlées (« Salut, alors aujourd'hui… ») : l'essentiel et le point à régler en priorité. Pas de liste, chiffres arrondis comme à l'oral, sans relire les points.",
+    ),
   points: z
     .array(
       z.object({

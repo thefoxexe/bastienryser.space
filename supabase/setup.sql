@@ -1,6 +1,6 @@
 -- Installation complète de bastienryser.space (généré par supabase/scripts/build-setup.mjs, ne pas modifier à la main).
 -- À coller en une fois dans Supabase > SQL Editor > New query, puis Run, sur un projet neuf.
--- Contient 12 migrations, l'adresse du projet pour les tâches automatiques et l'accès admin.
+-- Contient 13 migrations, l'adresse du projet pour les tâches automatiques et l'accès admin.
 
 -- ===========================================================================
 -- 20261025000000_socle.sql
@@ -1066,6 +1066,43 @@ create policy ai_memories_admin_all on public.ai_memories
 revoke all on public.ai_memories from anon;
 
 -- ===========================================================================
+-- 20261025001200_push.sql
+-- ===========================================================================
+
+-- Notifications push (app installée ou navigateur) : abonnements des appareils et clés VAPID.
+-- La clé privée VAPID est générée par l'Edge Function `push` au premier usage et rangée dans le Vault.
+
+create table public.push_subscriptions (
+  endpoint text primary key check (endpoint ~ '^https://'),
+  p256dh text not null,
+  auth text not null,
+  user_agent text,
+  created_at timestamptz not null default now(),
+  last_sent_at timestamptz,
+  last_error text
+);
+
+alter table public.push_subscriptions enable row level security;
+create policy push_subscriptions_admin_all on public.push_subscriptions
+  for all to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+revoke all on public.push_subscriptions from anon;
+
+-- Une seule ligne : la clé publique (partagée avec le navigateur) et la référence Vault de la clé privée.
+create table public.push_config (
+  id boolean primary key default true check (id),
+  public_key text not null,
+  private_key_ref uuid not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.push_config enable row level security;
+-- Lecture réservée à l'Edge Function (service role) : aucune politique pour les utilisateurs.
+revoke all on public.push_config from anon, authenticated;
+
+-- Chaque lundi à 7 h 03 UTC (8 h ou 9 h en Suisse) : le résumé de la semaine.
+select cron.schedule('weekly-push', '3 7 * * 1', $$ select public.call_edge_function('push') $$);
+
+-- ===========================================================================
 -- Configuration du projet
 -- ===========================================================================
 
@@ -1084,7 +1121,8 @@ insert into supabase_migrations.schema_migrations (version, name) values
   ('20261025000800', 'more_networks'),
   ('20261025000900', 'finances'),
   ('20261025001000', 'ai'),
-  ('20261025001100', 'ai_memory')
+  ('20261025001100', 'ai_memory'),
+  ('20261025001200', 'push')
 on conflict do nothing;
 
 -- Adresse du projet, lue par pg_cron pour appeler les Edge Functions (pas un secret).

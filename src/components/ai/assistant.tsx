@@ -62,7 +62,7 @@ export function Assistant() {
   }, [messages, busy]);
 
   useEffect(() => {
-    if (!open) speechSynthesis?.cancel();
+    if (!open) stopSpeaking();
   }, [open]);
 
   // Un clic sur le brief ouvre l'assistant, qui le détaille (et le lit) ; on enchaîne ensuite avec des questions.
@@ -74,31 +74,82 @@ export function Assistant() {
     const onBrief = (e: Event) => {
       const brief = (e as CustomEvent<Brief>).detail;
       const text = `${brief.headline}\n${brief.points.map((p) => `- ${p.text}`).join("\n")}\n\nTu veux que je creuse un point ?`;
+      unlockAudio();
       setOpen(true);
       setMessages((m) => [...m, { role: "user", content: "Détaille-moi le brief du jour." }, { role: "assistant", content: text }]);
-      speakRef.current(text);
+      // À l'oral : un résumé naturel, pas la lecture de la liste.
+      speakRef.current(brief.spoken || brief.headline);
     };
     window.addEventListener(BRIEF_EVENT, onBrief);
     return () => window.removeEventListener(BRIEF_EVENT, onBrief);
   }, []);
 
-  function speak(text: string) {
-    if (!voice || typeof speechSynthesis === "undefined") return;
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(spoken(text));
+  // Lecture par Web Audio, débloquée pendant un geste de l'utilisateur : sinon iOS refuse le son qui arrive après coup.
+  const audioCtx = useRef<AudioContext | null>(null);
+  const source = useRef<AudioBufferSourceNode | null>(null);
+  const speakId = useRef(0);
+  function unlockAudio() {
+    try {
+      audioCtx.current ??= new AudioContext();
+      void audioCtx.current.resume();
+    } catch {}
+  }
+
+  function stopSpeaking() {
+    speakId.current++;
+    try {
+      source.current?.stop();
+    } catch {}
+    source.current = null;
+    if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
+    setSpeaking(false);
+  }
+
+  /** Voix du navigateur, si la voix naturelle n'est pas disponible. */
+  function speakWithBrowser(text: string) {
+    if (typeof speechSynthesis === "undefined") return;
+    const u = new SpeechSynthesisUtterance(text);
     u.lang = "fr-FR";
     const fr = speechSynthesis.getVoices().filter((v) => v.lang.startsWith("fr"));
     u.voice = fr.find((v) => /premium|enhanced|natural|google/i.test(v.name)) ?? fr[0] ?? null;
-    u.rate = 1.04;
     u.onstart = () => setSpeaking(true);
     u.onend = u.onerror = () => setSpeaking(false);
     speechSynthesis.speak(u);
   }
 
+  async function speak(text: string) {
+    if (!voice) return;
+    stopSpeaking();
+    const id = speakId.current;
+    const clean = spoken(text);
+    try {
+      const ctx = audioCtx.current;
+      if (!ctx) throw new Error("audio");
+      const res = await fetch("/api/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: clean }) });
+      if (!res.ok) throw new Error("tts");
+      const buffer = await ctx.decodeAudioData(await res.arrayBuffer());
+      if (id !== speakId.current) return;
+      const node = ctx.createBufferSource();
+      node.buffer = buffer;
+      node.connect(ctx.destination);
+      node.onended = () => {
+        if (source.current === node) {
+          source.current = null;
+          setSpeaking(false);
+        }
+      };
+      source.current = node;
+      setSpeaking(true);
+      node.start();
+    } catch {
+      if (id === speakId.current) speakWithBrowser(clean);
+    }
+  }
+
   function toggleVoice() {
     const next = !voice;
     setVoice(next);
-    if (!next) speechSynthesis?.cancel();
+    if (!next) stopSpeaking();
     try {
       localStorage.setItem("assistant-voice", next ? "on" : "off");
     } catch {}
@@ -107,6 +158,7 @@ export function Assistant() {
   async function send(text: string) {
     const content = text.trim();
     if (!content || busy) return;
+    unlockAudio();
     const history = [...messages.filter((m) => !m.error), { role: "user" as const, content }];
     setMessages((m) => [...m, { role: "user", content }]);
     setInput("");
@@ -134,7 +186,7 @@ export function Assistant() {
       recorder.current?.stop();
       return;
     }
-    speechSynthesis?.cancel();
+    stopSpeaking();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const type = ["audio/webm", "audio/mp4", "audio/ogg"].find((t) => MediaRecorder.isTypeSupported(t));
@@ -172,7 +224,10 @@ export function Assistant() {
     <>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          unlockAudio();
+          setOpen((o) => !o);
+        }}
         aria-label={open ? "Fermer l'assistant" : "Ouvrir l'assistant"}
         aria-expanded={open}
         className={cn(
