@@ -180,33 +180,54 @@ export async function savePost(raw: SaveInput): Promise<{ error?: string; postId
   return { postId: postId! };
 }
 
-export async function retryTarget(formData: FormData) {
-  await requireAdmin();
-  const targetId = String(formData.get("targetId"));
+/**
+ * Relance des cibles en échec : remises en file tout de suite, puis publication immédiate.
+ * Une cible dont le compte a été supprimé (reconnexion) est rattachée au compte actuel du même réseau.
+ */
+async function relaunch(targetIds: string[]) {
   const supabase = await createClient();
-  const { data: target } = await supabase
+  const { data: targets } = await supabase
     .from("post_targets")
-    .select("id, network, status, post_id, posts(business_id, title, businesses(slug, name))")
-    .eq("id", targetId)
-    .single();
-  if (!target || target.status !== "failed") return;
-
-  await supabase
-    .from("post_targets")
-    .update({ status: "pending", attempts: 0, error_message: null, locked_at: null, next_attempt_at: new Date().toISOString() })
-    .eq("id", targetId)
+    .select("id, network, status, social_account_id, post_id, posts(business_id, title, businesses(slug, name))")
+    .in("id", targetIds)
     .eq("status", "failed");
+  if (!targets?.length) return;
 
-  const post = target.posts as unknown as { business_id: string; title: string | null; businesses: { slug: string; name: string } };
+  const post = targets[0].posts as unknown as { business_id: string; title: string | null; businesses: { slug: string; name: string } };
+  const { data: accounts } = await supabase.from("social_accounts").select("id, network").eq("business_id", post.business_id).eq("status", "connected");
+
+  for (const t of targets) {
+    const accountId = t.social_account_id ?? accounts?.find((a) => a.network === t.network)?.id ?? null;
+    await supabase
+      .from("post_targets")
+      .update({ status: "pending", attempts: 0, error_message: null, locked_at: null, next_attempt_at: new Date().toISOString(), social_account_id: accountId })
+      .eq("id", t.id)
+      .eq("status", "failed");
+  }
+
+  const labels = [...new Set(targets.map((t) => NETWORKS[t.network as SocialNetwork].label))].join(", ");
   await logActivity(supabase, {
     business_id: post.business_id,
     kind: "post.retry",
-    message: `Nouvel essai sur ${NETWORKS[target.network as SocialNetwork].label} (${post.businesses.name})`,
-    meta: { post_id: target.post_id },
+    message: `Relance sur ${labels} (${post.businesses.name})`,
+    meta: { post_id: targets[0].post_id },
   });
   await triggerPublishNow();
   revalidatePath(`/b/${post.businesses.slug}`, "layout");
   revalidatePath("/");
+}
+
+export async function retryTarget(formData: FormData) {
+  await requireAdmin();
+  await relaunch([String(formData.get("targetId"))]);
+}
+
+/** Relance toutes les cibles en échec d'un post. */
+export async function retryPost(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { data } = await supabase.from("post_targets").select("id").eq("post_id", String(formData.get("postId"))).eq("status", "failed");
+  if (data?.length) await relaunch(data.map((t) => t.id));
 }
 
 export async function deletePost(formData: FormData) {

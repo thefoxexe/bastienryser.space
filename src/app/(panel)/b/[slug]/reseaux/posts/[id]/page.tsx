@@ -8,7 +8,7 @@ import { Button, ButtonLink, Card, PostStatusBadge, TargetStatusBadge } from "@/
 import { getBusiness, getPost } from "@/lib/data";
 import { formatDateTime, formatNumber, formatRelative } from "@/lib/format";
 import { NETWORKS } from "@/lib/social/networks";
-import { deletePost, retryTarget, unschedulePost } from "../../actions";
+import { deletePost, retryPost, retryTarget, unschedulePost } from "../../actions";
 
 export const metadata: Metadata = { title: "Post" };
 
@@ -44,6 +44,14 @@ export default async function PostPage({ params }: PageProps<"/b/[slug]/reseaux/
             <ButtonLink href={`${base}?post=${post.id}`} variant="secondary" size="sm">
               <Pencil /> Modifier
             </ButtonLink>
+          ) : null}
+          {post.status === "failed" || post.status === "partial" ? (
+            <form action={retryPost}>
+              <input type="hidden" name="postId" value={post.id} />
+              <Button type="submit" size="sm">
+                <RotateCw /> Relancer maintenant
+              </Button>
+            </form>
           ) : null}
           {post.status === "scheduled" ? (
             <form action={unschedulePost}>
@@ -109,7 +117,7 @@ export default async function PostPage({ params }: PageProps<"/b/[slug]/reseaux/
                   <form action={retryTarget}>
                     <input type="hidden" name="targetId" value={t.id} />
                     <Button type="submit" size="sm" variant="secondary">
-                      <RotateCw /> Réessayer
+                      <RotateCw /> Relancer
                     </Button>
                   </form>
                 </div>

@@ -37,7 +37,7 @@ const LABEL: Record<string, string> = {
 type Target = {
   id: string;
   post_id: string;
-  social_account_id: string;
+  social_account_id: string | null;
   network: string;
   caption: string;
   attempts: number;
@@ -67,14 +67,17 @@ Deno.serve(async (req) => {
 type MediaRow = { storage_path: string; kind: "image" | "video" | "pdf"; mime_type: string | null; width: number | null; height: number | null };
 
 async function processTarget(db: ReturnType<typeof adminClient>, target: Target) {
-  const { data } = await db.from("social_accounts").select(ACCOUNT_COLUMNS).eq("id", target.social_account_id).single();
+  const { data } = target.social_account_id
+    ? await db.from("social_accounts").select(ACCOUNT_COLUMNS).eq("id", target.social_account_id).maybeSingle()
+    : { data: null };
   const account = data as AccountRow | null;
   const { data: post } = await db.from("posts").select("id, business_id, title, businesses(name)").eq("id", target.post_id).single();
   const businessName = (post?.businesses as unknown as { name: string } | null)?.name ?? "";
   let note: string | null = null;
 
   try {
-    if (!account || !post) throw new NetworkError("Le compte ou le post n'existe plus.", false);
+    if (!post) throw new NetworkError("Le post n'existe plus.", false);
+    if (!account) throw new NetworkError(`Compte ${LABEL[target.network] ?? target.network} déconnecté : reconnecte-le puis relance.`, false);
 
     const { data: media } = await db
       .from("post_media")

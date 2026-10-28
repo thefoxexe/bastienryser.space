@@ -97,7 +97,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                     <form action={retryTarget}>
                       <input type="hidden" name="targetId" value={a.target_id} />
                       <Button type="submit" size="sm" variant="secondary">
-                        <RotateCw /> Réessayer
+                        <RotateCw /> Relancer
                       </Button>
                     </form>
                   </li>
