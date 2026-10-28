@@ -138,6 +138,15 @@ export async function runSystemChecks(): Promise<CheckGroup[]> {
       fix: "Créer l'app sur developers.facebook.com puis ajouter les secrets dans Supabase.",
     },
     {
+      label: "Instagram (connexion directe)",
+      status: secret("INSTAGRAM_APP_ID") && secret("INSTAGRAM_APP_SECRET") ? "ok" : "warning",
+      detail:
+        secret("INSTAGRAM_APP_ID") && secret("INSTAGRAM_APP_SECRET")
+          ? "Identifiants Instagram présents."
+          : "Facultatif : INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET, pour connecter un Instagram sans Page Facebook.",
+      fix: "App Meta → Instagram → Configuration de l'API avec connexion Instagram, puis ajouter les secrets dans Supabase.",
+    },
+    {
       label: "LinkedIn (profil)",
       status: secret("LINKEDIN_CLIENT_ID") && secret("LINKEDIN_CLIENT_SECRET") ? "ok" : "warning",
       detail: secret("LINKEDIN_CLIENT_ID") && secret("LINKEDIN_CLIENT_SECRET") ? "Identifiants de l'app présents." : "LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET manquants.",

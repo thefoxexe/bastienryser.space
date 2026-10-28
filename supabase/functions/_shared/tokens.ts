@@ -4,6 +4,7 @@ import { inSeconds } from "./accounts.ts";
 import { blueskySession, type BlueskyCredentials, type BlueskySession } from "./bluesky.ts";
 import { NetworkError } from "./errors.ts";
 import { googleAccessToken } from "./google.ts";
+import { igRefresh, isInstagramLogin } from "./instagram.ts";
 import { ConnectorError } from "./connectors.ts";
 import { pinterestToken } from "./pinterest.ts";
 import { readToken, storeToken } from "./supabase.ts";
@@ -78,6 +79,20 @@ export async function accessToken(db: SupabaseClient, a: AccountRow): Promise<st
       const t = await pinterestToken({ grant_type: "refresh_token", refresh_token: refresh });
       await save(db, a, t.access_token, t.expires_in, t.refresh_token ?? null, t.refresh_token_expires_in ?? null);
       return t.access_token;
+    }
+    case "instagram": {
+      // Connexion via une Page Facebook : jeton de Page, sans renouvellement nécessaire.
+      if (!isInstagramLogin(a.meta)) return token;
+      // Connexion Instagram directe : jeton long de 60 jours, prolongé dès qu'il reste moins d'une semaine.
+      if (!soon(a.token_expires_at, 7 * 86400_000)) return token;
+      try {
+        const t = await igRefresh(token);
+        await save(db, a, t.token, t.expiresIn);
+        return t.token;
+      } catch (e) {
+        if (a.token_expires_at && new Date(a.token_expires_at).getTime() > Date.now()) return token;
+        throw e;
+      }
     }
     case "threads": {
       // Jeton long de 60 jours, prolongé dès qu'il reste moins d'une semaine.

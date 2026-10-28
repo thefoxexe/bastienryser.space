@@ -7,6 +7,7 @@
 import { publishBluesky } from "../_shared/bluesky.ts";
 import { asNetworkError, NetworkError } from "../_shared/errors.ts";
 import { publishLinkedIn, type LinkedInMedia } from "../_shared/linkedin.ts";
+import { IG_GRAPH, isInstagramLogin } from "../_shared/instagram.ts";
 import { publishFacebook, publishInstagram } from "../_shared/meta.ts";
 import { publishPinterest } from "../_shared/pinterest.ts";
 import { adminClient, authorize, heartbeat, json, logActivity } from "../_shared/supabase.ts";
@@ -110,7 +111,7 @@ async function processTarget(db: ReturnType<typeof adminClient>, target: Target)
         const videoUrl = video ? (await signed([video]))[0] : undefined;
         result =
           account.network === "instagram"
-            ? await publishInstagram(account.external_id, token, target.caption, urls, videoUrl)
+            ? await publishInstagram(account.external_id, token, target.caption, urls, videoUrl, isInstagramLogin(account.meta) ? IG_GRAPH : undefined)
             : await publishFacebook(account.external_id, token, target.caption, urls, videoUrl);
         break;
       }

@@ -4,6 +4,7 @@
 
 import { blueskyProfile, blueskyStats } from "../_shared/bluesky.ts";
 import { liFetch } from "../_shared/linkedin.ts";
+import { IG_GRAPH, isInstagramLogin } from "../_shared/instagram.ts";
 import { insightsValues, metaGet } from "../_shared/meta.ts";
 import { pinterestStats, pinterestUser } from "../_shared/pinterest.ts";
 import { adminClient, authorize, heartbeat, json } from "../_shared/supabase.ts";
@@ -76,7 +77,7 @@ Deno.serve(async (req) => {
       let raw: Record<string, unknown> = {};
 
       if (t.network === "instagram") {
-        const v = await insightsValues(t.external_post_id!, token, ["reach", "likes", "comments", "shares", "saved", "views"]);
+        const v = await insightsValues(t.external_post_id!, token, ["reach", "likes", "comments", "shares", "saved", "views"], {}, isInstagramLogin(account.meta) ? IG_GRAPH : undefined);
         raw = v;
         m = { reach: v.reach, likes: v.likes, comments: v.comments, shares: v.shares, saves: v.saved, impressions: v.views };
       } else if (t.network === "facebook") {
@@ -148,9 +149,10 @@ Deno.serve(async (req) => {
     try {
       let row: { followers?: number; reach?: number } | null = null;
       if (a.network === "instagram") {
-        const info = await metaGet<{ followers_count?: number }>(a.external_id, token, { fields: "followers_count" });
+        const igBase = isInstagramLogin(a.meta) ? IG_GRAPH : undefined;
+        const info = await metaGet<{ followers_count?: number }>(a.external_id, token, { fields: "followers_count" }, igBase);
         const until = Math.floor(Date.now() / 1000);
-        const reach = await insightsValues(a.external_id, token, ["reach"], { period: "day", since: until - 86400, until });
+        const reach = await insightsValues(a.external_id, token, ["reach"], { period: "day", since: until - 86400, until }, igBase);
         row = { followers: info.followers_count, reach: reach.reach };
       } else if (a.network === "facebook") {
         const info = await metaGet<{ followers_count?: number; fan_count?: number }>(a.external_id, token, { fields: "followers_count,fan_count" });

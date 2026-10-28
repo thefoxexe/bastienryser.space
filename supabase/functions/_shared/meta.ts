@@ -3,8 +3,8 @@ import { metaError, NetworkError } from "./errors.ts";
 
 type Params = Record<string, string | number | boolean | undefined>;
 
-async function graph<T>(method: "GET" | "POST", path: string, token: string, params: Params = {}, jsonBody?: unknown): Promise<T> {
-  const url = new URL(`${META_GRAPH}/${path.replace(/^\//, "")}`);
+async function graph<T>(method: "GET" | "POST", path: string, token: string, params: Params = {}, jsonBody?: unknown, base = META_GRAPH): Promise<T> {
+  const url = new URL(`${base}/${path.replace(/^\//, "")}`);
   const init: RequestInit = { method, signal: AbortSignal.timeout(30_000), headers: { Authorization: `Bearer ${token}` } };
   if (method === "GET") {
     for (const [k, v] of Object.entries(params)) if (v !== undefined) url.searchParams.set(k, String(v));
@@ -22,8 +22,9 @@ async function graph<T>(method: "GET" | "POST", path: string, token: string, par
   return data as T;
 }
 
-export const metaGet = <T>(path: string, token: string, params?: Params) => graph<T>("GET", path, token, params);
-export const metaPost = <T>(path: string, token: string, params?: Params, jsonBody?: unknown) => graph<T>("POST", path, token, params, jsonBody);
+// `base` : graph.facebook.com (comptes connectés via Facebook) ou graph.instagram.com (connexion Instagram directe).
+export const metaGet = <T>(path: string, token: string, params?: Params, base?: string) => graph<T>("GET", path, token, params, undefined, base);
+export const metaPost = <T>(path: string, token: string, params?: Params, jsonBody?: unknown, base?: string) => graph<T>("POST", path, token, params, jsonBody, base);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -31,9 +32,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Instagram (API Graph via Facebook Login) : conteneurs puis media_publish.
 // ---------------------------------------------------------------------------
 
-async function waitForContainer(containerId: string, token: string, video = false) {
+async function waitForContainer(containerId: string, token: string, video = false, base?: string) {
   for (let i = 0; i < (video ? 40 : 20); i++) {
-    const { status_code } = await metaGet<{ status_code?: string }>(containerId, token, { fields: "status_code" });
+    const { status_code } = await metaGet<{ status_code?: string }>(containerId, token, { fields: "status_code" }, base);
     if (status_code === "FINISHED") return;
     if (status_code === "ERROR" || status_code === "EXPIRED") {
       throw new NetworkError("Instagram n'a pas pu traiter l'image (format ou ratio refusé).", false);
@@ -43,33 +44,33 @@ async function waitForContainer(containerId: string, token: string, video = fals
   throw new NetworkError("Instagram met trop de temps à traiter les images. Nouvel essai automatique.", true);
 }
 
-export async function publishInstagram(igUserId: string, token: string, caption: string, imageUrls: string[], videoUrl?: string) {
+export async function publishInstagram(igUserId: string, token: string, caption: string, imageUrls: string[], videoUrl?: string, base?: string) {
   if (!imageUrls.length && !videoUrl) throw new NetworkError("Instagram demande une image ou une vidéo.", false);
   let creationId: string;
   if (videoUrl) {
     // Vidéo : publiée en Reel, et aussi visible dans le fil.
-    const { id } = await metaPost<{ id: string }>(`${igUserId}/media`, token, { media_type: "REELS", video_url: videoUrl, caption, share_to_feed: true });
+    const { id } = await metaPost<{ id: string }>(`${igUserId}/media`, token, { media_type: "REELS", video_url: videoUrl, caption, share_to_feed: true }, undefined, base);
     creationId = id;
   } else if (imageUrls.length === 1) {
-    const { id } = await metaPost<{ id: string }>(`${igUserId}/media`, token, { image_url: imageUrls[0], caption });
+    const { id } = await metaPost<{ id: string }>(`${igUserId}/media`, token, { image_url: imageUrls[0], caption }, undefined, base);
     creationId = id;
   } else {
     const children: string[] = [];
     for (const url of imageUrls.slice(0, 10)) {
-      const { id } = await metaPost<{ id: string }>(`${igUserId}/media`, token, { image_url: url, is_carousel_item: true });
+      const { id } = await metaPost<{ id: string }>(`${igUserId}/media`, token, { image_url: url, is_carousel_item: true }, undefined, base);
       children.push(id);
     }
-    for (const child of children) await waitForContainer(child, token);
-    const { id } = await metaPost<{ id: string }>(`${igUserId}/media`, token, { media_type: "CAROUSEL", children: children.join(","), caption });
+    for (const child of children) await waitForContainer(child, token, false, base);
+    const { id } = await metaPost<{ id: string }>(`${igUserId}/media`, token, { media_type: "CAROUSEL", children: children.join(","), caption }, undefined, base);
     creationId = id;
   }
-  await waitForContainer(creationId, token, Boolean(videoUrl));
-  const { id: mediaId } = await metaPost<{ id: string }>(`${igUserId}/media_publish`, token, { creation_id: creationId });
+  await waitForContainer(creationId, token, Boolean(videoUrl), base);
+  const { id: mediaId } = await metaPost<{ id: string }>(`${igUserId}/media_publish`, token, { creation_id: creationId }, undefined, base);
 
   // La publication est faite : un échec ici ne doit jamais provoquer de nouvel essai.
   let permalink: string | null = null;
   try {
-    ({ permalink } = await metaGet<{ permalink: string }>(mediaId, token, { fields: "permalink" }));
+    ({ permalink } = await metaGet<{ permalink: string }>(mediaId, token, { fields: "permalink" }, base));
   } catch {
     permalink = null;
   }
@@ -116,7 +117,7 @@ export async function publishFacebook(pageId: string, token: string, message: st
 // pour ne garder que les chiffres que l'API fournit vraiment.
 // ---------------------------------------------------------------------------
 
-export async function insightsValues(objectId: string, token: string, metrics: string[], extra: Params = {}): Promise<Record<string, number>> {
+export async function insightsValues(objectId: string, token: string, metrics: string[], extra: Params = {}, base?: string): Promise<Record<string, number>> {
   type Insight = { data: { name: string; values?: { value: number }[]; total_value?: { value: number } }[] };
   const read = (r: Insight) => {
     const out: Record<string, number> = {};
@@ -127,12 +128,12 @@ export async function insightsValues(objectId: string, token: string, metrics: s
     return out;
   };
   try {
-    return read(await metaGet<Insight>(`${objectId}/insights`, token, { metric: metrics.join(","), ...extra }));
+    return read(await metaGet<Insight>(`${objectId}/insights`, token, { metric: metrics.join(","), ...extra }, base));
   } catch {
     const out: Record<string, number> = {};
     for (const m of metrics) {
       try {
-        Object.assign(out, read(await metaGet<Insight>(`${objectId}/insights`, token, { metric: m, ...extra })));
+        Object.assign(out, read(await metaGet<Insight>(`${objectId}/insights`, token, { metric: m, ...extra }, base)));
       } catch {
         // Métrique non disponible pour ce type de média : on n'invente rien.
       }

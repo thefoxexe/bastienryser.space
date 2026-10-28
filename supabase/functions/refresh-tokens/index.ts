@@ -5,6 +5,7 @@
 
 import { env, META_GRAPH, optionalEnv } from "../_shared/env.ts";
 import { adminClient, authorize, heartbeat, json, logActivity, readToken, storeToken } from "../_shared/supabase.ts";
+import { isInstagramLogin } from "../_shared/instagram.ts";
 import { accessToken, type AccountRow } from "../_shared/tokens.ts";
 
 // Réseaux dont le jeton se renouvelle seul (refresh token) : on vérifie qu'il marche encore, sans alerte d'échéance.
@@ -75,7 +76,17 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      if (a.network === "instagram" || a.network === "facebook") {
+      if (a.network === "instagram" && isInstagramLogin(a.meta)) {
+        // Connexion Instagram directe : prolongée par accessToken() quand elle approche de l'échéance.
+        try {
+          await accessToken(db, a);
+        } catch {
+          await db.from("social_accounts").update({ status: "expired", last_error: "Instagram a refusé le renouvellement : reconnecte le compte." }).eq("id", a.id);
+          await logActivity(db, { business_id: a.business_id, kind: "account.expired", message: `Connexion Instagram expirée : ${a.display_name}` });
+          report.push({ id: a.id, result: "expired" });
+          continue;
+        }
+      } else if (a.network === "instagram" || a.network === "facebook") {
         const token = await readToken(db, a.token_ref);
         const info = await fetch(
           `${META_GRAPH}/debug_token?` + new URLSearchParams({ input_token: token ?? "", access_token: `${env("META_APP_ID")}|${env("META_APP_SECRET")}` }),

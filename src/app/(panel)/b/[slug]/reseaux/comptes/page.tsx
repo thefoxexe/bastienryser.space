@@ -12,7 +12,7 @@ import { BlueskyForm } from "./bluesky-form";
 
 export const metadata: Metadata = { title: "Comptes connectés" };
 
-type Provider = "meta" | "linkedin" | "linkedin_page" | "threads" | "youtube" | "tiktok" | "pinterest" | "x" | "bluesky";
+type Provider = "meta" | "instagram" | "linkedin" | "linkedin_page" | "threads" | "youtube" | "tiktok" | "pinterest" | "x" | "bluesky";
 
 const PROVIDERS: { id: Provider; networks: SocialNetwork[]; title: string; description: string; note?: string }[] = [
   {
@@ -47,6 +47,13 @@ const PROVIDERS: { id: Provider; networks: SocialNetwork[]; title: string; descr
     networks: ["instagram", "facebook"],
     title: "Instagram et Page Facebook",
     description: "Un seul flux Meta connecte la Page Facebook et le compte Instagram professionnel qui lui est relié. Images, carrousels et Reels.",
+  },
+  {
+    id: "instagram",
+    networks: ["instagram"],
+    title: "Instagram, connexion directe",
+    description: "Sans Page Facebook : tu te connectes avec ton compte Instagram professionnel. Images, carrousels et Reels.",
+    note: "À utiliser si Meta refuse de relier ton Instagram à ta Page. À faire depuis un ordinateur si l'app Instagram intercepte la connexion sur le téléphone.",
   },
   {
     id: "threads",

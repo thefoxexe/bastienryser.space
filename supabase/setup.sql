@@ -1,6 +1,6 @@
 -- Installation complète de bastienryser.space (généré par supabase/scripts/build-setup.mjs, ne pas modifier à la main).
 -- À coller en une fois dans Supabase > SQL Editor > New query, puis Run, sur un projet neuf.
--- Contient 15 migrations, l'adresse du projet pour les tâches automatiques et l'accès admin.
+-- Contient 16 migrations, l'adresse du projet pour les tâches automatiques et l'accès admin.
 
 -- ===========================================================================
 -- 20261025000000_socle.sql
@@ -1203,6 +1203,15 @@ create policy project_time_entries_admin_all on public.project_time_entries
 revoke all on public.project_time_entries from anon;
 
 -- ===========================================================================
+-- 20261025001500_instagram_login.sql
+-- ===========================================================================
+
+-- Connexion Instagram directe (sans Page Facebook) : nouveau fournisseur OAuth.
+alter table public.oauth_states drop constraint oauth_states_provider_check;
+alter table public.oauth_states add constraint oauth_states_provider_check
+  check (provider in ('meta', 'instagram', 'linkedin', 'linkedin_page', 'threads', 'google', 'youtube', 'tiktok', 'pinterest', 'x'));
+
+-- ===========================================================================
 -- Configuration du projet
 -- ===========================================================================
 
@@ -1224,7 +1233,8 @@ insert into supabase_migrations.schema_migrations (version, name) values
   ('20261025001100', 'ai_memory'),
   ('20261025001200', 'push'),
   ('20261025001300', 'projects'),
-  ('20261025001400', 'time')
+  ('20261025001400', 'time'),
+  ('20261025001500', 'instagram_login')
 on conflict do nothing;
 
 -- Adresse du projet, lue par pg_cron pour appeler les Edge Functions (pas un secret).

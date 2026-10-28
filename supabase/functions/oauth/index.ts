@@ -13,14 +13,15 @@ import { metaGet } from "../_shared/meta.ts";
 import { PINTEREST_SCOPES, pinterestBoards, pinterestToken, pinterestUser } from "../_shared/pinterest.ts";
 import { syncConnector, type ConnectorRow } from "../_shared/sync.ts";
 import { adminClient, logActivity, storeToken } from "../_shared/supabase.ts";
+import { IG_SCOPES, igExchange, igProfile } from "../_shared/instagram.ts";
 import { THREADS_SCOPES, threadsExchange, threadsProfile } from "../_shared/threads.ts";
 import { TIKTOK_SCOPES, tiktokToken, tiktokUser } from "../_shared/tiktok.ts";
 import { X_SCOPES, xMe, xToken } from "../_shared/x.ts";
 import { YOUTUBE_SCOPES, youtubeChannel } from "../_shared/youtube.ts";
 
-type Provider = "meta" | "linkedin" | "linkedin_page" | "google" | "threads" | "youtube" | "tiktok" | "pinterest" | "x";
+type Provider = "meta" | "instagram" | "linkedin" | "linkedin_page" | "google" | "threads" | "youtube" | "tiktok" | "pinterest" | "x";
 
-const LABELS: Record<string, string> = { threads: "Threads", youtube: "YouTube", tiktok: "TikTok", pinterest: "Pinterest", x: "X" };
+const LABELS: Record<string, string> = { instagram: "Instagram", threads: "Threads", youtube: "YouTube", tiktok: "TikTok", pinterest: "Pinterest", x: "X" };
 
 /** PKCE (X) : vérificateur aléatoire et son empreinte SHA-256 en base64url. */
 async function pkce() {
@@ -149,6 +150,16 @@ Deno.serve(async (req) => {
         auth.searchParams.set("code_challenge_method", "S256");
         return Response.redirect(auth.toString(), 302);
       }
+      if (provider === "instagram") {
+        // Connexion Instagram directe : aucune Page Facebook nécessaire.
+        const auth = new URL("https://www.instagram.com/oauth/authorize");
+        auth.searchParams.set("client_id", env("INSTAGRAM_APP_ID"));
+        auth.searchParams.set("redirect_uri", REDIRECT_URI);
+        auth.searchParams.set("response_type", "code");
+        auth.searchParams.set("scope", IG_SCOPES);
+        auth.searchParams.set("state", state);
+        return Response.redirect(auth.toString(), 302);
+      }
       if (provider === "meta") {
         const auth = new URL("https://www.facebook.com/v26.0/dialog/oauth");
         auth.searchParams.set("client_id", env("META_APP_ID"));
@@ -257,7 +268,7 @@ async function connectMeta(db: Db, businessId: string, businessName: string, cod
       avatar_url: page.picture?.data?.url ?? null,
       token: page.access_token,
       token_expires_at: expires,
-      meta: { page_id: page.id },
+      meta: { page_id: page.id, via: "facebook" },
     });
     count++;
     await logActivity(db, {
@@ -277,7 +288,7 @@ async function connectMeta(db: Db, businessId: string, businessName: string, cod
         avatar_url: ig.profile_picture_url ?? null,
         token: page.access_token,
         token_expires_at: expires,
-        meta: { page_id: page.id },
+        meta: { page_id: page.id, via: "facebook" },
       });
       count++;
       await logActivity(db, {
@@ -439,7 +450,21 @@ async function connectOther(db: Db, businessId: string, businessName: string, co
   let values: Parameters<typeof upsertAccount>[1];
   const base = { business_id: businessId };
 
-  if (provider === "threads") {
+  if (provider === "instagram") {
+    const { token, expiresIn } = await igExchange(code, REDIRECT_URI);
+    const me = await igProfile(token);
+    values = {
+      ...base,
+      network: "instagram",
+      external_id: me.user_id,
+      display_name: me.name || me.username || "Instagram",
+      username: me.username ?? null,
+      avatar_url: me.profile_picture_url ?? null,
+      token,
+      token_expires_at: inSeconds(expiresIn),
+      meta: { via: "instagram_login" },
+    };
+  } else if (provider === "threads") {
     const { token, expiresIn } = await threadsExchange(code, REDIRECT_URI);
     const me = await threadsProfile(token);
     values = {

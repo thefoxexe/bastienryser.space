@@ -239,7 +239,7 @@ export async function unschedulePost(formData: FormData) {
 // Comptes connectés
 // ---------------------------------------------------------------------------
 
-const PROVIDERS = ["meta", "linkedin", "linkedin_page", "threads", "youtube", "tiktok", "pinterest", "x"] as const;
+const PROVIDERS = ["meta", "instagram", "linkedin", "linkedin_page", "threads", "youtube", "tiktok", "pinterest", "x"] as const;
 
 /** Démarre le flux OAuth officiel : l'edge function `oauth` prend la suite et garde les tokens côté serveur. */
 export async function startOAuth(formData: FormData) {
