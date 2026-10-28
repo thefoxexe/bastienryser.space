@@ -46,6 +46,9 @@ const mediaSchema = z.object({
   size: z.number().int().nonnegative(),
   width: z.number().int().positive().nullable(),
   height: z.number().int().positive().nullable(),
+  durationMs: z.number().int().nonnegative().nullable().optional(),
+  coverMs: z.number().int().nonnegative().nullable().optional(),
+  coverPath: z.string().min(1).nullable().optional(),
 });
 
 const saveSchema = z.object({
@@ -71,7 +74,9 @@ export async function savePost(raw: SaveInput): Promise<{ error?: string; postId
   if (!business) return { error: "Business introuvable." };
 
   // Tous les fichiers doivent appartenir au dossier de ce business.
-  if (input.media.some((m) => !m.storagePath.startsWith(`${business.id}/`))) return { error: "Fichier invalide." };
+  if (input.media.some((m) => !m.storagePath.startsWith(`${business.id}/`) || (m.coverPath && !m.coverPath.startsWith(`${business.id}/`)))) {
+    return { error: "Fichier invalide." };
+  }
 
   const accountIds = input.targets.map((t) => t.accountId);
   const { data: accounts } = accountIds.length
@@ -118,11 +123,11 @@ export async function savePost(raw: SaveInput): Promise<{ error?: string; postId
     const { error } = await supabase.from("posts").update(postRow).eq("id", postId);
     if (error) return { error: "Enregistrement impossible." };
     // Remplace médias et cibles (le post n'a encore rien publié).
-    const { data: oldMedia } = await supabase.from("post_media").select("storage_path").eq("post_id", postId);
+    const { data: oldMedia } = await supabase.from("post_media").select("storage_path, cover_path").eq("post_id", postId);
     await supabase.from("post_targets").delete().eq("post_id", postId);
     await supabase.from("post_media").delete().eq("post_id", postId);
-    const keep = new Set(input.media.map((m) => m.storagePath));
-    const orphans = (oldMedia ?? []).map((m) => m.storage_path).filter((p) => !keep.has(p));
+    const keep = new Set(input.media.flatMap((m) => [m.storagePath, m.coverPath ?? ""]));
+    const orphans = (oldMedia ?? []).flatMap((m) => [m.storage_path, m.cover_path]).filter((p): p is string => !!p && !keep.has(p));
     if (orphans.length) await supabase.storage.from("media").remove(orphans);
   } else {
     const { data, error } = await supabase.from("posts").insert(postRow).select("id").single();
@@ -141,6 +146,9 @@ export async function savePost(raw: SaveInput): Promise<{ error?: string; postId
         size_bytes: m.size,
         width: m.width,
         height: m.height,
+        duration_ms: m.durationMs ?? null,
+        cover_ms: m.kind === "video" && !m.coverPath ? (m.coverMs ?? null) : null,
+        cover_path: m.kind === "video" ? (m.coverPath ?? null) : null,
       })),
     );
     if (error) return { error: "Les images n'ont pas pu être enregistrées." };
@@ -236,9 +244,9 @@ export async function deletePost(formData: FormData) {
   const supabase = await createClient();
   const { data: post } = await supabase.from("posts").select("id, status, businesses(slug)").eq("id", postId).single();
   if (!post || post.status === "publishing") return;
-  const { data: media } = await supabase.from("post_media").select("storage_path").eq("post_id", postId);
+  const { data: media } = await supabase.from("post_media").select("storage_path, cover_path").eq("post_id", postId);
   await supabase.from("posts").delete().eq("id", postId);
-  if (media?.length) await supabase.storage.from("media").remove(media.map((m) => m.storage_path));
+  if (media?.length) await supabase.storage.from("media").remove(media.flatMap((m) => (m.cover_path ? [m.storage_path, m.cover_path] : [m.storage_path])));
   const slug = (post.businesses as unknown as { slug: string }).slug;
   revalidatePath(`/b/${slug}`, "layout");
   redirect(`/b/${slug}/reseaux/historique`);

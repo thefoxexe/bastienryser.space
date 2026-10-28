@@ -19,9 +19,18 @@ export type MediaItem = {
   height: number | null;
   previewUrl: string | null;
   name: string;
+  /** Vidéo : durée, couverture (instant ou image importée) et suivi de la préparation. */
+  durationMs?: number | null;
+  coverMs?: number | null;
+  coverPath?: string | null;
+  coverUrl?: string | null;
+  stage?: "analyse" | "convert" | "upload" | null;
+  progress?: number | null;
+  note?: string | null;
+  muted?: boolean;
 };
 
-const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf,video/mp4,video/quicktime";
+const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf,video/*";
 
 export function MediaPicker({
   items,
@@ -95,7 +104,8 @@ export function MediaPicker({
           </span>
           <span className="text-sm font-medium">Dépose tes images ou ta vidéo ici</span>
           <span className="max-w-sm text-[13px] text-muted">
-            1 image = post simple, plusieurs = carrousel (4:5 conseillé). Une vidéo MP4 ou MOV (50 Mo max) pour TikTok, YouTube, les Reels et Threads. PDF pour LinkedIn.
+            1 image = post simple, plusieurs = carrousel (4:5 conseillé). Une vidéo = Reel : n&apos;importe quelle taille, même en 4K, elle est
+            convertie automatiquement. PDF pour LinkedIn.
           </span>
         </button>
       )}
@@ -153,8 +163,11 @@ function SortableTile({ item, index, onRemove }: { item: MediaItem; index: numbe
           </div>
         )}
         {item.status === "uploading" ? (
-          <div className="absolute inset-0 grid place-items-center bg-black/35 backdrop-blur-[1px]">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/45 backdrop-blur-[1px]">
             <Loader2 className="size-5 animate-spin text-white" />
+            {item.stage === "convert" && item.progress != null ? (
+              <span className="tabular text-[11px] font-semibold text-white">{Math.round(item.progress * 100)} %</span>
+            ) : null}
           </div>
         ) : null}
         {item.status === "error" ? (

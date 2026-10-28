@@ -231,7 +231,22 @@ export function countChars(text: string) {
   return [...new Intl.Segmenter("fr", { granularity: "grapheme" }).segment(text)].length;
 }
 
-export type MediaSummary = { kind: MediaKind; size?: number }[];
+export type MediaSummary = { kind: MediaKind; size?: number; durationMs?: number | null; width?: number | null; height?: number | null }[];
+
+/** Durées acceptées par les API (secondes). */
+const VIDEO_LIMITS: Partial<Record<SocialNetwork, { min: number; max: number }>> = {
+  instagram: { min: 3, max: 15 * 60 },
+  facebook: { min: 1, max: 4 * 3600 },
+  threads: { min: 1, max: 5 * 60 },
+  youtube: { min: 1, max: 12 * 3600 },
+  tiktok: { min: 3, max: 10 * 60 },
+};
+
+/** Une vidéo verticale et courte devient un Reel Facebook ; sinon une vidéo classique de la Page. */
+export function isFacebookReel(v: { durationMs?: number | null; width?: number | null; height?: number | null }) {
+  const s = (v.durationMs ?? 0) / 1000;
+  return !!v.width && !!v.height && v.height > v.width && s >= 3 && s <= 90;
+}
 
 export type Issue = { level: "error" | "warning"; message: string };
 
@@ -260,6 +275,24 @@ export function checkTarget(network: SocialNetwork, caption: string, media: Medi
   }
   if (videos > 0 && (images > 0 || pdfs > 0)) {
     issues.push({ level: "error", message: "Une vidéo se publie seule : retire les images et le PDF." });
+  }
+  const video = media.find((m) => m.kind === "video");
+  const limits = VIDEO_LIMITS[network];
+  if (video?.durationMs && limits) {
+    const s = video.durationMs / 1000;
+    const fmt = (n: number) => (n >= 60 ? `${Math.round(n / 60)} min` : `${n} s`);
+    if (s < limits.min) issues.push({ level: "error", message: `Vidéo trop courte pour ${rules.label} (${fmt(limits.min)} minimum).` });
+    if (s > limits.max) issues.push({ level: "error", message: `Vidéo trop longue pour ${rules.label} (${fmt(limits.max)} maximum).` });
+  }
+  if (video?.width && video.height) {
+    const vertical = video.height > video.width;
+    if (network === "instagram" && !vertical) issues.push({ level: "warning", message: "Vidéo horizontale : le Reel aura des bandes. Le format idéal est 9:16 (vertical)." });
+    if (network === "facebook" && !isFacebookReel(video)) {
+      issues.push({ level: "warning", message: "Publiée en vidéo classique sur la Page : un Reel Facebook doit être vertical et durer 3 à 90 s." });
+    }
+    if (network === "youtube" && !(vertical && (video.durationMs ?? 0) <= 180_000)) {
+      issues.push({ level: "warning", message: "Vidéo YouTube classique : un Short doit être vertical et durer 3 min au plus." });
+    }
   }
   if (rules.requiresVideo && videos === 0) {
     issues.push({ level: "error", message: `${rules.label} demande une vidéo.` });

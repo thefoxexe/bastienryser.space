@@ -14,9 +14,10 @@ import { isoToZurichLocal, zurichLocalToIso } from "@/lib/format";
 import { checkTarget, countChars, countHashtags, NETWORK_ORDER, NETWORKS, type Issue } from "@/lib/social/networks";
 import { createUploadClient } from "@/lib/supabase/browser";
 import type { SocialAccount, SocialNetwork } from "@/lib/types";
-import { imageSize, toJpeg, videoSize } from "./client-media";
+import { imageSize, prepareVideo, toJpeg } from "./client-media";
 import { MediaPicker, type MediaItem } from "./media-picker";
 import { NetworkPreview } from "./previews";
+import { VideoPanel } from "./video-panel";
 
 export type ComposerInitial = {
   postId: string;
@@ -73,6 +74,21 @@ export function Composer({ business, accounts, initial }: Props) {
   const readyMedia = media.filter((m) => m.status === "ready");
   const uploading = media.some((m) => m.status === "uploading");
 
+  const video = media.length === 1 && media[0].kind === "video" ? media[0] : null;
+  const mediaHint = video
+    ? video.status === "uploading"
+      ? video.stage === "convert"
+        ? `Conversion ${Math.round((video.progress ?? 0) * 100)} %`
+        : video.stage === "analyse"
+          ? "Analyse de la vidéo…"
+          : "Envoi…"
+      : video.height && video.width && video.height > video.width
+        ? "Reel vertical"
+        : "Vidéo"
+    : readyMedia.length > 1
+      ? `Carrousel de ${readyMedia.length} · glisse pour réordonner`
+      : undefined;
+
   const issues = new Map<SocialNetwork, Issue[]>();
   for (const n of networks) issues.set(n, checkTarget(n, captionFor(n), readyMedia));
   const blocking = [...issues.values()].flat().filter((i) => i.level === "error");
@@ -85,12 +101,13 @@ export function Composer({ business, accounts, initial }: Props) {
     for (const original of files) {
       const key = crypto.randomUUID();
       const isPdf = original.type === "application/pdf";
-      const isVideo = original.type === "video/mp4" || original.type === "video/quicktime";
+      const isVideo = original.type.startsWith("video/");
       setMedia((prev) => [
         ...prev,
         {
           key,
           status: "uploading",
+          stage: isVideo ? "analyse" : "upload",
           storagePath: null,
           kind: isPdf ? "pdf" : isVideo ? "video" : "image",
           mimeType: original.type,
@@ -104,15 +121,37 @@ export function Composer({ business, accounts, initial }: Props) {
       const update = (patch: Partial<MediaItem>) => setMedia((prev) => prev.map((m) => (m.key === key ? { ...m, ...patch } : m)));
       try {
         if (!isPdf && !isVideo && !["image/jpeg", "image/png", "image/webp"].includes(original.type)) throw new Error("Format non pris en charge");
-        if (isVideo && original.size > 50 * 1024 * 1024) throw new Error("Vidéo trop lourde (50 Mo max)");
-        const file = isPdf || isVideo ? original : await toJpeg(original);
-        const dims = isPdf ? null : isVideo ? await videoSize(file) : await imageSize(file);
+        let file: File = original;
+        let dims: { width: number; height: number } | null = null;
+        if (isVideo) {
+          // Conversion locale si besoin (4K, HEVC, trop lourde…) : la vidéo envoyée passe partout.
+          const prepared = await prepareVideo(original, (p) => update({ stage: "convert", progress: p }));
+          file = prepared.file;
+          dims = prepared;
+          update({
+            stage: "upload",
+            progress: null,
+            note: prepared.note,
+            muted: prepared.mutedByConversion,
+            durationMs: Math.round(prepared.duration * 1000),
+            // Première vignette proposée (le tout début est souvent noir).
+            coverMs: Math.round((prepared.duration * 1000) / 12),
+            width: prepared.width,
+            height: prepared.height,
+            size: file.size,
+            ...(file !== original ? { previewUrl: URL.createObjectURL(file) } : {}),
+          });
+        } else if (!isPdf) {
+          file = await toJpeg(original);
+          dims = await imageSize(file);
+        }
         const target = await createUploadTarget({ businessId: business.id, mimeType: file.type, size: file.size });
         if ("error" in target) throw new Error(target.error);
         const { error: uploadError } = await supabase.storage.from("media").uploadToSignedUrl(target.path, target.token, file, { contentType: file.type });
         if (uploadError) throw new Error("Envoi interrompu");
         update({
           status: "ready",
+          stage: null,
           storagePath: target.path,
           mimeType: file.type,
           size: file.size,
@@ -120,9 +159,19 @@ export function Composer({ business, accounts, initial }: Props) {
           height: dims?.height ?? null,
         });
       } catch (e) {
-        update({ status: "error", error: e instanceof Error ? e.message : "Erreur" });
+        update({ status: "error", stage: null, error: e instanceof Error ? e.message : "Erreur" });
       }
     }
+  }
+
+  /** Couverture importée (image) pour la vidéo. */
+  async function uploadCover(key: string, original: File) {
+    const file = await toJpeg(original);
+    const target = await createUploadTarget({ businessId: business.id, mimeType: file.type, size: file.size });
+    if ("error" in target) throw new Error(target.error);
+    const { error: uploadError } = await createUploadClient().storage.from("media").uploadToSignedUrl(target.path, target.token, file, { contentType: file.type });
+    if (uploadError) throw new Error("Envoi interrompu");
+    setMedia((prev) => prev.map((m) => (m.key === key ? { ...m, coverPath: target.path, coverUrl: URL.createObjectURL(file) } : m)));
   }
 
   function toggleAccount(id: string) {
@@ -173,6 +222,9 @@ export function Composer({ business, accounts, initial }: Props) {
           size: m.size,
           width: m.width,
           height: m.height,
+          durationMs: m.durationMs ?? null,
+          coverMs: m.coverMs ?? null,
+          coverPath: m.coverPath ?? null,
         })),
         targets: selectedAccounts.map((a) => ({ accountId: a.id, caption: captionFor(a.network) })),
         mode: kind,
@@ -193,8 +245,15 @@ export function Composer({ business, accounts, initial }: Props) {
       <div className="flex min-w-0 flex-col gap-5">
         {/* 1. Médias */}
         <Card className="p-5 sm:p-6">
-          <SectionTitle step={1} title="Médias" hint={readyMedia.length > 1 ? `Carrousel de ${readyMedia.length} · glisse pour réordonner` : undefined} />
+          <SectionTitle step={1} title="Médias" hint={mediaHint} />
           <MediaPicker items={media} onChange={setMedia} onFiles={handleFiles} />
+          {video ? (
+            <VideoPanel
+              item={video}
+              onCover={(patch) => setMedia((prev) => prev.map((m) => (m.key === video.key ? { ...m, ...patch } : m)))}
+              onUploadCover={(file) => uploadCover(video.key, file)}
+            />
+          ) : null}
         </Card>
 
         {/* 2. Comptes */}

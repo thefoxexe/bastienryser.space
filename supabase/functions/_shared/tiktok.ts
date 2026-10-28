@@ -59,7 +59,13 @@ export async function tiktokUser(token: string) {
   return data.user;
 }
 
-export async function publishTikTok(token: string, caption: string, video: { bytes: Uint8Array<ArrayBuffer>; contentType: string }, username: string | null) {
+export async function publishTikTok(
+  token: string,
+  caption: string,
+  video: { bytes: Uint8Array<ArrayBuffer>; contentType: string },
+  username: string | null,
+  coverMs?: number,
+) {
   const size = video.bytes.byteLength;
   // Une seule tranche : autorisée jusqu'à 64 Mo (nos vidéos sont plafonnées plus bas).
   const source_info = { source: "FILE_UPLOAD", video_size: size, chunk_size: size, total_chunk_count: 1 };
@@ -70,7 +76,14 @@ export async function publishTikTok(token: string, caption: string, video: { byt
 
   let inbox = false;
   let init = await tt<{ publish_id: string; upload_url: string }>(token, "/v2/post/publish/video/init/", {
-    post_info: { title: caption, privacy_level: privacy, disable_duet: false, disable_comment: false, disable_stitch: false },
+    post_info: {
+      title: caption,
+      privacy_level: privacy,
+      disable_duet: false,
+      disable_comment: false,
+      disable_stitch: false,
+      video_cover_timestamp_ms: coverMs,
+    },
     source_info,
   });
   if (init.json.error?.code === "unaudited_client_can_only_post_to_private_accounts") {

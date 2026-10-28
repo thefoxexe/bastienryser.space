@@ -18,31 +18,26 @@ export default async function ComposePage({ params, searchParams }: PageProps<"/
         postId: post.id,
         title: post.title ?? "",
         scheduledAt: post.scheduled_at,
-        media: post.media
-          .filter((m) => m.kind !== "video")
-          .map((m) => ({
-            key: m.id,
-            status: "ready",
-            storagePath: m.storage_path,
-            kind: m.kind,
-            mimeType: m.mime_type ?? "image/jpeg",
-            size: m.size_bytes ?? 0,
-            width: m.width,
-            height: m.height,
-            previewUrl: m.url,
-            name: m.storage_path.split("/").pop() ?? "fichier",
-          })),
+        media: post.media.map((m) => ({
+          key: m.id,
+          status: "ready",
+          storagePath: m.storage_path,
+          kind: m.kind,
+          mimeType: m.mime_type ?? "image/jpeg",
+          size: m.size_bytes ?? 0,
+          width: m.width,
+          height: m.height,
+          previewUrl: m.url,
+          name: m.storage_path.split("/").pop() ?? "fichier",
+          durationMs: m.duration_ms,
+          coverMs: m.cover_ms,
+          coverPath: m.cover_path,
+          coverUrl: m.cover_url,
+        })),
         targets: post.targets.filter((t) => t.social_account_id).map((t) => ({ accountId: t.social_account_id!, caption: t.caption })),
       };
     }
   }
 
-  return (
-    <Composer
-      key={initial?.postId ?? "new"}
-      business={{ id: business.id, slug: business.slug, name: business.name, color: business.color }}
-      accounts={accounts}
-      initial={initial}
-    />
-  );
+  return <Composer key={initial?.postId ?? "new"} business={{ id: business.id, slug: business.slug, name: business.name, color: business.color }} accounts={accounts} initial={initial} />;
 }

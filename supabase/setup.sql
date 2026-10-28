@@ -1270,6 +1270,18 @@ create trigger social_accounts_adopt_orphans
   for each row execute function public.adopt_orphan_targets();
 
 -- ===========================================================================
+-- 20261025001700_video.sql
+-- ===========================================================================
+
+-- Vidéos : durée, couverture choisie (image extraite ou fichier importé) et reprise du traitement Instagram.
+alter table public.post_media add column if not exists duration_ms integer;
+alter table public.post_media add column if not exists cover_ms integer;
+alter table public.post_media add column if not exists cover_path text;
+
+-- Conteneur Instagram déjà créé : un nouvel essai reprend son traitement au lieu de renvoyer la vidéo.
+alter table public.post_targets add column if not exists container_id text;
+
+-- ===========================================================================
 -- Configuration du projet
 -- ===========================================================================
 
@@ -1293,7 +1305,8 @@ insert into supabase_migrations.schema_migrations (version, name) values
   ('20261025001300', 'projects'),
   ('20261025001400', 'time'),
   ('20261025001500', 'instagram_login'),
-  ('20261025001600', 'orphan_targets')
+  ('20261025001600', 'orphan_targets'),
+  ('20261025001700', 'video')
 on conflict do nothing;
 
 -- Adresse du projet, lue par pg_cron pour appeler les Edge Functions (pas un secret).

@@ -8,7 +8,7 @@ import { publishBluesky } from "../_shared/bluesky.ts";
 import { asNetworkError, NetworkError } from "../_shared/errors.ts";
 import { publishLinkedIn, type LinkedInMedia } from "../_shared/linkedin.ts";
 import { IG_GRAPH, isInstagramLogin } from "../_shared/instagram.ts";
-import { publishFacebook, publishInstagram } from "../_shared/meta.ts";
+import { publishFacebook, publishFacebookReel, publishInstagram } from "../_shared/meta.ts";
 import { publishPinterest } from "../_shared/pinterest.ts";
 import { adminClient, authorize, heartbeat, json, logActivity } from "../_shared/supabase.ts";
 import { publishThreads } from "../_shared/threads.ts";
@@ -41,6 +41,7 @@ type Target = {
   network: string;
   caption: string;
   attempts: number;
+  container_id: string | null;
 };
 
 Deno.serve(async (req) => {
@@ -64,7 +65,19 @@ Deno.serve(async (req) => {
   return json({ processed: results.length, results });
 });
 
-type MediaRow = { storage_path: string; kind: "image" | "video" | "pdf"; mime_type: string | null; width: number | null; height: number | null };
+type MediaRow = {
+  storage_path: string;
+  kind: "image" | "video" | "pdf";
+  mime_type: string | null;
+  width: number | null;
+  height: number | null;
+  duration_ms: number | null;
+  cover_ms: number | null;
+  cover_path: string | null;
+};
+
+// Même règle que le composer (src/lib/social/networks.ts) : vertical et 3 à 90 s.
+const isFacebookReel = (v: MediaRow) => !!v.width && !!v.height && v.height > v.width && (v.duration_ms ?? 0) >= 3000 && (v.duration_ms ?? 0) <= 90_000;
 
 async function processTarget(db: ReturnType<typeof adminClient>, target: Target) {
   const { data } = target.social_account_id
@@ -81,7 +94,7 @@ async function processTarget(db: ReturnType<typeof adminClient>, target: Target)
 
     const { data: media } = await db
       .from("post_media")
-      .select("storage_path, kind, mime_type, width, height, position")
+      .select("storage_path, kind, mime_type, width, height, duration_ms, cover_ms, cover_path, position")
       .eq("post_id", post.id)
       .order("position");
     const files = (media ?? []) as MediaRow[];
@@ -107,15 +120,29 @@ async function processTarget(db: ReturnType<typeof adminClient>, target: Target)
 
     let result: { externalId: string; permalink: string | null };
     switch (account.network) {
-      case "instagram":
+      case "instagram": {
+        const token = await accessToken(db, account);
+        const urls = await signed(images);
+        const videoUrl = video ? (await signed([video]))[0] : undefined;
+        const coverUrl = video?.cover_path
+          ? (await db.storage.from("media").createSignedUrl(video.cover_path, 3600)).data?.signedUrl
+          : undefined;
+        result = await publishInstagram(account.external_id, token, target.caption, urls, videoUrl, isInstagramLogin(account.meta) ? IG_GRAPH : undefined, {
+          coverUrl,
+          thumbOffsetMs: video?.cover_ms ?? undefined,
+          containerId: target.container_id,
+          onContainer: async (id) => {
+            await db.from("post_targets").update({ container_id: id }).eq("id", target.id);
+          },
+        });
+        break;
+      }
       case "facebook": {
         const token = await accessToken(db, account);
         const urls = await signed(images);
         const videoUrl = video ? (await signed([video]))[0] : undefined;
-        result =
-          account.network === "instagram"
-            ? await publishInstagram(account.external_id, token, target.caption, urls, videoUrl, isInstagramLogin(account.meta) ? IG_GRAPH : undefined)
-            : await publishFacebook(account.external_id, token, target.caption, urls, videoUrl);
+        const reel = video && videoUrl && isFacebookReel(video) ? await publishFacebookReel(account.external_id, token, target.caption, videoUrl) : null;
+        result = reel ?? (await publishFacebook(account.external_id, token, target.caption, urls, videoUrl));
         break;
       }
       case "threads": {
@@ -150,7 +177,7 @@ async function processTarget(db: ReturnType<typeof adminClient>, target: Target)
       case "tiktok": {
         const token = await accessToken(db, account);
         const file = await download(needVideo());
-        const r = await publishTikTok(token, target.caption, file, account.username);
+        const r = await publishTikTok(token, target.caption, file, account.username, video?.cover_ms ?? undefined);
         if (r.inbox) note = "Vidéo envoyée dans la boîte de réception TikTok : ouvre l'app pour la publier.";
         result = r;
         break;

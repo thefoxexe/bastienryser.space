@@ -112,7 +112,7 @@ export async function listPosts(options: {
 }
 
 export type PostDetail = Post & {
-  media: (PostMedia & { url: string | null })[];
+  media: (PostMedia & { url: string | null; cover_url: string | null })[];
   targets: (PostTarget & { account: Pick<SocialAccount, "id" | "display_name" | "username" | "avatar_url" | "network"> | null; metrics: PostMetrics | null })[];
 };
 
@@ -139,7 +139,7 @@ export async function getPost(id: string): Promise<PostDetail> {
   const urls = new Map<string, string>();
   if (media.length) {
     const { data: signed } = await supabase.storage.from("media").createSignedUrls(
-      media.map((m) => m.storage_path),
+      media.flatMap((m) => (m.cover_path ? [m.storage_path, m.cover_path] : [m.storage_path])),
       3600,
     );
     signed?.forEach((s) => s.path && s.signedUrl && urls.set(s.path, s.signedUrl));
@@ -149,7 +149,7 @@ export async function getPost(id: string): Promise<PostDetail> {
   void _m;
   return {
     ...post,
-    media: media.map((m) => ({ ...m, url: urls.get(m.storage_path) ?? null })),
+    media: media.map((m) => ({ ...m, url: urls.get(m.storage_path) ?? null, cover_url: m.cover_path ? (urls.get(m.cover_path) ?? null) : null })),
     targets: post_targets.map(({ social_accounts, post_metrics, ...t }) => ({
       ...t,
       account: social_accounts,

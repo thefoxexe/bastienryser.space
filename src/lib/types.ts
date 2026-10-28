@@ -67,6 +67,10 @@ export type PostMedia = {
   size_bytes: number | null;
   width: number | null;
   height: number | null;
+  duration_ms: number | null;
+  /** Couverture d'une vidéo : instant choisi (ms) ou image importée. */
+  cover_ms: number | null;
+  cover_path: string | null;
 };
 
 export type PostTarget = {
