@@ -10,12 +10,14 @@ import { formatDate } from "@/lib/format";
 import { keywordHistory, keywordRankings } from "@/lib/keywords";
 import { lastDays } from "@/lib/metrics";
 import { KeywordStar } from "../keyword-star";
+import { chartMarkers, listMilestones } from "@/lib/milestones";
 
 export const metadata: Metadata = { title: "Mot-clé" };
 
 export default async function KeywordPage({ params }: PageProps<"/b/[slug]/donnees/mots-cles/[motcle]">) {
   const { slug, motcle } = await params;
   const business = await getBusiness(slug);
+  const marks = chartMarkers(await listMilestones(business.id));
   const query = decodeURIComponent(motcle);
   const [history, rankings] = await Promise.all([keywordHistory(business.id, query, 90), keywordRankings(business.id, 28)]);
   const row = rankings.find((r) => r.query === query);
@@ -55,7 +57,7 @@ export default async function KeywordPage({ params }: PageProps<"/b/[slug]/donne
       <Card>
         <CardHeader title="Position dans Google" description="Chaque jour, position moyenne pondérée par les impressions. La bande verte correspond à la première page." />
         <div className="p-5 pt-6 sm:p-6">
-          <PositionChart points={points} />
+          <PositionChart markers={marks} points={points} />
         </div>
       </Card>
 
@@ -63,7 +65,7 @@ export default async function KeywordPage({ params }: PageProps<"/b/[slug]/donne
         <Card>
           <CardHeader title="Clics depuis Google" />
           <div className="p-5 pt-6 sm:p-6">
-            <AreaChart points={points.map((p) => ({ day: p.day, value: p.clicks }))} format={{ kind: "number" }} label={`Clics pour « ${query} »`} height={150} />
+            <AreaChart markers={marks} points={points.map((p) => ({ day: p.day, value: p.clicks }))} format={{ kind: "number" }} label={`Clics pour « ${query} »`} height={150} />
           </div>
         </Card>
       ) : null}

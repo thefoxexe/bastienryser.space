@@ -10,6 +10,7 @@ import { Bars, channelLabel, Figure, pageLabel, Ranking } from "@/components/dat
 import { getBusiness } from "@/lib/data";
 import { financeSummary, periodFrom, periodShort, weekly } from "@/lib/finance";
 import { listConnectors, metricSeries, searchPosition, siteStatuses, type SeriesPoint } from "@/lib/metrics";
+import { chartMarkers, listMilestones } from "@/lib/milestones";
 
 export const metadata: Metadata = { title: "Données" };
 
@@ -19,6 +20,7 @@ export default async function DataOverview({ params, searchParams }: PageProps<"
   const { slug } = await params;
   const period = periodFrom((await searchParams).periode, 30);
   const business = await getBusiness(slug);
+  const marks = chartMarkers(await listMilestones(business.id));
   const base = `/b/${business.slug}/donnees`;
   const days = period;
 
@@ -98,7 +100,7 @@ export default async function DataOverview({ params, searchParams }: PageProps<"
           <CardHeader title="Visiteurs" description={`Visiteurs uniques par ${long ? "semaine" : "jour"}, d'après ${visitorsSource}.`} />
           <div className="p-5 pt-6 sm:p-6">
             {visitors ? (
-              <AreaChart points={long ? weekly(visitors) : visitors} format={{ kind: "number" }} label={long ? "Visiteurs par semaine" : "Visiteurs par jour"} />
+              <AreaChart markers={marks} points={long ? weekly(visitors) : visitors} format={{ kind: "number" }} label={long ? "Visiteurs par semaine" : "Visiteurs par jour"} />
             ) : (
               <EmptyState icon={<PlugZap />} title="Aucune source de visites" description="Connecte Google Analytics ou Plausible pour suivre la fréquentation de ton site." action={<ButtonLink href={`${base}/connecteurs`} size="sm">Connecter</ButtonLink>} />
             )}
@@ -112,7 +114,7 @@ export default async function DataOverview({ params, searchParams }: PageProps<"
           />
           <div className="p-5 pt-6 sm:p-6">
             {hasMoney ? (
-              <AreaChart points={long ? weekly(finance.income) : finance.income} format={money} label="Encaissements" />
+              <AreaChart markers={marks} points={long ? weekly(finance.income) : finance.income} format={money} label="Encaissements" />
             ) : (
               <EmptyState
                 icon={<PlugZap />}
@@ -140,7 +142,7 @@ export default async function DataOverview({ params, searchParams }: PageProps<"
               <Figure label="Position moyenne" value={position !== null ? position.toLocaleString("fr-CH") : "—"} />
             </dl>
             {clicks.length > 1 ? (
-              <AreaChart points={long ? weekly(clicks) : clicks} format={{ kind: "number" }} label={long ? "Clics depuis Google par semaine" : "Clics depuis Google par jour"} height={160} />
+              <AreaChart markers={marks} points={long ? weekly(clicks) : clicks} format={{ kind: "number" }} label={long ? "Clics depuis Google par semaine" : "Clics depuis Google par jour"} height={160} />
             ) : null}
             <div className="grid gap-8 lg:grid-cols-2">
               <Ranking

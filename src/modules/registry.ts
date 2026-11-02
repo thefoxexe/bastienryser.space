@@ -41,6 +41,7 @@ export const MODULES: ModuleDefinition[] = [
       { href: "/visites", label: "Visites" },
       { href: "/recherche", label: "Recherche" },
       { href: "/mots-cles", label: "Mots-clés" },
+      { href: "/jalons", label: "Jalons" },
       { href: "/sites", label: "Sites web" },
       { href: "/connecteurs", label: "Connecteurs" },
     ],

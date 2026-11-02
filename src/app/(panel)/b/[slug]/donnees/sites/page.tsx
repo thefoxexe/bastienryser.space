@@ -8,12 +8,14 @@ import { ButtonLink, Card, EmptyState } from "@/components/ui";
 import { getBusiness } from "@/lib/data";
 import { formatRelative } from "@/lib/format";
 import { siteStatuses } from "@/lib/metrics";
+import { chartMarkers, listMilestones } from "@/lib/milestones";
 
 export const metadata: Metadata = { title: "Sites web" };
 
 export default async function SitesPage({ params }: PageProps<"/b/[slug]/donnees/sites">) {
   const { slug } = await params;
   const business = await getBusiness(slug);
+  const marks = chartMarkers(await listMilestones(business.id));
   const sites = await siteStatuses([{ id: business.id, websites: business.websites }], business.id);
 
   if (!sites.length) {
@@ -58,7 +60,7 @@ export default async function SitesPage({ params }: PageProps<"/b/[slug]/donnees
             {ms.length > 1 ? (
               <div className="mt-8">
                 <p className="mb-3 text-[13px] font-medium">Temps de réponse moyen</p>
-                <AreaChart points={ms.map((d) => ({ day: d.day, value: d.avgMs! }))} format={{ kind: "ms" }} label={`Temps de réponse de ${s.host}`} height={140} />
+                <AreaChart markers={marks} points={ms.map((d) => ({ day: d.day, value: d.avgMs! }))} format={{ kind: "ms" }} label={`Temps de réponse de ${s.host}`} height={140} />
               </div>
             ) : null}
           </Card>

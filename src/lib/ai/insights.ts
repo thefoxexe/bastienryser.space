@@ -3,6 +3,7 @@ import { listAlerts } from "@/lib/alerts";
 import { metricsLast30Days } from "@/lib/data";
 import { financeSummary } from "@/lib/finance";
 import { lastDays, listConnectors, siteStatuses } from "@/lib/metrics";
+import { KIND_LABEL, listMilestones, milestoneImpacts, type MilestoneImpact } from "@/lib/milestones";
 import { createClient } from "@/lib/supabase/server";
 import { NETWORKS } from "@/lib/social/networks";
 import type { Business } from "@/lib/types";
@@ -33,6 +34,8 @@ export type Digest = {
   } | null;
   finance: { currency: string; income: number; expenses: number; net: number; refunds: number } | null;
   social: { network: string; posts: number; reach: number | null; followers: number | null }[];
+  /** Changements notés par l'utilisateur, avec l'avant / après mesuré sur la même durée. */
+  milestones: { day: string; kind: string; title: string; note: string | null; impact: MilestoneImpact | null }[];
   signals: string[];
 };
 
@@ -93,14 +96,16 @@ export async function businessDigest(business: Biz, period = 28): Promise<Digest
   const to = days[days.length - 1];
   const signals: string[] = [];
 
-  const [connectors, points, finance, alerts, sites, social] = await Promise.all([
+  const [connectors, points, finance, alerts, sites, social, milestones] = await Promise.all([
     listConnectors(business.id),
     seriesSum(business.id, ["visitors", "ga_users", "search_clicks", "search_impressions", "search_position"], prevFrom, to),
     financeSummary(business.id, period),
     listAlerts(),
     siteStatuses([{ id: business.id, websites: business.websites }], business.id),
     metricsLast30Days(business.id),
+    listMilestones(business.id),
   ]);
+  const impacts = await milestoneImpacts(business.id, milestones.slice(-10));
   const has = (kind: string) => connectors.find((c) => c.kind === kind);
   const sum = (metric: string, a: string, b: string) => points.filter((p) => p.metric === metric && p.day >= a && p.day <= b).reduce((s, p) => s + p.value, 0);
   const before = days[period - 1];
@@ -191,6 +196,7 @@ export async function businessDigest(business: Biz, period = 28): Promise<Digest
       ? { currency: finance.currency.toUpperCase(), income: finance.totals.income, expenses: finance.totals.expenses, net: finance.totals.net, refunds: finance.totals.refunds }
       : null,
     social: social.map((m) => ({ network: NETWORKS[m.network].label, posts: m.posts, reach: m.reach, followers: m.followers })),
+    milestones: milestones.slice(-10).map((m) => ({ day: m.day, kind: KIND_LABEL[m.kind], title: m.title, note: m.note, impact: impacts.get(m.id) ?? null })),
     signals,
   };
 }
@@ -199,4 +205,5 @@ export const DIGEST_GUIDE = `Repères pour lire ces données :
 - Search Console : « clics » = visites venues de Google. Les visites (Analytics ou Plausible) comptent toutes les sources : Google, accès direct, réseaux, liens. Un clic Google devient donc une visite, mais une visite ne vient pas forcément de Google, et les deux outils mesurent différemment (bloqueurs de pub, consentement aux cookies).
 - Position moyenne : 1 = premier résultat, plus le chiffre est élevé, moins bien c'est. C'est une moyenne pondérée par les impressions : quand le site commence à apparaître pour de nouvelles requêtes loin dans les résultats (page 4 ou 5), la moyenne grimpe même si les requêtes principales n'ont pas bougé. Regarder biggest_drops et new_queries avant de conclure à une chute.
 - Google livre les chiffres avec 2 à 3 jours de retard, et les derniers jours livrés sont souvent incomplets (peu d'impressions) : une moyenne calculée sur peu d'impressions est peu fiable.
-- Impressions = nombre de fois où le site est apparu dans les résultats, même sans être vu en haut de page.`;
+- Impressions = nombre de fois où le site est apparu dans les résultats, même sans être vu en haut de page.
+- milestones : changements notés par l'utilisateur (SEO, contenu, technique, campagne), avec l'avant / après sur la même durée de chaque côté (impact.days). Relie une variation à un jalon seulement si les dates concordent, et rappelle qu'en dessous de 28 jours de recul c'est encore trop tôt pour conclure : Google réagit souvent en 2 à 6 semaines.`;

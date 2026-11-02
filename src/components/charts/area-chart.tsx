@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState } from "react";
 import { formatDay, formatValue, niceMax, type ValueFormat } from "./format";
+import { MarkerLegend, MarkerLines, MarkerTooltip, placeMarkers, type ChartMarker } from "./markers";
 
 type Point = { day: string; value: number };
 
@@ -35,12 +36,29 @@ const PAD_TOP = 12;
 /**
  * Courbe d'une seule série sur une période : trait vert 2 px avec halo flou, aire en dégradé, grille fine.
  * Survol : ligne de repère et info-bulle avec la date et la valeur exacte. Tableau caché pour les lecteurs d'écran.
+ * `markers` : jalons (changements faits ce jour-là), en traits pointillés.
  */
-export function AreaChart({ points, format, label, height = 200 }: { points: Point[]; format: ValueFormat; label: string; height?: number }) {
+export function AreaChart({
+  points,
+  format,
+  label,
+  height = 200,
+  markers,
+}: {
+  points: Point[];
+  format: ValueFormat;
+  label: string;
+  height?: number;
+  markers?: ChartMarker[];
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   const gradient = `fade-${useId().replace(/:/g, "")}`;
   if (!points.length) return null;
+  const placed = placeMarkers(
+    points.map((p) => p.day),
+    markers,
+  );
 
   // Échelle qui descend sous zéro quand une valeur est négative (remboursements, résultat en perte).
   const values = points.map((p) => p.value);
@@ -96,6 +114,7 @@ export function AreaChart({ points, format, label, height = 200 }: { points: Poi
             <path d={line} fill="none" stroke="var(--green)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           </svg>
 
+          <MarkerLines placed={placed} left={pct} />
           {hover !== null ? <div className="pointer-events-none absolute inset-y-0 w-px bg-border-strong" style={{ left: pct(hover) }} /> : null}
           <div
             className="dot-glow pointer-events-none absolute size-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full transition-[left,top] duration-75"
@@ -108,6 +127,7 @@ export function AreaChart({ points, format, label, height = 200 }: { points: Poi
             >
               <span className="block text-muted">{formatDay(points[hover].day, true)}</span>
               <span className="tabular block font-semibold">{formatValue(points[hover].value, format)}</span>
+              <MarkerTooltip list={placed.get(hover)} />
             </div>
           ) : null}
         </div>
@@ -124,6 +144,7 @@ export function AreaChart({ points, format, label, height = 200 }: { points: Poi
         <span>{formatDay(points[Math.floor(last / 2)].day)}</span>
         <span>{formatDay(points[last].day)}</span>
       </div>
+      <MarkerLegend placed={placed} format={(d) => formatDay(d)} />
       <table className="sr-only">
         <caption>{label}</caption>
         <tbody>

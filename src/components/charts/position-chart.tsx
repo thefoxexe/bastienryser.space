@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { monotonePath } from "./area-chart";
 import { formatDay } from "./format";
+import { MarkerLegend, MarkerLines, MarkerTooltip, placeMarkers, type ChartMarker } from "./markers";
 
 type Point = { day: string; position: number | null; clicks: number; impressions: number };
 
@@ -13,7 +14,7 @@ const H = 200;
  * Position dans Google au fil du temps : axe inversé (1 en haut), ligne interrompue les jours sans impression.
  * Survol : date, position, clics et impressions du jour.
  */
-export function PositionChart({ points, height = 220 }: { points: Point[]; height?: number }) {
+export function PositionChart({ points, height = 220, markers }: { points: Point[]; height?: number; markers?: ChartMarker[] }) {
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   const known = points.filter((p) => p.position !== null).map((p) => p.position!);
@@ -37,6 +38,10 @@ export function PositionChart({ points, height = 220 }: { points: Point[]; heigh
   });
   if (current.length) segments.push(current);
 
+  const placed = placeMarkers(
+    points.map((p) => p.day),
+    markers,
+  );
   const lastKnown = [...points.keys()].reverse().find((i) => points[i].position !== null)!;
   const active = hover !== null && points[hover].position !== null ? hover : hover === null ? lastKnown : null;
   const pct = (i: number) => `${(x(i) / W) * 100}%`;
@@ -50,6 +55,10 @@ export function PositionChart({ points, height = 220 }: { points: Point[]; heigh
           className="relative flex-1 touch-none select-none"
           style={{ height }}
           onPointerMove={(e) => {
+            const rect = ref.current!.getBoundingClientRect();
+            setHover(Math.round(Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)) * last));
+          }}
+          onPointerDown={(e) => {
             const rect = ref.current!.getBoundingClientRect();
             setHover(Math.round(Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)) * last));
           }}
@@ -88,6 +97,7 @@ export function PositionChart({ points, height = 220 }: { points: Point[]; heigh
               )}
             </svg>
           ))}
+          <MarkerLines placed={placed} left={pct} />
           {hover !== null ? <div className="pointer-events-none absolute inset-y-0 w-px bg-border-strong" style={{ left: pct(hover) }} /> : null}
           {active !== null ? (
             <div
@@ -111,6 +121,7 @@ export function PositionChart({ points, height = 220 }: { points: Point[]; heigh
               ) : (
                 <span className="block font-medium">Aucune impression</span>
               )}
+              <MarkerTooltip list={placed.get(hover)} />
             </div>
           ) : null}
         </div>
@@ -127,6 +138,7 @@ export function PositionChart({ points, height = 220 }: { points: Point[]; heigh
         <span>{formatDay(points[Math.floor(last / 2)].day)}</span>
         <span>{formatDay(points[last].day)}</span>
       </div>
+      <MarkerLegend placed={placed} format={(d) => formatDay(d)} />
     </figure>
   );
 }

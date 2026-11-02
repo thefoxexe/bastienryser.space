@@ -8,6 +8,7 @@ import { ButtonLink, Card, CardHeader, EmptyState } from "@/components/ui";
 import { getBusiness } from "@/lib/data";
 import { periodFrom, periodShort, weekly } from "@/lib/finance";
 import { listConnectors, metricSeries, type SeriesPoint } from "@/lib/metrics";
+import { chartMarkers, listMilestones } from "@/lib/milestones";
 
 export const metadata: Metadata = { title: "Visites" };
 
@@ -17,6 +18,7 @@ export default async function VisitsPage({ params, searchParams }: PageProps<"/b
   const { slug } = await params;
   const period = periodFrom((await searchParams).periode, 30);
   const business = await getBusiness(slug);
+  const marks = chartMarkers(await listMilestones(business.id));
   const base = `/b/${business.slug}/donnees`;
   const id = business.id;
 
@@ -77,7 +79,7 @@ export default async function VisitsPage({ params, searchParams }: PageProps<"/b
       <Card>
         <CardHeader title="Visiteurs" description={`Visiteurs uniques par ${per}.`} />
         <div className="p-5 pt-6 sm:p-6">
-          <AreaChart points={long ? weekly(visitors) : visitors} format={{ kind: "number" }} label={`Visiteurs par ${per}`} />
+          <AreaChart markers={marks} points={long ? weekly(visitors) : visitors} format={{ kind: "number" }} label={`Visiteurs par ${per}`} />
         </div>
       </Card>
 
@@ -85,7 +87,7 @@ export default async function VisitsPage({ params, searchParams }: PageProps<"/b
         <Card>
           <CardHeader title="Pages vues" description={`Pages affichées par ${per}.`} />
           <div className="p-5 pt-6 sm:p-6">
-            <AreaChart points={long ? weekly(pageviews) : pageviews} format={{ kind: "number" }} label={`Pages vues par ${per}`} height={160} />
+            <AreaChart markers={marks} points={long ? weekly(pageviews) : pageviews} format={{ kind: "number" }} label={`Pages vues par ${per}`} height={160} />
           </div>
         </Card>
       ) : null}

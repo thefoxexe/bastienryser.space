@@ -154,3 +154,50 @@ export async function deleteEntry(formData: FormData) {
   revalidatePath(`/b/${String(formData.get("slug"))}/donnees`, "layout");
   revalidatePath("/");
 }
+
+// ---------------------------------------------------------------------------
+// Jalons : changements datés, affichés sur les graphiques
+// ---------------------------------------------------------------------------
+
+export type MilestoneState = { ok?: boolean; error?: string; nonce?: number };
+
+const milestoneSchema = z.object({
+  businessId: z.string().uuid(),
+  slug: z.string().min(1),
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  title: z.string().trim().min(1, "Donne un titre au jalon.").max(120, "Titre trop long (120 caractères au plus)."),
+  note: z.string().trim().max(2000, "Note trop longue (2000 caractères au plus)."),
+  kind: z.enum(["seo", "contenu", "technique", "campagne", "autre"]),
+});
+
+export async function addMilestone(_prev: MilestoneState, formData: FormData): Promise<MilestoneState> {
+  await requireAdmin();
+  const parsed = milestoneSchema.safeParse({
+    businessId: formData.get("businessId"),
+    slug: formData.get("slug"),
+    day: formData.get("day"),
+    title: formData.get("title") ?? "",
+    note: formData.get("note") ?? "",
+    kind: formData.get("kind") ?? "seo",
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Données invalides." };
+  const input = parsed.data;
+  const supabase = await createClient();
+  const { error } = await supabase.from("milestones").insert({
+    business_id: input.businessId,
+    day: input.day,
+    title: input.title,
+    note: input.note || null,
+    kind: input.kind,
+  });
+  if (error) return { error: "Le jalon n'a pas pu être enregistré." };
+  revalidatePath(`/b/${input.slug}`, "layout");
+  return { ok: true, nonce: Date.now() };
+}
+
+export async function deleteMilestone(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+  await supabase.from("milestones").delete().eq("id", String(formData.get("id")));
+  revalidatePath(`/b/${String(formData.get("slug"))}`, "layout");
+}

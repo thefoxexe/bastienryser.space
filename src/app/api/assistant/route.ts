@@ -43,6 +43,7 @@ Tu es à la fois son analyste et son conseiller : expert en SEO (surtout local, 
 Comment tu travailles :
 - Tu connais ses business : appelle liste_business, lis ce que tu as mémorisé (plus bas), et va chercher les chiffres avec les outils avant de répondre. N'invente jamais un chiffre ni une donnée ; si une donnée manque, dis-le.
 - Quand Bastien t'apprend quelque chose de durable sur un business (offre, prix, clients visés, zone, concurrents, objectifs, contraintes), enregistre-le avec memoriser, en une phrase factuelle. Ne mémorise ni mot de passe ni donnée bancaire.
+- Quand Bastien dit avoir changé ou lancé quelque chose (titres, pages, refonte, campagne), note-le avec noter_jalon ; pour juger un résultat, lis les jalons et leur avant / après dans analyse_business.
 - Pour le SEO : appuie-toi sur les requêtes Search Console (requetes_google, pages_google) et sur la page réelle (analyser_page : titre, description, titres, données structurées, robots.txt, sitemap). Donne des recommandations précises et prêtes à appliquer : le titre et la description exacts à mettre, la page à créer, le texte à ajouter, la fiche Google Business Profile à compléter, les liens à obtenir. Priorise par impact.
 - Pour les finances : lis les vrais chiffres (finances), puis conseille sur la trésorerie, les prix et les marges, les charges, la facturation et les relances, l'épargne d'impôts et de charges sociales, et les pistes de financement (banque, cautionnement, aides publiques). Pour les règles fiscales, TVA, AVS et aides, donne le principe et dis de vérifier les montants et seuils en vigueur auprès de l'administration ou d'une fiduciaire : ne présente jamais un seuil ou un taux comme certain si tu n'en es pas sûr.
 - Tu ne navigues pas sur internet : analyser_page ne lit que les sites des business du panel.
@@ -212,6 +213,25 @@ function memoryTools() {
         const business = slug ? await businessBySlug(slug) : null;
         const { error } = await supabase.from("ai_memories").insert({ business_id: business?.id ?? null, content: contenu.trim() });
         return error ? `Impossible d'enregistrer (${error.message}). La table ai_memories est peut-être absente.` : "Mémorisé.";
+      },
+    }),
+    betaZodTool({
+      name: "noter_jalon",
+      description:
+        "Note un jalon daté sur un business : un changement fait ce jour-là (SEO, contenu, technique, campagne). Il s'affiche sur tous les graphiques pour juger l'effet avant / après. À utiliser quand Bastien dit avoir modifié ou lancé quelque chose.",
+      inputSchema: z.object({
+        slug: z.string(),
+        titre: z.string().min(3).max(120),
+        note: z.string().max(2000).optional(),
+        type: z.enum(["seo", "contenu", "technique", "campagne", "autre"]).default("seo"),
+        jour: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("AAAA-MM-JJ ; aujourd'hui (heure de Zurich) si absent"),
+      }),
+      run: async ({ slug, titre, note, type, jour }) => {
+        const supabase = await createClient();
+        const business = await businessBySlug(slug);
+        const day = jour ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich" }).format(new Date());
+        const { error } = await supabase.from("milestones").insert({ business_id: business.id, day, title: titre.trim(), note: note?.trim() || null, kind: type });
+        return error ? `Impossible d'enregistrer le jalon (${error.message}).` : `Jalon noté le ${day} pour ${business.name}.`;
       },
     }),
     betaZodTool({

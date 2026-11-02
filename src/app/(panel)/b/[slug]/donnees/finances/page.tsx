@@ -11,6 +11,7 @@ import { financeSummary, listEntries, periodFrom, periodShort, weekly } from "@/
 import { lastDays } from "@/lib/metrics";
 import { deleteEntry } from "../actions";
 import { EntryForm } from "./entry-form";
+import { chartMarkers, listMilestones } from "@/lib/milestones";
 
 export const metadata: Metadata = { title: "Finances" };
 
@@ -18,6 +19,7 @@ export default async function FinancesPage({ params, searchParams }: PageProps<"
   const { slug } = await params;
   const period = periodFrom((await searchParams).periode, 30);
   const business = await getBusiness(slug);
+  const marks = chartMarkers(await listMilestones(business.id));
   const base = `/b/${business.slug}/donnees`;
   const [summary, entries] = await Promise.all([financeSummary(business.id, period), listEntries(business.id, period)]);
   const cur = { kind: "currency", currency: summary.currency } as const;
@@ -58,7 +60,7 @@ export default async function FinancesPage({ params, searchParams }: PageProps<"
           {empty ? (
             <EmptyState icon={<Wallet />} title="Rien à afficher pour l'instant" description="Connecte Stripe ou saisis tes factures et tes charges à droite." />
           ) : (
-            <AreaChart points={chart} format={{ kind: "currency", currency: summary.currency }} label="Résultat" height={190} />
+            <AreaChart markers={marks} points={chart} format={{ kind: "currency", currency: summary.currency }} label="Résultat" height={190} />
           )}
           {summary.otherCurrencies.length ? (
             <p className="mt-3 text-[12px] text-faint">

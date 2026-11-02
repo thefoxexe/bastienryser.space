@@ -12,6 +12,7 @@ import { getBusiness } from "@/lib/data";
 import { periodFrom, periodShort, weekly } from "@/lib/finance";
 import { keywordRankings } from "@/lib/keywords";
 import { listConnectors, metricSeries, searchPosition } from "@/lib/metrics";
+import { chartMarkers, listMilestones } from "@/lib/milestones";
 
 export const metadata: Metadata = { title: "Recherche Google" };
 
@@ -19,6 +20,7 @@ export default async function SearchPage({ params, searchParams }: PageProps<"/b
   const { slug } = await params;
   const period = periodFrom((await searchParams).periode, 30);
   const business = await getBusiness(slug);
+  const marks = chartMarkers(await listMilestones(business.id));
   const base = `/b/${business.slug}/donnees`;
   const id = business.id;
 
@@ -87,7 +89,7 @@ export default async function SearchPage({ params, searchParams }: PageProps<"/b
       <Card>
         <CardHeader title="Clics depuis Google" description={`Visites venues de la recherche, par ${per}.`} />
         <div className="p-5 pt-6 sm:p-6">
-          <AreaChart points={long ? weekly(clicks) : clicks} format={{ kind: "number" }} label={`Clics par ${per}`} />
+          <AreaChart markers={marks} points={long ? weekly(clicks) : clicks} format={{ kind: "number" }} label={`Clics par ${per}`} />
         </div>
       </Card>
 
@@ -95,13 +97,13 @@ export default async function SearchPage({ params, searchParams }: PageProps<"/b
         <Card>
           <CardHeader title="Impressions" description={`Fois où ton site est apparu dans Google, par ${per}.`} />
           <div className="p-5 pt-6 sm:p-6">
-            <AreaChart points={long ? weekly(impressions) : impressions} format={{ kind: "number" }} label={`Impressions par ${per}`} height={160} />
+            <AreaChart markers={marks} points={long ? weekly(impressions) : impressions} format={{ kind: "number" }} label={`Impressions par ${per}`} height={160} />
           </div>
         </Card>
         <Card>
           <CardHeader title="Position moyenne" description="Plus c'est haut, mieux c'est : 1 est la première place." />
           <div className="p-5 pt-6 sm:p-6">
-            <PositionChart points={positionPoints} height={160} />
+            <PositionChart markers={marks} points={positionPoints} height={160} />
           </div>
         </Card>
       </div>
