@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { monotonePath } from "./area-chart";
+import { monotonePath, tooltipPlacement, useCloseOnOutsideTap } from "./area-chart";
 import { formatDay } from "./format";
 import { MarkerLegend, MarkerLines, MarkerTooltip, placeMarkers, type ChartMarker } from "./markers";
 
@@ -17,6 +17,7 @@ const H = 200;
 export function PositionChart({ points, height = 220, markers }: { points: Point[]; height?: number; markers?: ChartMarker[] }) {
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
+  useCloseOnOutsideTap(ref, hover !== null, () => setHover(null));
   const known = points.filter((p) => p.position !== null).map((p) => p.position!);
   if (!known.length) return <p className="text-[13px] text-muted">Pas encore de position enregistrée pour ce mot-clé.</p>;
 
@@ -52,7 +53,7 @@ export function PositionChart({ points, height = 220, markers }: { points: Point
       <div className="flex">
         <div
           ref={ref}
-          className="relative flex-1 touch-none select-none"
+          className="relative flex-1 touch-pan-y select-none"
           style={{ height }}
           onPointerMove={(e) => {
             const rect = ref.current!.getBoundingClientRect();
@@ -62,7 +63,7 @@ export function PositionChart({ points, height = 220, markers }: { points: Point
             const rect = ref.current!.getBoundingClientRect();
             setHover(Math.round(Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)) * last));
           }}
-          onPointerLeave={() => setHover(null)}
+          onPointerLeave={(e) => e.pointerType === "mouse" && setHover(null)}
           role="img"
           aria-label={`Position dans Google : ${points[lastKnown].position} le ${formatDay(points[lastKnown].day)}`}
         >
@@ -107,8 +108,8 @@ export function PositionChart({ points, height = 220, markers }: { points: Point
           ) : null}
           {hover !== null ? (
             <div
-              className="pointer-events-none absolute -top-2 z-10 whitespace-nowrap rounded-[10px] bg-surface px-2.5 py-1.5 text-[12px] shadow-pop"
-              style={{ left: pct(hover), transform: `translate(${hover > last * 0.7 ? "-100%" : hover < last * 0.3 ? "0" : "-50%"}, -100%)` }}
+              className="pointer-events-none absolute z-10 whitespace-nowrap rounded-[10px] bg-surface px-2.5 py-1.5 text-[12px] shadow-pop"
+              style={tooltipPlacement(pct(hover), points[hover].position !== null ? y(points[hover].position!) / H : 0.5, hover, last)}
             >
               <span className="block text-muted">{formatDay(points[hover].day, true)}</span>
               {points[hover].position !== null ? (

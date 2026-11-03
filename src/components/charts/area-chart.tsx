@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { formatDay, formatValue, niceMax, type ValueFormat } from "./format";
 import { MarkerLegend, MarkerLines, MarkerTooltip, placeMarkers, type ChartMarker } from "./markers";
 
@@ -33,6 +33,32 @@ const W = 640;
 const H = 200;
 const PAD_TOP = 12;
 
+/** Au doigt, toucher ailleurs que sur le graphique referme l'info-bulle. */
+export function useCloseOnOutsideTap(ref: React.RefObject<HTMLElement | null>, open: boolean, close: () => void) {
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) close();
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [ref, open, close]);
+}
+
+/**
+ * Info-bulle collée au point survolé ou touché : au-dessus, ou en dessous si le point est dans le haut du graphique ;
+ * alignée à gauche ou à droite près des bords pour ne jamais sortir de l'écran.
+ */
+export function tooltipPlacement(left: string, ratioY: number, index: number, last: number): React.CSSProperties {
+  const x = index > last * 0.7 ? "-100%" : index < last * 0.3 ? "0" : "-50%";
+  const below = ratioY < 0.38;
+  return {
+    left,
+    top: `calc(${ratioY * 100}% ${below ? "+ 14px" : "- 14px"})`,
+    transform: `translate(${x}, ${below ? "0" : "-100%"})`,
+  };
+}
+
 /**
  * Courbe d'une seule série sur une période : trait vert 2 px avec halo flou, aire en dégradé, grille fine.
  * Survol : ligne de repère et info-bulle avec la date et la valeur exacte. Tableau caché pour les lecteurs d'écran.
@@ -53,6 +79,7 @@ export function AreaChart({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
+  useCloseOnOutsideTap(ref, hover !== null, () => setHover(null));
   const gradient = `fade-${useId().replace(/:/g, "")}`;
   if (!points.length) return null;
   const placed = placeMarkers(
@@ -86,11 +113,12 @@ export function AreaChart({
       <div className="flex">
         <div
           ref={ref}
-          className="relative flex-1 touch-none select-none"
+          className="relative flex-1 touch-pan-y select-none"
           style={{ height }}
           onPointerMove={onMove}
           onPointerDown={onMove}
-          onPointerLeave={() => setHover(null)}
+          // Au doigt, le point touché reste sélectionné (le relâcher déclenche aussi « leave »).
+          onPointerLeave={(e) => e.pointerType === "mouse" && setHover(null)}
           role="img"
           aria-label={`${label} : ${formatValue(points[last].value, format)} le ${formatDay(points[last].day)}`}
         >
@@ -122,8 +150,8 @@ export function AreaChart({
           />
           {hover !== null ? (
             <div
-              className="pointer-events-none absolute -top-2 z-10 -translate-y-full whitespace-nowrap rounded-[10px] bg-surface px-2.5 py-1.5 text-[12px] shadow-pop"
-              style={{ left: pct(hover), transform: `translate(${hover > last * 0.7 ? "-100%" : hover < last * 0.3 ? "0" : "-50%"}, -100%)` }}
+              className="pointer-events-none absolute z-10 whitespace-nowrap rounded-[10px] bg-surface px-2.5 py-1.5 text-[12px] shadow-pop"
+              style={tooltipPlacement(pct(hover), y(points[hover].value) / H, hover, last)}
             >
               <span className="block text-muted">{formatDay(points[hover].day, true)}</span>
               <span className="tabular block font-semibold">{formatValue(points[hover].value, format)}</span>

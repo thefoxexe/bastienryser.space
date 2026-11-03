@@ -49,7 +49,7 @@ export function MarkerLines({ placed, left }: { placed: Map<number, ChartMarker[
 export function MarkerTooltip({ list }: { list: ChartMarker[] | undefined }) {
   if (!list?.length) return null;
   return (
-    <span className="mt-1 block max-w-[220px] whitespace-normal border-t border-border pt-1">
+    <span className="mt-1 block w-max min-w-full max-w-[200px] whitespace-normal border-t border-border pt-1">
       {list.map((m, i) => (
         <span key={i} className="flex items-start gap-1.5 font-medium">
           <span className="mt-[5px] size-[6px] shrink-0 rounded-full bg-text" />
