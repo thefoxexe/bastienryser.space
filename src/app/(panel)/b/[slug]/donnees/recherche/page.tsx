@@ -7,6 +7,7 @@ import { PositionChart } from "@/components/charts/position-chart";
 import { pageLabel, Ranking } from "@/components/data-blocks";
 import { KpiTile } from "@/components/kpi-tile";
 import { PeriodChips } from "@/components/period-chips";
+import { ExportMenu } from "./export-menu";
 import { ButtonLink, Card, CardHeader, EmptyState } from "@/components/ui";
 import { getBusiness } from "@/lib/data";
 import { periodFrom, periodShort, weekly } from "@/lib/finance";
@@ -69,7 +70,10 @@ export default async function SearchPage({ params, searchParams }: PageProps<"/b
           D&apos;après la Search Console, avec 2 à 3 jours de décalage. Un clic ici, c&apos;est quelqu&apos;un qui arrive depuis Google ; les Visites
           comptent toutes les sources (Google, accès direct, réseaux, liens), mesurées par un autre outil.
         </p>
-        <PeriodChips base={`${base}/recherche`} current={period} />
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportMenu slug={business.slug} />
+          <PeriodChips base={`${base}/recherche`} current={period} />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
