@@ -4,21 +4,44 @@
 //   POST { action: "sync", connector_id }
 //   POST { action: "configure", connector_id, choice }   (choix du site Search Console ou de la propriété GA4)
 //   POST { action: "bluesky", business_id, identifier, password }   (compte Bluesky, par mot de passe d'application)
+//   POST { action: "gsc_export", business_id }   (export Search Console complet, pour une analyse SEO ; admin ou pg_cron)
 
 import { upsertAccount } from "../_shared/accounts.ts";
 import { blueskyProfile, blueskySession } from "../_shared/bluesky.ts";
 import { ConnectorError, plausibleTest, stripeTest } from "../_shared/connectors.ts";
 import { NetworkError } from "../_shared/errors.ts";
-import { adminClient, isAdminRequest, json, logActivity, storeToken } from "../_shared/supabase.ts";
+import { googleAccessToken, searchConsoleExport } from "../_shared/google.ts";
+import { adminClient, authorize, isAdminRequest, json, logActivity, readToken, storeToken } from "../_shared/supabase.ts";
 import { syncConnector, type ConnectorRow } from "../_shared/sync.ts";
 
 const LABELS = { stripe: "Stripe", plausible: "Plausible" } as const;
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
-  if (!(await isAdminRequest(req))) return json({ error: "unauthorized" }, 401);
-  const db = adminClient();
   const body = await req.json().catch(() => ({}));
+  const allowed = body.action === "gsc_export" ? await authorize(req) : await isAdminRequest(req);
+  if (!allowed) return json({ error: "unauthorized" }, 401);
+  const db = adminClient();
+
+  if (body.action === "gsc_export") {
+    const { data: c } = await db
+      .from("connectors")
+      .select("config, credential_ref, status")
+      .eq("business_id", body.business_id)
+      .eq("kind", "search_console")
+      .maybeSingle();
+    const siteUrl = (c?.config as { site_url?: string } | undefined)?.site_url;
+    if (!c || !siteUrl) return json({ ok: false, error: "Search Console n'est pas connectée pour ce business." }, 404);
+    const key = await readToken(db, c.credential_ref);
+    if (!key) return json({ ok: false, error: "Clé Google absente : reconnecte Search Console." }, 400);
+    try {
+      const data = await searchConsoleExport(await googleAccessToken(key), siteUrl);
+      return json({ ok: true, data });
+    } catch (e) {
+      console.error("gsc_export", e);
+      return json({ ok: false, error: "Google n'a pas répondu à l'export. Réessaie dans un instant." }, 502);
+    }
+  }
 
   if (body.action === "sync") {
     const { data: c } = await db.from("connectors").select("id, business_id, kind, label, config, credential_ref, status").eq("id", body.connector_id).maybeSingle();

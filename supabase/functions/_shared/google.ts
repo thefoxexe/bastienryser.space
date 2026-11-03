@@ -102,6 +102,66 @@ export async function searchConsoleData(token: string, siteUrl: string, days = 4
   return { points, snapshot: { period: "28 jours", queries: queries.map(row), pages: pages.map(row) } };
 }
 
+/** Toutes les lignes d'une requête Search Console (pagination par 25 000, plafonnée). */
+async function gscAll(token: string, siteUrl: string, body: Record<string, unknown>, max = 50_000) {
+  const rows: GscRow[] = [];
+  for (let startRow = 0; startRow < max; startRow += 25_000) {
+    const page = await gscQuery(token, siteUrl, { ...body, rowLimit: 25_000, startRow });
+    rows.push(...page);
+    if (page.length < 25_000) break;
+  }
+  return rows;
+}
+
+const shiftDay = (day: string, n: number) => isoDay(new Date(Date.parse(`${day}T12:00:00Z`) + n * 86400_000));
+
+/**
+ * Export complet pour une analyse SEO : 16 mois par jour, puis pages, requêtes, couples requête × page,
+ * pays, appareils et apparences, sur 3 mois, et sur 28 jours comparés aux 28 jours précédents.
+ * Lignes compactes : [clés…, clics, impressions, ctr, position].
+ */
+export async function searchConsoleExport(token: string, siteUrl: string) {
+  const today = isoDay(new Date());
+  const daily = await gscAll(token, siteUrl, { startDate: shiftDay(today, -486), endDate: today, dimensions: ["date"] });
+  const last = daily.map((r) => r.keys[0]).sort().pop() ?? shiftDay(today, -3);
+  const w = {
+    d90: { startDate: shiftDay(last, -89), endDate: last },
+    d28: { startDate: shiftDay(last, -27), endDate: last },
+    prev28: { startDate: shiftDay(last, -55), endDate: shiftDay(last, -28) },
+  };
+  const compact = (rows: GscRow[]) => rows.map((r) => [...r.keys, r.clicks, r.impressions, Math.round(r.ctr * 10000) / 100, Math.round(r.position * 10) / 10]);
+  const [queries90, queries28, queriesPrev, pages90, pages28, pagesPrev, queryPage90, countries, devices, appearance] = await Promise.all([
+    gscAll(token, siteUrl, { ...w.d90, dimensions: ["query"] }),
+    gscAll(token, siteUrl, { ...w.d28, dimensions: ["query"] }),
+    gscAll(token, siteUrl, { ...w.prev28, dimensions: ["query"] }),
+    gscAll(token, siteUrl, { ...w.d90, dimensions: ["page"] }),
+    gscAll(token, siteUrl, { ...w.d28, dimensions: ["page"] }),
+    gscAll(token, siteUrl, { ...w.prev28, dimensions: ["page"] }),
+    gscAll(token, siteUrl, { ...w.d90, dimensions: ["query", "page"] }),
+    gscAll(token, siteUrl, { ...w.d90, dimensions: ["country"] }),
+    gscAll(token, siteUrl, { ...w.d90, dimensions: ["device"] }),
+    gscAll(token, siteUrl, { ...w.d90, dimensions: ["searchAppearance"] }).catch(() => []),
+  ]);
+  return {
+    site: siteUrl,
+    generated_at: new Date().toISOString(),
+    last_day: last,
+    windows: w,
+    columns: "[clés…, clics, impressions, ctr %, position]",
+    daily: compact(daily),
+    queries_90d: compact(queries90),
+    queries_28d: compact(queries28),
+    queries_prev_28d: compact(queriesPrev),
+    pages_90d: compact(pages90),
+    pages_28d: compact(pages28),
+    pages_prev_28d: compact(pagesPrev),
+    query_page_90d: compact(queryPage90),
+    countries_90d: compact(countries),
+    devices_90d: compact(devices),
+    appearance_90d: compact(appearance),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Google Analytics 4
 // ---------------------------------------------------------------------------
