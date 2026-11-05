@@ -57,7 +57,7 @@ export type CashOverview = {
 
 type Row = { business_id: string; day: string; unit: string; value: number; metric: string };
 
-async function all<T>(query: (from: number, to: number) => PromiseLike<{ data: T[] | null }>) {
+export async function all<T>(query: (from: number, to: number) => PromiseLike<{ data: T[] | null }>) {
   const rows: T[] = [];
   for (let from = 0; from < 200_000; from += 1000) {
     const { data } = await query(from, from + 999);

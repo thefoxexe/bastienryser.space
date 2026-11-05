@@ -91,11 +91,18 @@ export function CashSection({ cash, businesses }: { cash: CashOverview; business
           label="MRR"
           amount={cash.mrr}
           format={CHF}
-          hint={cash.subscribers !== null ? `${cash.subscribers} abonné${cash.subscribers > 1 ? "s" : ""} en cours` : undefined}
+          hint={
+            cash.mrrSplit
+              ? `dont ${chf(cash.mrrSplit, true)} d'annuel réparti`
+              : cash.subscribers !== null
+                ? `${cash.subscribers} abonné${cash.subscribers > 1 ? "s" : ""} en cours`
+                : undefined
+          }
           empty="Aucun abonnement suivi"
-          href="/"
+          href="/stats/mrr"
+          link="/stats/mrr"
         />
-        <KpiTile label="ARR" amount={cash.arr} format={CHF} hint="MRR × 12" empty="Aucun abonnement suivi" href="/" />
+        <KpiTile label="ARR" amount={cash.arr} format={CHF} hint="MRR × 12, annuels compris" empty="Aucun abonnement suivi" href="/stats/mrr" link="/stats/mrr" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
