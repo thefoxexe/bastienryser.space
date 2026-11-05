@@ -5,20 +5,28 @@ import { adminClient, authorize, heartbeat, json, logActivity } from "../_shared
 
 type Check = { business_id: string; url: string; ok: boolean; status_code: number | null; response_ms: number | null; error: string | null };
 
+/** Un raté réseau isolé (serveur qui se réveille, coupure brève) est réessayé une fois avant d'être compté. */
 async function check(business_id: string, url: string): Promise<Check> {
+  const first = await attempt(business_id, url, 10_000);
+  if (first.ok || first.status_code !== null) return first;
+  await new Promise((r) => setTimeout(r, 3000));
+  return attempt(business_id, url, 15_000);
+}
+
+async function attempt(business_id: string, url: string, timeoutMs: number): Promise<Check> {
   const started = performance.now();
   try {
     const res = await fetch(url, {
       redirect: "follow",
       headers: { "User-Agent": "bastienryser-monitor/1.0 (+https://bastienryser.space)" },
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     await res.body?.cancel();
     const ms = Math.round(performance.now() - started);
     return { business_id, url, ok: res.status < 400, status_code: res.status, response_ms: ms, error: res.status < 400 ? null : `Réponse ${res.status}` };
   } catch (e) {
     const timeout = e instanceof DOMException && e.name === "TimeoutError";
-    return { business_id, url, ok: false, status_code: null, response_ms: null, error: timeout ? "Aucune réponse en 10 secondes" : "Connexion impossible" };
+    return { business_id, url, ok: false, status_code: null, response_ms: null, error: timeout ? `Aucune réponse en ${timeoutMs / 1000} secondes` : "Connexion impossible" };
   }
 }
 
