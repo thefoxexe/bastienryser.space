@@ -4,7 +4,7 @@
 //           { action: "test" } envoie une notification d'essai.
 // Les chiffres viennent de metric_points et ledger_entries : jamais d'estimation.
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.118.0";
 import { sendAll, vapidKeys, type Payload } from "../_shared/push.ts";
 import { adminClient, heartbeat, isAdminRequest, isCronRequest, json } from "../_shared/supabase.ts";
 

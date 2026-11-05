@@ -1,5 +1,5 @@
 // Jeton d'accès valide pour un compte connecté, renouvelé (et réenregistré dans Vault) quand il arrive à échéance.
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.118.0";
 import { inSeconds } from "./accounts.ts";
 import { blueskySession, type BlueskyCredentials, type BlueskySession } from "./bluesky.ts";
 import { NetworkError } from "./errors.ts";

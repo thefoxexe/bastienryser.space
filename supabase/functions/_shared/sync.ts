@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.118.0";
 import { ConnectorError, plausibleDaily, stripeDaily, type DailyPoint } from "./connectors.ts";
 import { analyticsData, googleAccessToken, searchConsoleData, searchConsoleQueries } from "./google.ts";
 import { logActivity, readToken } from "./supabase.ts";

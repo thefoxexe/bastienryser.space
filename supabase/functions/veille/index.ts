@@ -10,7 +10,7 @@
 //   telegram_connect, telegram_chats, telegram_target, telegram_test, retry, secret
 // Le jeton du bot ne quitte jamais cette fonction ; les clés OpenAI et Anthropic sont des secrets Supabase.
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.118.0";
 import { sendAll } from "../_shared/push.ts";
 import { adminClient, heartbeat, isAdminRequest, json, logActivity, readToken, storeToken } from "../_shared/supabase.ts";
 

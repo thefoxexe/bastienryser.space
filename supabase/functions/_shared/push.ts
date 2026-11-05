@@ -1,7 +1,7 @@
 // Envoi de notifications push à tous les appareils abonnés (clés VAPID : publique en base, privée dans Vault).
 
-import webpush from "web-push";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import webpush from "npm:web-push@3.6.7";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.118.0";
 
 const SUBJECT = "https://bastienryser.space";
 

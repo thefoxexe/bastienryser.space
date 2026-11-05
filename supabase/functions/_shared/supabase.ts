@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.118.0";
 import { publishableKey, secretKey, SUPABASE_URL } from "./env.ts";
 
 export function adminClient(): SupabaseClient {
