@@ -138,7 +138,13 @@ export async function stripeSubscriptions(key: string): Promise<SubscriptionsSna
 export async function stripeSubscriptionsProbe(key: string) {
   const rows: Record<string, unknown>[] = [];
   for (const status of ["active", "past_due", "trialing"]) {
-    const body = await stripeGet(key, "subscriptions", { limit: "100", status });
+    let body;
+    try {
+      body = await stripeGet(key, "subscriptions", { limit: "100", status, "expand[]": "data.discounts" });
+    } catch (e) {
+      rows.push({ expand_error: e instanceof Error ? e.message : String(e) });
+      body = await stripeGet(key, "subscriptions", { limit: "100", status });
+    }
     for (const sub of body.data as Record<string, any>[]) {
       const inv = sub.latest_invoice;
       rows.push({
@@ -148,7 +154,13 @@ export async function stripeSubscriptionsProbe(key: string) {
         cancel_at_period_end: sub.cancel_at_period_end,
         collection_method: sub.collection_method,
         discount: sub.discount ? { percent_off: sub.discount.coupon?.percent_off, amount_off: sub.discount.coupon?.amount_off, duration: sub.discount.coupon?.duration } : null,
-        discounts: Array.isArray(sub.discounts) ? sub.discounts.length : null,
+        discounts: Array.isArray(sub.discounts)
+          ? sub.discounts.map((d: any) =>
+              typeof d === "string"
+                ? "id"
+                : { end: d.end, coupon: d.coupon ? { percent_off: d.coupon.percent_off, amount_off: d.coupon.amount_off, duration: d.coupon.duration, months: d.coupon.duration_in_months } : null, source: d.source ? { type: d.source.type, coupon: typeof d.source.coupon } : null },
+            )
+          : null,
         items: (sub.items?.data ?? []).map((i: Record<string, any>) => ({
           interval: i.price?.recurring?.interval,
           count: i.price?.recurring?.interval_count,
