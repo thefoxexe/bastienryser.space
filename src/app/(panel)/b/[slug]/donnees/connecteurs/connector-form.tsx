@@ -12,7 +12,7 @@ export function ConnectorForm({
   defaultSiteId,
   reconnect,
 }: {
-  kind: "stripe" | "plausible";
+  kind: "stripe" | "plausible" | "whop";
   businessId: string;
   slug: string;
   defaultSiteId?: string;
@@ -52,7 +52,7 @@ export function ConnectorForm({
         </div>
       ) : null}
       <Field
-        label={kind === "stripe" ? "Clé restreinte Stripe" : "Clé d'API Plausible"}
+        label={kind === "stripe" ? "Clé restreinte Stripe" : kind === "whop" ? "Clé d'API Whop" : "Clé d'API Plausible"}
         htmlFor={`${kind}-key`}
         hint="Testée puis chiffrée dans le coffre de la base. Elle n'est plus jamais affichée."
       >
@@ -63,7 +63,7 @@ export function ConnectorForm({
           required
           autoComplete="off"
           spellCheck={false}
-          placeholder={kind === "stripe" ? "rk_live_…" : "Clé Stats API"}
+          placeholder={kind === "stripe" ? "rk_live_…" : kind === "whop" ? "Clé d'entreprise" : "Clé Stats API"}
           className="font-mono text-[13px]"
         />
       </Field>

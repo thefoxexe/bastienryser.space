@@ -1,5 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { zurichDayKey } from "@/lib/format";
+import { lastDays } from "@/lib/metrics";
 
 export type VeilleSettings = {
   connected: boolean;
@@ -63,5 +65,57 @@ export async function getVeille(businessId: string) {
     sources: (sources ?? []) as VeilleSource[],
     items: (items ?? []) as VeilleItem[],
     runner: { configured: !!runner?.secret_ref, last_run_at: runner?.last_run_at ?? null, last_ok: runner?.last_ok ?? null, last_detail: runner?.last_detail ?? null } as VeilleRunner,
+  };
+}
+
+export type VeilleStats = {
+  sent: number;
+  skipped: number;
+  failed: number;
+  sent30: number;
+  /** Messages envoyés par jour (heure de Zurich), 30 derniers jours. */
+  perDay: { day: string; value: number }[];
+  latest: Pick<VeilleItem, "id" | "url" | "title" | "category" | "sent_at">[];
+};
+
+/** Chiffres réels de la veille : messages envoyés, vidéos filtrées, échecs. */
+export async function veilleStats(businessId: string): Promise<VeilleStats> {
+  const supabase = await createClient();
+  const days = lastDays(30);
+  const count = (status: VeilleItem["status"]) =>
+    supabase.from("veille_items").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("status", status);
+  const [sent, skipped, failed, { data: recent }, { data: latest }] = await Promise.all([
+    count("sent"),
+    count("skipped"),
+    count("failed"),
+    supabase
+      .from("veille_items")
+      .select("sent_at")
+      .eq("business_id", businessId)
+      .eq("status", "sent")
+      .gte("sent_at", new Date(Date.now() - 32 * 86400_000).toISOString())
+      .limit(1000),
+    supabase
+      .from("veille_items")
+      .select("id, url, title, category, sent_at")
+      .eq("business_id", businessId)
+      .eq("status", "sent")
+      .order("sent_at", { ascending: false })
+      .limit(5),
+  ]);
+  const byDay = new Map<string, number>();
+  for (const r of recent ?? []) {
+    if (!r.sent_at) continue;
+    const day = zurichDayKey(r.sent_at);
+    byDay.set(day, (byDay.get(day) ?? 0) + 1);
+  }
+  const perDay = days.map((day) => ({ day, value: byDay.get(day) ?? 0 }));
+  return {
+    sent: sent.count ?? 0,
+    skipped: skipped.count ?? 0,
+    failed: failed.count ?? 0,
+    sent30: perDay.reduce((a, p) => a + p.value, 0),
+    perDay,
+    latest: (latest ?? []) as VeilleStats["latest"],
   };
 }

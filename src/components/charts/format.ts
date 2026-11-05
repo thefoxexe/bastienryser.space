@@ -24,6 +24,10 @@ export function formatDay(day: string, withWeekday = false) {
   );
 }
 
+export function formatMonth(day: string) {
+  return new Intl.DateTimeFormat("fr-CH", { timeZone: "UTC", month: "short", year: "numeric" }).format(new Date(`${day}T12:00:00Z`));
+}
+
 /** Graduation « propre » au-dessus du maximum (1, 2, 2.5, 5 × 10^n). */
 export function niceMax(max: number) {
   if (max <= 0) return 1;

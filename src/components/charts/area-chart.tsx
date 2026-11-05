@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { formatDay, formatValue, niceMax, type ValueFormat } from "./format";
+import { formatDay, formatMonth, formatValue, niceMax, type ValueFormat } from "./format";
 import { MarkerLegend, MarkerLines, MarkerTooltip, placeMarkers, type ChartMarker } from "./markers";
 
 type Point = { day: string; value: number };
@@ -70,13 +70,17 @@ export function AreaChart({
   label,
   height = 200,
   markers,
+  monthly = false,
 }: {
   points: Point[];
   format: ValueFormat;
   label: string;
   height?: number;
   markers?: ChartMarker[];
+  /** Un point par mois (jour = 1er du mois) : dates affichées « nov. 2026 ». */
+  monthly?: boolean;
 }) {
+  const day = (d: string, withWeekday = false) => (monthly ? formatMonth(d) : formatDay(d, withWeekday));
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   useCloseOnOutsideTap(ref, hover !== null, () => setHover(null));
@@ -120,7 +124,7 @@ export function AreaChart({
           // Au doigt, le point touché reste sélectionné (le relâcher déclenche aussi « leave »).
           onPointerLeave={(e) => e.pointerType === "mouse" && setHover(null)}
           role="img"
-          aria-label={`${label} : ${formatValue(points[last].value, format)} le ${formatDay(points[last].day)}`}
+          aria-label={`${label} : ${formatValue(points[last].value, format)} le ${day(points[last].day)}`}
         >
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible">
             {ticks.map((t) => (
@@ -153,7 +157,7 @@ export function AreaChart({
               className="pointer-events-none absolute z-10 whitespace-nowrap rounded-[10px] bg-surface px-2.5 py-1.5 text-[12px] shadow-pop"
               style={tooltipPlacement(pct(hover), y(points[hover].value) / H, hover, last)}
             >
-              <span className="block text-muted">{formatDay(points[hover].day, true)}</span>
+              <span className="block text-muted">{day(points[hover].day, true)}</span>
               <span className="tabular block font-semibold">{formatValue(points[hover].value, format)}</span>
               <MarkerTooltip list={placed.get(hover)} />
             </div>
@@ -168,17 +172,17 @@ export function AreaChart({
         </div>
       </div>
       <div className="mr-15 flex justify-between text-[11px] text-faint">
-        <span>{formatDay(points[0].day)}</span>
-        <span>{formatDay(points[Math.floor(last / 2)].day)}</span>
-        <span>{formatDay(points[last].day)}</span>
+        <span>{day(points[0].day)}</span>
+        <span>{day(points[Math.floor(last / 2)].day)}</span>
+        <span>{day(points[last].day)}</span>
       </div>
-      <MarkerLegend placed={placed} format={(d) => formatDay(d)} />
+      <MarkerLegend placed={placed} format={(d) => day(d)} />
       <table className="sr-only">
         <caption>{label}</caption>
         <tbody>
           {points.map((p) => (
             <tr key={p.day}>
-              <th scope="row">{formatDay(p.day)}</th>
+              <th scope="row">{day(p.day)}</th>
               <td>{formatValue(p.value, format)}</td>
             </tr>
           ))}

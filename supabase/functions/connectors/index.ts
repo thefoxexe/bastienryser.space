@@ -5,6 +5,7 @@
 //   POST { action: "configure", connector_id, choice }   (choix du site Search Console ou de la propriété GA4)
 //   POST { action: "bluesky", business_id, identifier, password }   (compte Bluesky, par mot de passe d'application)
 //   POST { action: "gsc_export", business_id }   (export Search Console complet, pour une analyse SEO ; admin ou pg_cron)
+//   POST { action: "whop_probe", business_id }   (champs bruts du premier paiement Whop, pour vérifier la lecture ; admin ou pg_cron)
 
 import { upsertAccount } from "../_shared/accounts.ts";
 import { blueskyProfile, blueskySession } from "../_shared/bluesky.ts";
@@ -13,13 +14,14 @@ import { NetworkError } from "../_shared/errors.ts";
 import { googleAccessToken, searchConsoleExport } from "../_shared/google.ts";
 import { adminClient, authorize, isAdminRequest, json, logActivity, readToken, storeToken } from "../_shared/supabase.ts";
 import { syncConnector, type ConnectorRow } from "../_shared/sync.ts";
+import { whopProbe, whopTest } from "../_shared/whop.ts";
 
-const LABELS = { stripe: "Stripe", plausible: "Plausible" } as const;
+const LABELS = { stripe: "Stripe", plausible: "Plausible", whop: "Whop" } as const;
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   const body = await req.json().catch(() => ({}));
-  const allowed = body.action === "gsc_export" ? await authorize(req) : await isAdminRequest(req);
+  const allowed = body.action === "gsc_export" || body.action === "whop_probe" ? await authorize(req) : await isAdminRequest(req);
   if (!allowed) return json({ error: "unauthorized" }, 401);
   const db = adminClient();
 
@@ -40,6 +42,17 @@ Deno.serve(async (req) => {
     } catch (e) {
       console.error("gsc_export", e);
       return json({ ok: false, error: "Google n'a pas répondu à l'export. Réessaie dans un instant." }, 502);
+    }
+  }
+
+  if (body.action === "whop_probe") {
+    const { data: c } = await db.from("connectors").select("credential_ref").eq("business_id", body.business_id).eq("kind", "whop").maybeSingle();
+    const key = c ? await readToken(db, c.credential_ref) : null;
+    if (!key) return json({ ok: false, error: "Whop n'est pas connecté pour ce business." }, 404);
+    try {
+      return json({ ok: true, data: await whopProbe(key) });
+    } catch (e) {
+      return json({ ok: false, error: e instanceof ConnectorError ? e.message : "Whop n'a pas répondu." }, 502);
     }
   }
 
@@ -114,6 +127,7 @@ Deno.serve(async (req) => {
 
   try {
     if (kind === "stripe") await stripeTest(apiKey);
+    else if (kind === "whop") await whopTest(apiKey);
     else await plausibleTest(apiKey, siteId, baseUrl);
   } catch (e) {
     return json({ ok: false, error: e instanceof ConnectorError ? e.message : "Test de connexion impossible." });

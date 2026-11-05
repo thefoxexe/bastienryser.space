@@ -7,7 +7,7 @@ export type SeriesPoint = { day: string; value: number };
 export type Connector = {
   id: string;
   business_id: string;
-  kind: "stripe" | "plausible" | "search_console" | "google_analytics";
+  kind: "stripe" | "plausible" | "search_console" | "google_analytics" | "whop";
   label: string;
   config: { site_id?: string; base_url?: string; site_url?: string; property_id?: string; options?: { value: string; label: string }[] };
   snapshot: {
@@ -71,7 +71,8 @@ export async function metricSeries(options: {
 
   const kind = sourceOf(options.metric);
   const sources = await listConnectors(options.businessId);
-  if (!sources.some((c) => c.kind === kind)) return null;
+  // Les encaissements viennent de Stripe ou de Whop, sous les mêmes noms de métriques.
+  if (!sources.some((c) => c.kind === kind || (kind === "stripe" && c.kind === "whop"))) return null;
 
   const byDay = new Map<string, number>();
   for (const p of data ?? []) byDay.set(p.day, (byDay.get(p.day) ?? 0) + Number(p.value));

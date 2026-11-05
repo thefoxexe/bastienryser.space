@@ -107,7 +107,7 @@ export async function financeSummary(businessId: string | undefined, period: num
     expenses: days.map((day) => ({ day, value: round(expenses.get(day) ?? 0) })),
     net: days.map((day) => ({ day, value: round((income.get(day) ?? 0) - (expenses.get(day) ?? 0)) })),
     totals,
-    hasStripe: connectors.some((c) => c.kind === "stripe"),
+    hasStripe: connectors.some((c) => c.kind === "stripe" || c.kind === "whop"),
     hasEntries: (entries ?? []).length > 0,
     otherCurrencies: [...weight.keys()].filter((c) => c !== currency),
   };

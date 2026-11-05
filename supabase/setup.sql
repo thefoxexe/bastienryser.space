@@ -1395,6 +1395,16 @@ alter table public.veille_items add constraint veille_items_status_check
   check (status in ('queued', 'seen', 'processing', 'sent', 'failed', 'skipped'));
 
 -- ===========================================================================
+-- 20261025002100_whop.sql
+-- ===========================================================================
+
+-- Whop : paiements encaissés (clé d'API d'entreprise dans Vault, lue par l'Edge Function `connectors`).
+
+alter table public.connectors drop constraint connectors_kind_check;
+alter table public.connectors add constraint connectors_kind_check
+  check (kind in ('stripe', 'plausible', 'search_console', 'google_analytics', 'whop'));
+
+-- ===========================================================================
 -- Configuration du projet
 -- ===========================================================================
 
@@ -1422,7 +1432,8 @@ insert into supabase_migrations.schema_migrations (version, name) values
   ('20261025001700', 'video'),
   ('20261025001800', 'milestones'),
   ('20261025001900', 'veille'),
-  ('20261025002000', 'veille_filter')
+  ('20261025002000', 'veille_filter'),
+  ('20261025002100', 'whop')
 on conflict do nothing;
 
 -- Adresse du projet, lue par pg_cron pour appeler les Edge Functions (pas un secret).

@@ -2,11 +2,12 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.118.0";
 import { ConnectorError, plausibleDaily, stripeDaily, type DailyPoint } from "./connectors.ts";
 import { analyticsData, googleAccessToken, searchConsoleData, searchConsoleQueries } from "./google.ts";
 import { logActivity, readToken } from "./supabase.ts";
+import { whopDaily } from "./whop.ts";
 
 export type ConnectorRow = {
   id: string;
   business_id: string;
-  kind: "stripe" | "plausible" | "search_console" | "google_analytics";
+  kind: "stripe" | "plausible" | "search_console" | "google_analytics" | "whop";
   label: string;
   config: { site_id?: string; base_url?: string; site_url?: string; property_id?: string; backfilled?: boolean };
   credential_ref: string | null;
@@ -22,11 +23,12 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
     // Compte Google connecté mais propriété pas encore choisie : rien à synchroniser.
     if (c.status === "pending") return { ok: true, points: 0 };
 
-    // Premier passage : environ 13 mois d'historique ; ensuite les 40 derniers jours (corrections tardives comprises).
-    const days = c.config.backfilled ? 40 : 400;
+    // Premier passage : environ 13 mois d'historique (Whop : depuis toujours) ; ensuite les 40 derniers jours (corrections tardives comprises).
+    const days = c.config.backfilled ? 40 : c.kind === "whop" ? 3650 : 400;
     let points: DailyPoint[];
     let snapshot: Record<string, unknown> | null = null;
     if (c.kind === "stripe") points = await stripeDaily(key, days);
+    else if (c.kind === "whop") points = await whopDaily(key, days);
     else if (c.kind === "plausible") points = await plausibleDaily(key, c.config.site_id ?? "", c.config.base_url ?? "https://plausible.io", days);
     else {
       const token = await googleAccessToken(key);
@@ -44,7 +46,7 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
       .from("metric_points")
       .delete()
       .eq("connector_id", c.id)
-      .gte("day", c.kind === "stripe" ? since : (minDay ?? "9999-12-31"));
+      .gte("day", c.kind === "stripe" || c.kind === "whop" ? since : (minDay ?? "9999-12-31"));
     if (clearError) throw new ConnectorError("Mise à jour des chiffres impossible.");
 
     if (points.length) {

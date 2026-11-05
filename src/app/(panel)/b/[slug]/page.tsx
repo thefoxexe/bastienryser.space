@@ -13,6 +13,7 @@ import { getBusiness, listAccounts, listActivity, listPosts, metricsLast30Days }
 import { periodFrom } from "@/lib/finance";
 import { formatNumber } from "@/lib/format";
 import { NETWORKS } from "@/lib/social/networks";
+import { VeilleOverview } from "./veille-overview";
 
 export async function generateMetadata({ params }: PageProps<"/b/[slug]">): Promise<Metadata> {
   const { slug } = await params;
@@ -25,6 +26,16 @@ export default async function BusinessOverview({ params, searchParams }: PagePro
   const period = periodFrom((await searchParams).periode, 30);
   const business = await getBusiness(slug);
   const social = business.modules.includes("social");
+
+  // Business de veille seule (Golden Bulls) : revenus Whop et statistiques de veille, sans le tableau de bord général.
+  if (business.modules.includes("veille") && !social && !business.modules.includes("data")) {
+    return (
+      <Page>
+        <VeilleOverview business={business} />
+      </Page>
+    );
+  }
+
   const base = `/b/${business.slug}/reseaux`;
 
   const [upcoming, recent, accounts, metrics, activity] = await Promise.all([
