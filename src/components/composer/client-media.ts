@@ -171,3 +171,20 @@ export function videoFrame(url: string, ms: number, maxWidth = 1080): Promise<Bl
     video.src = url;
   });
 }
+
+// Tri « naturel » : 2 avant 10, IMG_0009 avant IMG_0010, « photo (3) » avant « photo (12) ».
+const collator = new Intl.Collator("fr", { numeric: true, sensitivity: "base" });
+export const compareNames = (a: string, b: string) => collator.compare(a, b);
+
+/** Les noms portent-ils une numérotation (au moins deux fichiers avec un chiffre) ? */
+export const hasNumbering = (names: string[]) => names.filter((n) => /\d/.test(n)).length >= 2;
+
+/**
+ * Range les fichiers déposés selon la numérotation de leur nom, pour que le carrousel parte dans le bon ordre.
+ * Sans numérotation, l'ordre de dépôt est gardé.
+ */
+export function orderByName<T extends { name: string }>(files: T[]): { files: T[]; sorted: boolean } {
+  if (files.length < 2 || !hasNumbering(files.map((f) => f.name))) return { files, sorted: false };
+  const ordered = [...files].sort((a, b) => compareNames(a.name, b.name));
+  return { files: ordered, sorted: ordered.some((f, i) => f !== files[i]) };
+}

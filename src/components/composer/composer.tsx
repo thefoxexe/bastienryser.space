@@ -14,7 +14,7 @@ import { isoToZurichLocal, zurichLocalToIso } from "@/lib/format";
 import { checkTarget, countChars, countHashtags, NETWORK_ORDER, NETWORKS, type Issue } from "@/lib/social/networks";
 import { createUploadClient } from "@/lib/supabase/browser";
 import type { SocialAccount, SocialNetwork } from "@/lib/types";
-import { imageSize, prepareVideo, toJpeg } from "./client-media";
+import { imageSize, orderByName, prepareVideo, toJpeg } from "./client-media";
 import { MediaPicker, type MediaItem } from "./media-picker";
 import { NetworkPreview } from "./previews";
 import { VideoPanel } from "./video-panel";
@@ -67,6 +67,7 @@ export function Composer({ business, accounts, initial }: Props) {
   const [aiBusy, setAiBusy] = useState<null | "adapt" | "de" | "it">(null);
   const [saving, startSaving] = useTransition();
   const [previewNetwork, setPreviewNetwork] = useState<SocialNetwork | null>(null);
+  const [sortNotice, setSortNotice] = useState<string | null>(null);
 
   const selectedAccounts = usable.filter((a) => selected.includes(a.id));
   const networks = NETWORK_ORDER.filter((n) => selectedAccounts.some((a) => a.network === n));
@@ -96,8 +97,11 @@ export function Composer({ business, accounts, initial }: Props) {
   const activeNetwork = previewNetwork && networks.includes(previewNetwork) ? previewNetwork : networks[0];
   const previewAccount = selectedAccounts.find((a) => a.network === activeNetwork);
 
-  async function handleFiles(files: File[]) {
+  async function handleFiles(dropped: File[]) {
     const supabase = createUploadClient();
+    // Numérotation dans les noms (1, 2, 3… ou IMG_0012…) : on range dans cet ordre avant l'envoi.
+    const { files, sorted } = orderByName(dropped);
+    setSortNotice(sorted ? `${files.length} fichiers rangés selon les numéros de leur nom.` : null);
     for (const original of files) {
       const key = crypto.randomUUID();
       const isPdf = original.type === "application/pdf";
@@ -246,7 +250,15 @@ export function Composer({ business, accounts, initial }: Props) {
         {/* 1. Médias */}
         <Card className="p-5 sm:p-6">
           <SectionTitle step={1} title="Médias" hint={mediaHint} />
-          <MediaPicker items={media} onChange={setMedia} onFiles={handleFiles} />
+          <MediaPicker
+            items={media}
+            onChange={(next) => {
+              setSortNotice(null);
+              setMedia(next);
+            }}
+            onFiles={handleFiles}
+            notice={sortNotice}
+          />
           {video ? (
             <VideoPanel
               item={video}

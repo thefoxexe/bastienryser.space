@@ -4,8 +4,9 @@ import { useRef, useState } from "react";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AlertCircle, FileText, GripVertical, ImagePlus, Loader2, Play, X } from "lucide-react";
+import { AlertCircle, ArrowDownWideNarrow, FileText, GripVertical, ImagePlus, Loader2, Play, X } from "lucide-react";
 import { cn } from "@/components/ui/cn";
+import { compareNames, hasNumbering } from "./client-media";
 
 export type MediaItem = {
   key: string;
@@ -36,17 +37,17 @@ export function MediaPicker({
   items,
   onChange,
   onFiles,
+  notice,
 }: {
   items: MediaItem[];
   onChange: (items: MediaItem[]) => void;
   onFiles: (files: File[]) => void;
+  /** Message après un tri automatique des fichiers déposés. */
+  notice?: string | null;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -56,30 +57,61 @@ export function MediaPicker({
     onChange(arrayMove(items, from, to));
   }
 
+  // Tri par numéro proposé quand les noms sont numérotés et que l'ordre actuel ne le suit pas
+  // (photos ajoutées en plusieurs fois, ou réordonnées à la main).
+  const byName = [...items].sort((a, b) => compareNames(a.name, b.name));
+  const canSort = items.length > 1 && hasNumbering(items.map((i) => i.name)) && byName.some((m, i) => m.key !== items[i].key);
+  const dropProps = {
+    onDragOver: (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes("Files")) return;
+      e.preventDefault();
+      setOver(true);
+    },
+    onDragLeave: () => setOver(false),
+    onDrop: (e: React.DragEvent) => {
+      if (!e.dataTransfer.files.length) return;
+      e.preventDefault();
+      setOver(false);
+      onFiles([...e.dataTransfer.files]);
+    },
+  };
+
   return (
     <div className="flex flex-col gap-3">
+      {items.length > 0 && (canSort || notice) ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-muted">
+          <span>{notice ?? "Les noms des fichiers sont numérotés."}</span>
+          {canSort ? (
+            <button type="button" onClick={() => onChange(byName)} className="inline-flex items-center gap-1.5 rounded-full bg-fill px-3 py-1.5 font-medium text-text hover:bg-fill-strong">
+              <ArrowDownWideNarrow className="size-3.5" /> Trier par numéro
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {items.length > 0 ? (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={items.map((i) => i.key)} strategy={rectSortingStrategy}>
-            <ul className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 lg:grid-cols-5">
-              {items.map((item, index) => (
-                <SortableTile key={item.key} item={item} index={index} onRemove={() => onChange(items.filter((i) => i.key !== item.key))} />
-              ))}
-              <li>
-                <button
-                  type="button"
-                  onClick={() => input.current?.click()}
-                  className="grid aspect-[4/5] w-full place-items-center rounded-[14px] bg-fill text-muted transition hover:bg-fill-strong hover:text-text"
-                >
-                  <span className="flex flex-col items-center gap-1 text-[12px]">
-                    <ImagePlus className="size-5" />
-                    Ajouter
-                  </span>
-                </button>
-              </li>
-            </ul>
-          </SortableContext>
-        </DndContext>
+        <div {...dropProps} className={cn("rounded-2xl transition-shadow", over && "shadow-[0_0_0_2px_var(--ink)]")}>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={items.map((i) => i.key)} strategy={rectSortingStrategy}>
+              <ul className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 lg:grid-cols-5">
+                {items.map((item, index) => (
+                  <SortableTile key={item.key} item={item} index={index} onRemove={() => onChange(items.filter((i) => i.key !== item.key))} />
+                ))}
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => input.current?.click()}
+                    className="grid aspect-[4/5] w-full place-items-center rounded-[14px] bg-fill text-muted transition hover:bg-fill-strong hover:text-text"
+                  >
+                    <span className="flex flex-col items-center gap-1 text-[12px]">
+                      <ImagePlus className="size-5" />
+                      Ajouter
+                    </span>
+                  </button>
+                </li>
+              </ul>
+            </SortableContext>
+          </DndContext>
+        </div>
       ) : (
         <button
           type="button"
@@ -104,8 +136,7 @@ export function MediaPicker({
           </span>
           <span className="text-sm font-medium">Dépose tes images ou ta vidéo ici</span>
           <span className="max-w-sm text-[13px] text-muted">
-            1 image = post simple, plusieurs = carrousel (4:5 conseillé). Une vidéo = Reel : n&apos;importe quelle taille, même en 4K, elle est
-            convertie automatiquement. PDF pour LinkedIn.
+            1 image = post simple, plusieurs = carrousel (4:5 conseillé). Une vidéo = Reel : n&apos;importe quelle taille, même en 4K, elle est convertie automatiquement. PDF pour LinkedIn.
           </span>
         </button>
       )}
@@ -130,11 +161,7 @@ function SortableTile({ item, index, onRemove }: { item: MediaItem; index: numbe
   const offRatio = item.kind === "image" && ratio !== null && Math.abs(ratio - 0.8) > 0.03;
 
   return (
-    <li
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn("group relative", isDragging && "z-10 opacity-80")}
-    >
+    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn("group relative", isDragging && "z-10 opacity-80")}>
       <div
         {...attributes}
         {...listeners}
@@ -165,9 +192,7 @@ function SortableTile({ item, index, onRemove }: { item: MediaItem; index: numbe
         {item.status === "uploading" ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/45 backdrop-blur-[1px]">
             <Loader2 className="size-5 animate-spin text-white" />
-            {item.stage === "convert" && item.progress != null ? (
-              <span className="tabular text-[11px] font-semibold text-white">{Math.round(item.progress * 100)} %</span>
-            ) : null}
+            {item.stage === "convert" && item.progress != null ? <span className="tabular text-[11px] font-semibold text-white">{Math.round(item.progress * 100)} %</span> : null}
           </div>
         ) : null}
         {item.status === "error" ? (
@@ -176,9 +201,7 @@ function SortableTile({ item, index, onRemove }: { item: MediaItem; index: numbe
             <span className="truncate">{item.error ?? "Erreur"}</span>
           </div>
         ) : null}
-        <span className="absolute left-1.5 top-1.5 grid h-5 min-w-5 place-items-center rounded-md bg-black/60 px-1 text-[11px] font-semibold text-white">
-          {index + 1}
-        </span>
+        <span className="absolute left-1.5 top-1.5 grid h-5 min-w-5 place-items-center rounded-md bg-black/60 px-1 text-[11px] font-semibold text-white">{index + 1}</span>
         <GripVertical className="absolute bottom-1.5 left-1.5 size-4 text-white opacity-0 drop-shadow transition group-hover:opacity-100" />
         {offRatio && item.status === "ready" ? (
           <span
