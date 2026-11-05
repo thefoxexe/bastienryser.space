@@ -3,7 +3,7 @@
 // Les montants sont ceux renvoyés par Whop (v1 : objets { amount: "10.00" }, en unités de la devise) ; les remboursements sont déduits à leur date.
 // MRR : prix de renouvellement des abonnements en cours, ramené à un mois.
 
-import { ConnectorError, type DailyPoint } from "./connectors.ts";
+import { addSubscription, ConnectorError, emptySubscriptions, roundSubscriptions, type DailyPoint, type SubscriptionsSnapshot } from "./connectors.ts";
 
 const BASE = "https://api.whop.com/api";
 
@@ -161,19 +161,11 @@ export async function whopDaily(key: string, days: number): Promise<DailyPoint[]
   });
 }
 
-export type WhopSubscriptions = {
-  /** Revenu mensuel récurrent : prix de renouvellement des abonnements actifs, ramené à un mois (365/12 jours). */
-  mrr: Record<string, number>;
-  subscribers: number;
-  canceling: number;
-  computed_at: string;
-};
+export type WhopSubscriptions = SubscriptionsSnapshot;
 
-/** Abonnements en cours (v1, droit member:basic:read) : MRR par devise et nombre d'abonnés. */
+/** Abonnements en cours (v1, droit member:basic:read) : MRR par devise, part mensuelle et part payée d'avance. */
 export async function whopSubscriptions(key: string): Promise<WhopSubscriptions> {
-  const mrr: Record<string, number> = {};
-  let subscribers = 0;
-  let canceling = 0;
+  const snap = emptySubscriptions();
   const seen = new Set<string>();
   for (const status of ["active", "canceling"]) {
     let after: string | undefined;
@@ -187,17 +179,14 @@ export async function whopSubscriptions(key: string): Promise<WhopSubscriptions>
         const days = num(m.billing_period_days);
         if (!price || !days || days <= 0) continue; // accès unique ou gratuit : pas de récurrent
         const currency = String((m.renewal_price as Raw | undefined)?.currency ?? m.currency ?? "usd").toLowerCase();
-        mrr[currency] = (mrr[currency] ?? 0) + (price * 365) / 12 / days;
-        subscribers++;
-        if (m.cancel_at_period_end === true || String(m.status) === "canceling") canceling++;
+        addSubscription(snap, currency, price, days, m.cancel_at_period_end === true || String(m.status) === "canceling");
       }
       const info = body.page_info as { has_next_page?: boolean; end_cursor?: string } | undefined;
       if (!info?.has_next_page || !info.end_cursor) break;
       after = info.end_cursor;
     }
   }
-  for (const c of Object.keys(mrr)) mrr[c] = Math.round(mrr[c] * 100) / 100;
-  return { mrr, subscribers, canceling, computed_at: new Date().toISOString() };
+  return roundSubscriptions(snap);
 }
 
 /** Aperçu pour vérifier le format renvoyé par Whop (champs du premier paiement et sa lecture). */

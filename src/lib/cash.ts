@@ -42,6 +42,9 @@ export type CashOverview = {
   daily90: { day: string; value: number }[];
   businesses: CashBusiness[];
   mrr: number | null;
+  /** Part du MRR facturée chaque mois, et part payée d'avance (annuel) répartie sur 12 mois. */
+  mrrMonthly: number | null;
+  mrrSplit: number | null;
   arr: number | null;
   subscribers: number | null;
   bestMonth: { day: string; value: number } | null;
@@ -65,6 +68,39 @@ async function all<T>(query: (from: number, to: number) => PromiseLike<{ data: T
 }
 
 const round = (v: number) => Math.round(v * 100) / 100;
+
+/** Taux BCE des devises demandées depuis `since` : valeur en CHF d'une unité, au dernier jour ouvré connu. */
+export async function fxLookup(currencies: string[], since: string) {
+  const supabase = await createClient();
+  const rates = new Map<string, { day: string; chf: number }[]>();
+  const wanted = currencies.filter((c) => c !== "chf");
+  if (wanted.length) {
+    const fx = await all<{ day: string; currency: string; chf: number }>((a, b) =>
+      supabase.from("fx_rates").select("day,currency,chf").in("currency", wanted).gte("day", since).order("day").range(a, b),
+    );
+    for (const r of fx) {
+      if (!rates.has(r.currency)) rates.set(r.currency, []);
+      rates.get(r.currency)!.push({ day: r.day, chf: Number(r.chf) });
+    }
+  }
+  const rateOn = (currency: string, day: string): number | null => {
+    if (currency === "chf") return 1;
+    const list = rates.get(currency);
+    if (!list?.length) return null;
+    // Dernier jour ouvré connu à cette date (week-end, jour férié, jour pas encore publié).
+    if (day < list[0].day) return list[0].chf;
+    let lo = 0;
+    let hi = list.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (list[mid].day <= day) lo = mid;
+      else hi = mid - 1;
+    }
+    return list[lo].chf;
+  };
+  const asOf = wanted.length ? ([...rates.values()].map((l) => l[l.length - 1]?.day).sort().pop() ?? null) : null;
+  return { rateOn, asOf };
+}
 const empty = (): Window => ({ income: 0, costs: 0, net: 0 });
 
 /** `businessId` : un seul business ; `manualOnly` : seulement les paiements relevés à la main (onglet Encaissements). */
@@ -100,35 +136,11 @@ export async function cashOverview(businesses: Business[], options: { businessId
   }
 
   // Taux BCE des devises présentes (MRR compris), depuis le premier mouvement.
-  const mrrByConnector = connectors.filter((c) => c.kind === "whop" && c.snapshot.mrr);
+  const mrrByConnector = connectors.filter((c) => (c.kind === "whop" || c.kind === "stripe") && c.snapshot.mrr);
   const currencies = [...new Set([...moves.map((m) => m.currency), ...mrrByConnector.flatMap((c) => Object.keys(c.snapshot.mrr ?? {}))])].filter((c) => c !== "chf");
   const firstDay = moves.reduce<string | null>((m, x) => (m === null || x.day < m ? x.day : m), null);
-  const rates = new Map<string, { day: string; chf: number }[]>();
-  if (currencies.length) {
-    const since = firstDay ? new Date(Date.parse(`${firstDay}T00:00:00Z`) - 10 * 86400_000).toISOString().slice(0, 10) : "2015-01-01";
-    const fx = await all<{ day: string; currency: string; chf: number }>((a, b) =>
-      supabase.from("fx_rates").select("day,currency,chf").in("currency", currencies).gte("day", since).order("day").range(a, b),
-    );
-    for (const r of fx) {
-      if (!rates.has(r.currency)) rates.set(r.currency, []);
-      rates.get(r.currency)!.push({ day: r.day, chf: Number(r.chf) });
-    }
-  }
-  const rateOn = (currency: string, day: string): number | null => {
-    if (currency === "chf") return 1;
-    const list = rates.get(currency);
-    if (!list?.length) return null;
-    // Dernier jour ouvré connu à cette date (week-end, jour férié, jour pas encore publié).
-    let lo = 0;
-    let hi = list.length - 1;
-    if (day < list[0].day) return list[0].chf;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (list[mid].day <= day) lo = mid;
-      else hi = mid - 1;
-    }
-    return list[lo].chf;
-  };
+  const since = firstDay ? new Date(Date.parse(`${firstDay}T00:00:00Z`) - 10 * 86400_000).toISOString().slice(0, 10) : "2015-01-01";
+  const { rateOn, asOf: ratesAsOf } = await fxLookup(currencies, since);
 
   const days = lastDays(90);
   const today = days[days.length - 1];
@@ -203,20 +215,24 @@ export async function cashOverview(businesses: Business[], options: { businessId
 
   // MRR : abonnements Whop en cours, convertis au dernier taux connu.
   const latest = (currency: string) => rateOn(currency, today);
-  const mrrOf = (businessId: string) => {
-    const list = mrrByConnector.filter((c) => c.business_id === businessId);
+  const mrrParts = (businessId?: string) => {
+    const list = mrrByConnector.filter((c) => !businessId || c.business_id === businessId);
     if (!list.length) return null;
-    let total = 0;
-    for (const c of list)
-      for (const [cur, v] of Object.entries(c.snapshot.mrr ?? {})) {
-        const r = latest(cur);
-        if (r === null) unconverted.add(cur);
-        else total += v * r;
-      }
-    return round(total);
+    const sum = (field: "mrr" | "mrr_monthly" | "mrr_split") => {
+      let total = 0;
+      for (const c of list)
+        for (const [cur, v] of Object.entries(c.snapshot[field] ?? {})) {
+          const r = latest(cur);
+          if (r === null) unconverted.add(cur);
+          else total += v * r;
+        }
+      return round(total);
+    };
+    return { total: sum("mrr"), monthly: sum("mrr_monthly"), split: sum("mrr_split") };
   };
-  const mrrValues = businesses.map((b) => mrrOf(b.id)).filter((v): v is number => v !== null);
-  const mrr = mrrValues.length ? round(mrrValues.reduce((a, v) => a + v, 0)) : null;
+  const mrrOf = (businessId: string) => mrrParts(businessId)?.total ?? null;
+  const allMrr = mrrParts();
+  const mrr = allMrr?.total ?? null;
   const subs = mrrByConnector.map((c) => c.snapshot.subscribers).filter((v): v is number => typeof v === "number");
 
   const trendMonths = monthly.slice(-12).map((p) => p.day);
@@ -239,7 +255,6 @@ export async function cashOverview(businesses: Business[], options: { businessId
     .sort((a, b) => b.allTime - a.allTime);
 
   const roundWindow = (w: Window): Window => ({ income: round(w.income), costs: round(w.costs), net: round(w.net) });
-  const ratesAsOf = currencies.length ? ([...rates.values()].map((l) => l[l.length - 1]?.day).sort().pop() ?? null) : null;
 
   return {
     hasData: moves.length > 0,
@@ -257,6 +272,8 @@ export async function cashOverview(businesses: Business[], options: { businessId
     daily90: days.map((day) => ({ day, value: round(byDay.get(day) ?? 0) })),
     businesses: list,
     mrr,
+    mrrMonthly: allMrr?.monthly ?? null,
+    mrrSplit: allMrr?.split ?? null,
     arr: mrr === null ? null : round(mrr * 12),
     subscribers: subs.length ? subs.reduce((a, v) => a + v, 0) : null,
     bestMonth,

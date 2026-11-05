@@ -17,7 +17,12 @@ export type Connector = {
     channels?: { key: string; sessions: number }[];
     /** Whop : MRR par devise, abonnés en cours, ou raison si les abonnements sont illisibles. */
     mrr?: Record<string, number>;
+    /** Part facturée chaque mois, et part payée d'avance (annuel…) répartie par mois. */
+    mrr_monthly?: Record<string, number>;
+    mrr_split?: Record<string, number>;
     subscribers?: number;
+    subscribers_monthly?: number;
+    subscribers_split?: number;
     canceling?: number;
     computed_at?: string;
     mrr_error?: string;

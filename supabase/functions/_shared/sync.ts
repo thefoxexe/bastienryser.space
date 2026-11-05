@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.118.0";
-import { ConnectorError, plausibleDaily, stripeDaily, type DailyPoint } from "./connectors.ts";
+import { ConnectorError, plausibleDaily, stripeDaily, stripeSubscriptions, SUBSCRIPTION_METRICS, subscriptionPoints, type DailyPoint, type SubscriptionsSnapshot } from "./connectors.ts";
 import { analyticsData, googleAccessToken, searchConsoleData, searchConsoleQueries } from "./google.ts";
 import { logActivity, readToken } from "./supabase.ts";
 import { whopDaily, whopSubscriptions } from "./whop.ts";
@@ -27,23 +27,22 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
     const days = c.config.backfilled ? 40 : c.kind === "whop" ? 3650 : 400;
     let points: DailyPoint[];
     let snapshot: Record<string, unknown> | null = null;
-    if (c.kind === "stripe") points = await stripeDaily(key, days);
-    else if (c.kind === "whop") {
-      points = await whopDaily(key, days);
-      // MRR du jour, gardé jour après jour (Whop ne fournit pas son historique). Sans le droit sur les abonnements, les paiements restent synchronisés.
+    if (c.kind === "stripe" || c.kind === "whop") {
+      points = c.kind === "stripe" ? await stripeDaily(key, days) : await whopDaily(key, days);
+      // MRR du jour, gardé jour après jour (ni Stripe ni Whop ne fournissent son historique).
+      // Sans le droit de lire les abonnements, les encaissements restent synchronisés.
       try {
-        const subs = await whopSubscriptions(key);
+        const subs: SubscriptionsSnapshot = c.kind === "stripe" ? await stripeSubscriptions(key) : await whopSubscriptions(key);
         snapshot = { ...subs };
         const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich" }).format(new Date());
-        await db.from("metric_points").upsert(
-          Object.entries(subs.mrr).map(([unit, value]) => ({ connector_id: c.id, business_id: c.business_id, metric: "mrr", day: today, unit, value, updated_at: subs.computed_at })),
-          { onConflict: "connector_id,metric,day,unit" },
-        );
+        const rows = subscriptionPoints(subs, today).map((p) => ({ connector_id: c.id, business_id: c.business_id, ...p, updated_at: subs.computed_at }));
+        // Un abonnement résilié fait disparaître sa devise : le relevé du jour est remplacé en entier.
+        await db.from("metric_points").delete().eq("connector_id", c.id).eq("day", today).in("metric", SUBSCRIPTION_METRICS);
+        if (rows.length) await db.from("metric_points").upsert(rows, { onConflict: "connector_id,metric,day,unit" });
       } catch (e) {
         snapshot = { mrr_error: e instanceof ConnectorError ? e.message : "Abonnements illisibles." };
       }
-    }
-    else if (c.kind === "plausible") points = await plausibleDaily(key, c.config.site_id ?? "", c.config.base_url ?? "https://plausible.io", days);
+    } else if (c.kind === "plausible") points = await plausibleDaily(key, c.config.site_id ?? "", c.config.base_url ?? "https://plausible.io", days);
     else {
       const token = await googleAccessToken(key);
       const result =
@@ -62,7 +61,7 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
       .eq("connector_id", c.id)
       .gte("day", c.kind === "stripe" || c.kind === "whop" ? since : (minDay ?? "9999-12-31"));
     // Le MRR est un relevé quotidien, pas un recalcul : on ne l'efface jamais.
-    if (c.kind === "whop") clear = clear.neq("metric", "mrr");
+    if (c.kind === "whop" || c.kind === "stripe") clear = clear.not("metric", "in", `(${SUBSCRIPTION_METRICS.join(",")})`);
     const { error: clearError } = await clear;
     if (clearError) throw new ConnectorError("Mise à jour des chiffres impossible.");
 

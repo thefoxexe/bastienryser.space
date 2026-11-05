@@ -9,6 +9,55 @@ export class ConnectorError extends Error {
 
 export type DailyPoint = { metric: string; day: string; unit: string; value: number };
 
+/**
+ * Abonnements en cours, ramenés à un mois (par devise).
+ * monthly : facturés chaque mois (ou plus souvent), l'argent tombe vraiment chaque mois.
+ * split : payés d'avance pour plusieurs mois (annuel, trimestriel…), répartis sur la période.
+ */
+export type SubscriptionsSnapshot = {
+  mrr: Record<string, number>;
+  mrr_monthly: Record<string, number>;
+  mrr_split: Record<string, number>;
+  subscribers: number;
+  subscribers_monthly: number;
+  subscribers_split: number;
+  canceling: number;
+  computed_at: string;
+};
+
+/** Ajoute un abonnement au relevé : `price` facturé toutes les `periodDays` jours. */
+export function addSubscription(s: SubscriptionsSnapshot, currency: string, price: number, periodDays: number, canceling: boolean) {
+  const monthly = (price * 365) / 12 / periodDays;
+  const bucket = periodDays <= 31 ? "mrr_monthly" : "mrr_split";
+  s.mrr[currency] = (s.mrr[currency] ?? 0) + monthly;
+  s[bucket][currency] = (s[bucket][currency] ?? 0) + monthly;
+  s.subscribers++;
+  if (bucket === "mrr_monthly") s.subscribers_monthly++;
+  else s.subscribers_split++;
+  if (canceling) s.canceling++;
+}
+
+export function emptySubscriptions(): SubscriptionsSnapshot {
+  return { mrr: {}, mrr_monthly: {}, mrr_split: {}, subscribers: 0, subscribers_monthly: 0, subscribers_split: 0, canceling: 0, computed_at: new Date().toISOString() };
+}
+
+export function roundSubscriptions(s: SubscriptionsSnapshot) {
+  for (const k of ["mrr", "mrr_monthly", "mrr_split"] as const) for (const c of Object.keys(s[k])) s[k][c] = Math.round(s[k][c] * 100) / 100;
+  return s;
+}
+
+/** Relevés quotidiens du MRR (total, part mensuelle, part répartie), gardés jour après jour. */
+export function subscriptionPoints(s: SubscriptionsSnapshot, day: string): DailyPoint[] {
+  const currencies = new Set([...Object.keys(s.mrr), ...Object.keys(s.mrr_monthly), ...Object.keys(s.mrr_split)]);
+  return [...currencies].flatMap((unit) => [
+    { metric: "mrr", day, unit, value: s.mrr[unit] ?? 0 },
+    { metric: "mrr_monthly", day, unit, value: s.mrr_monthly[unit] ?? 0 },
+    { metric: "mrr_split", day, unit, value: s.mrr_split[unit] ?? 0 },
+  ]);
+}
+
+export const SUBSCRIPTION_METRICS = ["mrr", "mrr_monthly", "mrr_split"];
+
 const dayInZurich = (unixSeconds: number) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(unixSeconds * 1000));
 
@@ -42,6 +91,47 @@ export async function stripeTest(key: string) {
       throw new ConnectorError("La clé Stripe doit pouvoir lire le solde (Balance : lecture) ou les paiements (Charges : lecture).", true);
     }
   }
+}
+
+const INTERVAL_DAYS: Record<string, number> = { day: 1, week: 7, month: 365 / 12, year: 365 };
+
+/**
+ * Abonnements Stripe en cours (actifs ou en retard de paiement), permission « Subscriptions : lecture ».
+ * Montant de chaque ligne : prix unitaire × quantité, moins une réduction en pourcentage encore valable.
+ */
+export async function stripeSubscriptions(key: string): Promise<SubscriptionsSnapshot> {
+  const snap = emptySubscriptions();
+  for (const status of ["active", "past_due"]) {
+    let startingAfter: string | undefined;
+    for (let page = 0; page < 50; page++) {
+      const params: Record<string, string> = { limit: "100", status };
+      if (startingAfter) params.starting_after = startingAfter;
+      let body;
+      try {
+        body = await stripeGet(key, "subscriptions", params);
+      } catch (e) {
+        if (e instanceof ConnectorError && e.authProblem) throw new ConnectorError("Ajoute le droit « Subscriptions : lecture » à la clé Stripe pour le MRR.", true);
+        throw e;
+      }
+      for (const sub of body.data as Record<string, any>[]) {
+        const coupon = sub.discount?.coupon;
+        const percentOff = coupon && coupon.duration !== "once" && typeof coupon.percent_off === "number" ? coupon.percent_off : 0;
+        for (const item of (sub.items?.data ?? []) as Record<string, any>[]) {
+          const price = item.price ?? item.plan;
+          const interval = price?.recurring?.interval ?? price?.interval;
+          const count = Number(price?.recurring?.interval_count ?? price?.interval_count ?? 1);
+          const unit = Number(price?.unit_amount ?? price?.amount);
+          if (!interval || !INTERVAL_DAYS[interval] || !Number.isFinite(unit) || unit <= 0) continue;
+          const currency = String(price.currency ?? "chf").toLowerCase();
+          const amount = ((unit * Number(item.quantity ?? 1)) / (ZERO_DECIMAL.has(currency) ? 1 : 100)) * (1 - percentOff / 100);
+          addSubscription(snap, currency, amount, INTERVAL_DAYS[interval] * count, sub.cancel_at_period_end === true);
+        }
+      }
+      if (!body.has_more || !body.data.length) break;
+      startingAfter = body.data[body.data.length - 1].id;
+    }
+  }
+  return roundSubscriptions(snap);
 }
 
 /** Parcourt une liste Stripe page par page (100 éléments, 50 pages au plus). */
