@@ -133,10 +133,10 @@ const SCHEMA = {
   required: ["titre", "essentiel", "points", "a_retenir", "a_surveiller"],
   properties: {
     titre: { type: "string", description: "Titre court et accrocheur, sans emoji, 90 caractères au plus." },
-    essentiel: { type: "string", description: "L'idée principale en 2 ou 3 phrases simples." },
-    points: { type: "array", items: { type: "string" }, description: "3 à 6 points clés, chacun en une ou deux phrases, avec les chiffres cités." },
-    a_retenir: { type: "string", description: "Ce que ça veut dire concrètement pour les marchés (or, actions, crypto, devises), en 2 ou 3 phrases." },
-    a_surveiller: { type: "array", items: { type: "string" }, description: "0 à 4 rendez-vous ou signaux à suivre ensuite (dates, annonces, niveaux)." },
+    essentiel: { type: "string", description: "L'idée principale en 1 ou 2 phrases courtes." },
+    points: { type: "array", items: { type: "string" }, description: "3 ou 4 points clés, une phrase courte chacun, avec seulement les chiffres qui comptent." },
+    a_retenir: { type: "string", description: "Ce que ça change pour les marchés (or, actions, crypto, devises), en 1 ou 2 phrases." },
+    a_surveiller: { type: "array", items: { type: "string" }, description: "0 à 3 rendez-vous ou signaux à suivre, quelques mots chacun (date + quoi)." },
   },
 };
 
@@ -149,6 +149,7 @@ async function explain(s: Settings, title: string | null, transcript: string): P
     "Règles : reste fidèle à la vidéo ; garde les chiffres, dates et niveaux exactement comme ils sont dits ; n'ajoute aucun chiffre ni fait qui n'y est pas ;",
     "si un passage est flou dans la retranscription, ne l'invente pas, laisse-le de côté. Ne parle pas de « la vidéo » ni de son auteur : présente l'analyse directement.",
     "Ton : direct, clair, accessible à quelqu'un qui débute, sans jargon inutile (explique un terme technique en quelques mots s'il est indispensable). Pas d'emoji.",
+    "Format court, lu sur téléphone : vise 700 à 1 100 caractères au total. Garde l'essentiel et les chiffres clés, laisse de côté les détails secondaires.",
     s.instructions.trim() ? `Consignes de l'administrateur du groupe : ${s.instructions.trim()}` : "",
   ]
     .filter(Boolean)
