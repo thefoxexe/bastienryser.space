@@ -138,7 +138,7 @@ export async function stripeSubscriptions(key: string): Promise<SubscriptionsSna
 export async function stripeSubscriptionsProbe(key: string) {
   const rows: Record<string, unknown>[] = [];
   for (const status of ["active", "past_due", "trialing"]) {
-    const body = await stripeGet(key, "subscriptions", { limit: "100", status, "expand[]": "data.latest_invoice" });
+    const body = await stripeGet(key, "subscriptions", { limit: "100", status });
     for (const sub of body.data as Record<string, any>[]) {
       const inv = sub.latest_invoice;
       rows.push({
