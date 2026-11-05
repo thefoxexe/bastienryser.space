@@ -16,6 +16,7 @@ import { ConnectorForm } from "./donnees/connecteurs/connector-form";
 export async function VeilleOverview({ business }: { business: Business }) {
   const [whop, veille] = await Promise.all([whopOverview(business.id), veilleStats(business.id)]);
   const money = { kind: "currency", currency: whop.currency } as const;
+  const subs = whop.subscriptions;
   const hasRevenue = whop.monthly.length > 0;
   const veilleHref = `/b/${business.slug}/veille`;
 
@@ -23,12 +24,29 @@ export async function VeilleOverview({ business }: { business: Business }) {
     <>
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <KpiTile
-          label="Revenus depuis toujours"
-          amount={hasRevenue ? whop.totals.revenue : null}
+          label="Gagné depuis toujours"
+          amount={hasRevenue ? whop.totals.gain : null}
           format={money}
-          hint={whop.firstDay ? `depuis ${formatMonth(whop.firstDay)}` : undefined}
-          trend={hasRevenue ? whop.cumulative.map((p) => p.value) : undefined}
+          hint={whop.firstDay ? `net des frais Whop, depuis ${formatMonth(whop.firstDay)}` : undefined}
+          trend={hasRevenue ? whop.cumulativeGain.map((p) => p.value) : undefined}
           empty="Connecter Whop"
+          href="#whop"
+        />
+        <KpiTile
+          label="MRR"
+          amount={subs.mrr}
+          format={money}
+          hint={subs.subscribers !== null ? `${subs.subscribers} abonné${subs.subscribers > 1 ? "s" : ""} en cours` : undefined}
+          trend={whop.mrrHistory.length > 1 ? whop.mrrHistory.map((p) => p.value) : undefined}
+          empty={whop.connector ? "Droit abonnements à ajouter" : "Connecter Whop"}
+          href="#whop"
+        />
+        <KpiTile
+          label="ARR"
+          amount={subs.arr}
+          format={money}
+          hint={subs.canceling ? `${subs.canceling} résiliation${subs.canceling > 1 ? "s" : ""} en fin de période` : "MRR × 12"}
+          empty={whop.connector ? "Droit abonnements à ajouter" : "Connecter Whop"}
           href="#whop"
         />
         <KpiTile
@@ -36,6 +54,23 @@ export async function VeilleOverview({ business }: { business: Business }) {
           amount={whop.connector && hasRevenue ? whop.totals.revenue30 : null}
           format={money}
           hint={whop.connector && hasRevenue ? `${whop.totals.payments30} paiement${whop.totals.payments30 > 1 ? "s" : ""}` : undefined}
+          trend={whop.connector && hasRevenue ? whop.last30.map((p) => p.value) : undefined}
+          empty="Connecter Whop"
+          href="#whop"
+        />
+        <KpiTile
+          label="Encaissé depuis toujours"
+          amount={hasRevenue ? whop.totals.revenue : null}
+          format={money}
+          hint={hasRevenue ? `${whop.totals.payments} paiement${whop.totals.payments > 1 ? "s" : ""}, remboursements déduits` : undefined}
+          empty="Connecter Whop"
+          href="#whop"
+        />
+        <KpiTile
+          label="Frais Whop"
+          amount={hasRevenue ? whop.totals.fees : null}
+          format={money}
+          hint={hasRevenue && whop.totals.revenue ? `${((whop.totals.fees / whop.totals.revenue) * 100).toLocaleString("fr-CH", { maximumFractionDigits: 1 })} % des revenus` : undefined}
           empty="Connecter Whop"
           href="#whop"
         />
@@ -78,7 +113,7 @@ export async function VeilleOverview({ business }: { business: Business }) {
             <div className="flex max-w-xl flex-col gap-4">
               <ol className="list-decimal space-y-1 pl-5 text-[13px] text-muted">
                 <li>Whop → Dashboard de l&apos;entreprise → Developer → API keys → Créer une clé.</li>
-                <li>Lui donner au minimum la lecture des paiements (payment:basic:read).</li>
+                <li>Lui donner la lecture des paiements (payment:basic:read) et des membres (member:basic:read, pour le MRR).</li>
                 <li>Coller la clé ci-dessous : elle est testée puis chiffrée, l&apos;historique complet est importé.</li>
               </ol>
               <ConnectorForm kind="whop" businessId={business.id} slug={business.slug} />
@@ -90,17 +125,31 @@ export async function VeilleOverview({ business }: { business: Business }) {
             </div>
           ) : null}
 
+          {whop.connector && subs.error ? <p className="text-[12px] text-muted">MRR indisponible : {subs.error}</p> : null}
+
           {hasRevenue ? (
             <>
               <div className="grid gap-6 lg:grid-cols-2">
                 <div className="min-w-0">
-                  <p className="mb-2 text-[13px] font-medium">Cumul depuis le premier paiement</p>
-                  <AreaChart points={whop.cumulative} format={money} label="Revenus cumulés" height={190} monthly />
+                  <p className="mb-2 text-[13px] font-medium">Gagné, cumulé depuis le premier paiement</p>
+                  <AreaChart points={whop.cumulativeGain} format={money} label="Gain cumulé" height={190} monthly />
                 </div>
                 <div className="min-w-0">
-                  <p className="mb-2 text-[13px] font-medium">Par mois</p>
+                  <p className="mb-2 text-[13px] font-medium">Encaissé par mois</p>
                   <AreaChart points={whop.monthly} format={money} label="Revenus du mois" height={190} monthly />
                 </div>
+                {whop.recurringMonthly.length ? (
+                  <div className="min-w-0">
+                    <p className="mb-2 text-[13px] font-medium">Abonnements encaissés par mois</p>
+                    <AreaChart points={whop.recurringMonthly} format={money} label="Abonnements du mois" height={190} monthly />
+                  </div>
+                ) : null}
+                {whop.mrrHistory.length > 1 ? (
+                  <div className="min-w-0">
+                    <p className="mb-2 text-[13px] font-medium">MRR, relevé chaque jour</p>
+                    <AreaChart points={whop.mrrHistory} format={money} label="MRR" height={190} />
+                  </div>
+                ) : null}
               </div>
               <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 text-[13px] sm:grid-cols-4">
                 <Figure label="Paiements" value={String(whop.totals.payments)} />

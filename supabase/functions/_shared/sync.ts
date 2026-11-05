@@ -2,7 +2,7 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.118.0";
 import { ConnectorError, plausibleDaily, stripeDaily, type DailyPoint } from "./connectors.ts";
 import { analyticsData, googleAccessToken, searchConsoleData, searchConsoleQueries } from "./google.ts";
 import { logActivity, readToken } from "./supabase.ts";
-import { whopDaily } from "./whop.ts";
+import { whopDaily, whopSubscriptions } from "./whop.ts";
 
 export type ConnectorRow = {
   id: string;
@@ -28,7 +28,21 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
     let points: DailyPoint[];
     let snapshot: Record<string, unknown> | null = null;
     if (c.kind === "stripe") points = await stripeDaily(key, days);
-    else if (c.kind === "whop") points = await whopDaily(key, days);
+    else if (c.kind === "whop") {
+      points = await whopDaily(key, days);
+      // MRR du jour, gardé jour après jour (Whop ne fournit pas son historique). Sans le droit sur les abonnements, les paiements restent synchronisés.
+      try {
+        const subs = await whopSubscriptions(key);
+        snapshot = { ...subs };
+        const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich" }).format(new Date());
+        await db.from("metric_points").upsert(
+          Object.entries(subs.mrr).map(([unit, value]) => ({ connector_id: c.id, business_id: c.business_id, metric: "mrr", day: today, unit, value, updated_at: subs.computed_at })),
+          { onConflict: "connector_id,metric,day,unit" },
+        );
+      } catch (e) {
+        snapshot = { mrr_error: e instanceof ConnectorError ? e.message : "Abonnements illisibles." };
+      }
+    }
     else if (c.kind === "plausible") points = await plausibleDaily(key, c.config.site_id ?? "", c.config.base_url ?? "https://plausible.io", days);
     else {
       const token = await googleAccessToken(key);
@@ -42,11 +56,14 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
     // La période synchronisée est remplacée en entier : un remboursement peut ramener un jour déjà compté à zéro.
     const since = new Date(Date.now() - (days - 1) * 86400_000).toISOString().slice(0, 10);
     const minDay = points.reduce<string | null>((m, p) => (m === null || p.day < m ? p.day : m), null);
-    const { error: clearError } = await db
+    let clear = db
       .from("metric_points")
       .delete()
       .eq("connector_id", c.id)
       .gte("day", c.kind === "stripe" || c.kind === "whop" ? since : (minDay ?? "9999-12-31"));
+    // Le MRR est un relevé quotidien, pas un recalcul : on ne l'efface jamais.
+    if (c.kind === "whop") clear = clear.neq("metric", "mrr");
+    const { error: clearError } = await clear;
     if (clearError) throw new ConnectorError("Mise à jour des chiffres impossible.");
 
     if (points.length) {

@@ -15,6 +15,12 @@ export type Connector = {
     queries?: { key: string; clicks: number; impressions: number; position: number }[];
     pages?: { key: string; clicks?: number; impressions?: number; position?: number; views?: number }[];
     channels?: { key: string; sessions: number }[];
+    /** Whop : MRR par devise, abonnés en cours, ou raison si les abonnements sont illisibles. */
+    mrr?: Record<string, number>;
+    subscribers?: number;
+    canceling?: number;
+    computed_at?: string;
+    mrr_error?: string;
   };
   status: "connected" | "pending" | "error";
   last_sync_at: string | null;

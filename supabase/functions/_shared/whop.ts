@@ -1,6 +1,7 @@
 // Whop : paiements encaissés (plateforme de vente d'accès et d'abonnements).
 // Lit l'API v1 (curseurs) et, à défaut, l'ancienne v5 (pages) avec une clé d'entreprise.
-// Les montants sont ceux renvoyés par Whop, en unités de la devise ; les remboursements sont déduits à leur date.
+// Les montants sont ceux renvoyés par Whop (v1 : objets { amount: "10.00" }, en unités de la devise) ; les remboursements sont déduits à leur date.
+// MRR : prix de renouvellement des abonnements en cours, ramené à un mois.
 
 import { ConnectorError, type DailyPoint } from "./connectors.ts";
 
@@ -20,7 +21,7 @@ async function whopGet(key: string, path: string, params: Record<string, string>
     }
     const body = (await res.json().catch(() => ({}))) as Raw;
     if (res.status === 401 || res.status === 403) {
-      throw new ConnectorError("Whop refuse cette clé : vérifie qu'elle a le droit de lire les paiements (payment:basic:read).", true);
+      throw new ConnectorError(path.includes("memberships") ? "Whop refuse la lecture des abonnements : ajoute le droit member:basic:read à la clé." : "Whop refuse cette clé : vérifie qu'elle a le droit de lire les paiements (payment:basic:read).", true);
     }
     if (res.status === 429) throw new ConnectorError("Whop limite temporairement les demandes : nouvel essai au prochain passage.", false, true);
     if (!res.ok) throw new ConnectorError(`Whop a répondu ${res.status} (${path}).`);
@@ -40,27 +41,47 @@ const toUnix = (v: unknown): number | null => {
   return null;
 };
 const num = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : null);
+/** Montant Whop : objet { amount: "10.00", currency } en v1 (unités de la devise), nombre en v5. */
+const money = (v: unknown): number | null => (v && typeof v === "object" ? num((v as Raw).amount) : num(v));
 
-export type WhopPayment = { id: string; amount: number; currency: string; paidAt: number; refunded: number; refundedAt: number | null; status: string };
+export type WhopPayment = {
+  id: string;
+  amount: number;
+  /** Ce que Whop reverse : le total moins ses frais. null si non fourni. */
+  afterFees: number | null;
+  currency: string;
+  paidAt: number;
+  refunded: number;
+  refundedAt: number | null;
+  /** Paiement d'abonnement (création, renouvellement ou changement de formule). */
+  recurring: boolean;
+  status: string;
+};
+
+const RECURRING = ["subscription_create", "subscription_cycle", "subscription_update", "subscription"];
 
 /** Paiement Whop (v1 ou v5) → montant encaissé, devise, dates. null si pas encaissé (brouillon, échec, en attente). */
 export function normalize(p: Raw): WhopPayment | null {
   const status = String(p.status ?? "").toLowerCase();
   const substatus = String(p.substatus ?? "").toLowerCase();
-  const paid = ["paid", "succeeded", "refunded", "partially_refunded"].includes(status) || ["succeeded", "refunded", "partially_refunded"].includes(substatus);
+  const paid = ["paid", "succeeded", "refunded", "partially_refunded"].includes(status) || ["succeeded", "refunded", "partially_refunded", "auto_refunded"].includes(substatus);
   if (!paid) return null;
-  const amount = num(p.final_amount) ?? num(p.total) ?? num(p.subtotal) ?? num(p.amount) ?? num(p.usd_total);
+  const amount = money(p.total) ?? money(p.final_amount) ?? money(p.subtotal) ?? money(p.amount);
   const paidAt = toUnix(p.paid_at) ?? toUnix(p.created_at);
   if (amount === null || paidAt === null) return null;
-  const refunded = num(p.refunded_amount) ?? (status === "refunded" || substatus === "refunded" ? amount : 0);
+  const fullyRefunded = substatus === "refunded" || substatus === "auto_refunded" || status === "refunded";
+  const refunded = money(p.refunded_amount) || (fullyRefunded ? amount : 0);
+  const currency = String(p.currency ?? (p.total as Raw | undefined)?.currency ?? "usd").toLowerCase();
   return {
     id: String(p.id ?? ""),
     amount,
-    currency: String(p.currency ?? "usd").toLowerCase(),
+    afterFees: money(p.amount_after_fees),
+    currency,
     paidAt,
     refunded,
     refundedAt: refunded ? (toUnix(p.refunded_at) ?? paidAt) : null,
-    status: status || substatus,
+    recurring: RECURRING.includes(String(p.billing_reason ?? "").toLowerCase()),
+    status: substatus || status,
   };
 }
 
@@ -107,7 +128,7 @@ export async function whopTest(key: string) {
 
 const dayInZurich = (unixSeconds: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich" }).format(new Date(unixSeconds * 1000));
 
-/** Encaissements par jour : revenus nets (remboursements déduits à leur date), nombre de paiements, remboursements. */
+/** Encaissements par jour : revenus nets (remboursements déduits à leur date), nombre de paiements, remboursements, frais Whop, part récurrente. */
 export async function whopDaily(key: string, days: number): Promise<DailyPoint[]> {
   const since = Math.floor(Date.now() / 1000) - days * 86400;
   const totals = new Map<string, number>();
@@ -125,6 +146,8 @@ export async function whopDaily(key: string, days: number): Promise<DailyPoint[]
       const day = dayInZurich(p.paidAt);
       add("revenue", day, p.currency, p.amount);
       add("payments", day, "", 1);
+      if (p.afterFees !== null) add("fees", day, p.currency, Math.max(0, p.amount - p.afterFees));
+      if (p.recurring) add("recurring", day, p.currency, p.amount);
     }
     if (p.refunded && p.refundedAt !== null && p.refundedAt >= since) {
       const day = dayInZurich(p.refundedAt);
@@ -138,6 +161,45 @@ export async function whopDaily(key: string, days: number): Promise<DailyPoint[]
   });
 }
 
+export type WhopSubscriptions = {
+  /** Revenu mensuel récurrent : prix de renouvellement des abonnements actifs, ramené à un mois (365/12 jours). */
+  mrr: Record<string, number>;
+  subscribers: number;
+  canceling: number;
+  computed_at: string;
+};
+
+/** Abonnements en cours (v1, droit member:basic:read) : MRR par devise et nombre d'abonnés. */
+export async function whopSubscriptions(key: string): Promise<WhopSubscriptions> {
+  const mrr: Record<string, number> = {};
+  let subscribers = 0;
+  let canceling = 0;
+  const seen = new Set<string>();
+  for (const status of ["active", "canceling"]) {
+    let after: string | undefined;
+    for (let i = 0; i < 100; i++) {
+      const { body } = await whopGet(key, "v1/memberships", { first: "100", status, ...(after ? { after } : {}) });
+      for (const m of (body.data as Raw[] | undefined) ?? []) {
+        const id = String(m.id ?? "");
+        if (id && seen.has(id)) continue;
+        seen.add(id);
+        const price = money(m.renewal_price);
+        const days = num(m.billing_period_days);
+        if (!price || !days || days <= 0) continue; // accès unique ou gratuit : pas de récurrent
+        const currency = String((m.renewal_price as Raw | undefined)?.currency ?? m.currency ?? "usd").toLowerCase();
+        mrr[currency] = (mrr[currency] ?? 0) + (price * 365) / 12 / days;
+        subscribers++;
+        if (m.cancel_at_period_end === true || String(m.status) === "canceling") canceling++;
+      }
+      const info = body.page_info as { has_next_page?: boolean; end_cursor?: string } | undefined;
+      if (!info?.has_next_page || !info.end_cursor) break;
+      after = info.end_cursor;
+    }
+  }
+  for (const c of Object.keys(mrr)) mrr[c] = Math.round(mrr[c] * 100) / 100;
+  return { mrr, subscribers, canceling, computed_at: new Date().toISOString() };
+}
+
 /** Aperçu pour vérifier le format renvoyé par Whop (champs du premier paiement et sa lecture). */
 export async function whopProbe(key: string) {
   let first: Raw | null = null;
@@ -146,5 +208,11 @@ export async function whopProbe(key: string) {
     count++;
     first ??= p;
   });
-  return { version, count, fields: first ? Object.keys(first) : [], sample: first, normalized: first ? normalize(first) : null };
+  let subscriptions: WhopSubscriptions | string;
+  try {
+    subscriptions = await whopSubscriptions(key);
+  } catch (e) {
+    subscriptions = e instanceof ConnectorError ? e.message : "Abonnements illisibles.";
+  }
+  return { version, count, fields: first ? Object.keys(first) : [], normalized: first ? normalize(first) : null, subscriptions };
 }
