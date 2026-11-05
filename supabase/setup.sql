@@ -1425,6 +1425,19 @@ revoke all on public.fx_rates from anon;
 revoke insert, update, delete, truncate on public.fx_rates from authenticated;
 
 -- ===========================================================================
+-- 20261025002300_revenue_model.sql
+-- ===========================================================================
+
+-- Modèle de revenus d'un business : abonnements (encaissements synchronisés : Whop, Stripe),
+-- devis (paiements relevés à la main, onglet Encaissements) ou les deux.
+alter table public.businesses add column if not exists revenue_model text not null default 'quotes'
+  check (revenue_model in ('subscriptions', 'quotes', 'mixed'));
+
+-- Client payeur d'un encaissement relevé à la main (facultatif).
+alter table public.ledger_entries add column if not exists client text
+  check (client is null or length(btrim(client)) between 1 and 120);
+
+-- ===========================================================================
 -- Configuration du projet
 -- ===========================================================================
 
@@ -1454,7 +1467,8 @@ insert into supabase_migrations.schema_migrations (version, name) values
   ('20261025001900', 'veille'),
   ('20261025002000', 'veille_filter'),
   ('20261025002100', 'whop'),
-  ('20261025002200', 'fx_rates')
+  ('20261025002200', 'fx_rates'),
+  ('20261025002300', 'revenue_model')
 on conflict do nothing;
 
 -- Adresse du projet, lue par pg_cron pour appeler les Edge Functions (pas un secret).

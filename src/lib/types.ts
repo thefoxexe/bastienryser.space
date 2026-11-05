@@ -23,6 +23,8 @@ export type Business = {
   logo_path: string | null;
   websites: string[];
   modules: string[];
+  /** Abonnements (synchronisés), devis (paiements relevés à la main) ou les deux. */
+  revenue_model: "subscriptions" | "quotes" | "mixed";
   position: number;
   archived_at: string | null;
   created_at: string;

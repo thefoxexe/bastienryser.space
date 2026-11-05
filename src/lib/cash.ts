@@ -67,16 +67,24 @@ async function all<T>(query: (from: number, to: number) => PromiseLike<{ data: T
 const round = (v: number) => Math.round(v * 100) / 100;
 const empty = (): Window => ({ income: 0, costs: 0, net: 0 });
 
-export async function cashOverview(businesses: Business[]): Promise<CashOverview> {
+/** `businessId` : un seul business ; `manualOnly` : seulement les paiements relevés à la main (onglet Encaissements). */
+export async function cashOverview(businesses: Business[], options: { businessId?: string; manualOnly?: boolean } = {}): Promise<CashOverview> {
   const supabase = await createClient();
   const [points, entries, connectors] = await Promise.all([
-    all<Row>((a, b) =>
-      supabase.from("metric_points").select("business_id,day,unit,value,metric").in("metric", ["revenue", "fees"]).order("day").range(a, b),
-    ),
-    all<{ business_id: string; day: string; kind: string; amount: number; currency: string }>((a, b) =>
-      supabase.from("ledger_entries").select("business_id,day,kind,amount,currency").order("day").range(a, b),
-    ),
-    listConnectors(),
+    options.manualOnly
+      ? Promise.resolve([] as Row[])
+      : all<Row>((a, b) => {
+          let q = supabase.from("metric_points").select("business_id,day,unit,value,metric").in("metric", ["revenue", "fees"]);
+          if (options.businessId) q = q.eq("business_id", options.businessId);
+          return q.order("day").range(a, b);
+        }),
+    all<{ business_id: string; day: string; kind: string; amount: number; currency: string }>((a, b) => {
+      let q = supabase.from("ledger_entries").select("business_id,day,kind,amount,currency");
+      if (options.businessId) q = q.eq("business_id", options.businessId);
+      if (options.manualOnly) q = q.eq("kind", "income");
+      return q.order("day").range(a, b);
+    }),
+    options.manualOnly ? Promise.resolve([]) : listConnectors(options.businessId),
   ]);
 
   // Mouvements bruts : (business, jour, devise, encaissement ou charge).

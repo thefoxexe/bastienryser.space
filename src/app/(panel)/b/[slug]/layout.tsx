@@ -9,7 +9,12 @@ export default async function BusinessLayout({ children, params }: LayoutProps<"
   const { slug } = await params;
   const business = await getBusiness(slug);
   const base = `/b/${business.slug}`;
-  const tabs = [{ href: base, label: "Aperçu" }, ...modulesFor(business.modules).map((m) => ({ href: `${base}/${m.basePath}`, label: m.label }))];
+  const tabs = [
+    { href: base, label: "Aperçu" },
+    // Business à devis : les paiements reçus se relèvent dans leur propre onglet.
+    ...(business.revenue_model !== "subscriptions" ? [{ href: `${base}/encaissements`, label: "Encaissements" }] : []),
+    ...modulesFor(business.modules).map((m) => ({ href: `${base}/${m.basePath}`, label: m.label })),
+  ];
 
   return (
     <div className="flex min-h-full flex-col">

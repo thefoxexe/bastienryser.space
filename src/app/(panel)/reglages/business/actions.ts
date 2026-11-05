@@ -27,6 +27,7 @@ const schema = z.object({
   data: z.string().optional(),
   projects: z.string().optional(),
   veille: z.string().optional(),
+  revenueModel: z.enum(["subscriptions", "quotes", "mixed"]).default("quotes"),
 });
 
 function parseWebsites(raw: string) {
@@ -77,6 +78,7 @@ export async function saveBusiness(_prev: BusinessFormState, formData: FormData)
     description: input.description || null,
     color: input.color.toLowerCase(),
     websites,
+    revenue_model: input.revenueModel,
     modules: [input.social === "on" && "social", input.data === "on" && "data", input.projects === "on" && "projects", input.veille === "on" && "veille"].filter((m): m is string => Boolean(m)),
   };
 

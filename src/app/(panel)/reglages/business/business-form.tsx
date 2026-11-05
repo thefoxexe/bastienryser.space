@@ -18,6 +18,12 @@ function slugify(value: string) {
     .slice(0, 40);
 }
 
+const REVENUE_MODELS = [
+  { value: "subscriptions", label: "Abonnements", hint: "Encaissements récupérés automatiquement (Whop, Stripe)." },
+  { value: "quotes", label: "Devis et prestations", hint: "Tu relèves chaque paiement reçu dans l'onglet Encaissements." },
+  { value: "mixed", label: "Les deux", hint: "Synchronisation automatique, plus les paiements relevés à la main." },
+] as const;
+
 export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
   const [state, action, pending] = useActionState<BusinessFormState, FormData>(saveBusiness, {});
   const [name, setName] = useState(business?.name ?? "");
@@ -121,6 +127,25 @@ export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
               <input type="checkbox" name="removeLogo" className="accent-[var(--accent)]" /> Retirer le logo actuel
             </label>
           ) : null}
+
+          <div className="rounded-[14px] bg-fill p-4">
+            <span className="text-[13px] font-medium">Comment ce business encaisse</span>
+            {REVENUE_MODELS.map((m) => (
+              <label key={m.value} className="mt-3 flex items-start gap-3 text-sm">
+                <input
+                  type="radio"
+                  name="revenueModel"
+                  value={m.value}
+                  defaultChecked={(business?.revenue_model ?? "quotes") === m.value}
+                  className="mt-0.5 accent-[var(--accent)]"
+                />
+                <span>
+                  {m.label}
+                  <span className="block text-[13px] text-muted">{m.hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
 
           <div className="rounded-[14px] bg-fill p-4">
             <span className="text-[13px] font-medium">Modules</span>
