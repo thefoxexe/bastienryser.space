@@ -147,6 +147,15 @@ export async function runSystemChecks(): Promise<CheckGroup[]> {
       fix: "App Meta → Instagram → Configuration de l'API avec connexion Instagram, puis ajouter les secrets dans Supabase.",
     },
     {
+      label: "Veille Telegram (clés IA côté Supabase)",
+      status: secret("OPENAI_API_KEY") && secret("ANTHROPIC_API_KEY") ? "ok" : "warning",
+      detail:
+        secret("OPENAI_API_KEY") && secret("ANTHROPIC_API_KEY")
+          ? "Whisper et Claude disponibles pour la veille."
+          : "Facultatif : OPENAI_API_KEY et ANTHROPIC_API_KEY, pour retranscrire et expliquer les vidéos de la veille.",
+      fix: "Supabase → Edge Functions → Secrets : ajouter les mêmes clés que dans Vercel.",
+    },
+    {
       label: "LinkedIn (profil)",
       status: secret("LINKEDIN_CLIENT_ID") && secret("LINKEDIN_CLIENT_SECRET") ? "ok" : "warning",
       detail: secret("LINKEDIN_CLIENT_ID") && secret("LINKEDIN_CLIENT_SECRET") ? "Identifiants de l'app présents." : "LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET manquants.",

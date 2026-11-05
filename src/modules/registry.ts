@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Activity, FolderKanban, Megaphone } from "lucide-react";
+import { Activity, FolderKanban, Megaphone, Radar } from "lucide-react";
 
 export type ModuleTab = { href: string; label: string };
 
@@ -53,6 +53,14 @@ export const MODULES: ModuleDefinition[] = [
     icon: FolderKanban,
     basePath: "projets",
     tabs: [{ href: "", label: "Projets" }],
+  },
+  {
+    id: "veille",
+    label: "Veille",
+    description: "Comptes TikTok surveillés : chaque nouvelle vidéo retranscrite, expliquée et envoyée sur Telegram.",
+    icon: Radar,
+    basePath: "veille",
+    tabs: [{ href: "", label: "Veille" }],
   },
 ];
 

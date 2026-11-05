@@ -1,0 +1,23 @@
+# Veille TikTok → Telegram : toutes les heures, et à la demande (onglet Actions → veille → Run workflow).
+# Réglages et historique dans le panel (business › Veille). Seul secret ici : VEILLE_SECRET, généré par le panel.
+name: veille
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+concurrency:
+  group: veille
+  cancel-in-progress: false
+jobs:
+  veille:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/veille
+      - run: pip install -U "yt-dlp[default]" && sudo apt-get install -y ffmpeg >/dev/null
+      - run: python3 scripts/veille/run.py
+        env:
+          VEILLE_URL: https://cocfslavrraexyavnzmg.supabase.co/functions/v1/veille
+          VEILLE_SECRET: ${{ secrets.VEILLE_SECRET }}

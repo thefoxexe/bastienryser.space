@@ -26,6 +26,7 @@ const schema = z.object({
   social: z.string().optional(),
   data: z.string().optional(),
   projects: z.string().optional(),
+  veille: z.string().optional(),
 });
 
 function parseWebsites(raw: string) {
@@ -76,7 +77,7 @@ export async function saveBusiness(_prev: BusinessFormState, formData: FormData)
     description: input.description || null,
     color: input.color.toLowerCase(),
     websites,
-    modules: [input.social === "on" && "social", input.data === "on" && "data", input.projects === "on" && "projects"].filter((m): m is string => Boolean(m)),
+    modules: [input.social === "on" && "social", input.data === "on" && "data", input.projects === "on" && "projects", input.veille === "on" && "veille"].filter((m): m is string => Boolean(m)),
   };
 
   let businessId = input.id || null;

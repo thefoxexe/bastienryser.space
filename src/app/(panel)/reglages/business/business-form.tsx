@@ -145,6 +145,13 @@ export function BusinessForm({ business }: { business?: BusinessWithLogo }) {
                 <span className="block text-[13px] text-muted">Projets internes, tâches, pièces jointes et factures liées.</span>
               </span>
             </label>
+            <label className="mt-3 flex items-start gap-3 text-sm">
+              <input type="checkbox" name="veille" defaultChecked={business ? business.modules.includes("veille") : false} className="mt-0.5 accent-[var(--accent)]" />
+              <span>
+                Veille
+                <span className="block text-[13px] text-muted">Comptes TikTok surveillés, vidéos retranscrites et expliquées sur Telegram.</span>
+              </span>
+            </label>
           </div>
 
           <FormError message={state.error} />

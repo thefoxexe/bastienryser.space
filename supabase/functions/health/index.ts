@@ -24,6 +24,8 @@ const SECRETS = [
   "PINTEREST_APP_SECRET",
   "X_CLIENT_ID",
   "X_CLIENT_SECRET",
+  "OPENAI_API_KEY",
+  "ANTHROPIC_API_KEY",
 ] as const;
 
 Deno.serve(async (req) => {
