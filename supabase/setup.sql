@@ -1384,6 +1384,17 @@ begin
 end $$;
 
 -- ===========================================================================
+-- 20261025002000_veille_filter.sql
+-- ===========================================================================
+
+-- Veille : filtre par catégorie (lue dans le bandeau de la vidéo) avant retranscription.
+alter table public.veille_settings add column if not exists filter text not null default '';
+alter table public.veille_items add column if not exists category text;
+alter table public.veille_items drop constraint if exists veille_items_status_check;
+alter table public.veille_items add constraint veille_items_status_check
+  check (status in ('queued', 'seen', 'processing', 'sent', 'failed', 'skipped'));
+
+-- ===========================================================================
 -- Configuration du projet
 -- ===========================================================================
 
@@ -1410,7 +1421,8 @@ insert into supabase_migrations.schema_migrations (version, name) values
   ('20261025001600', 'orphan_targets'),
   ('20261025001700', 'video'),
   ('20261025001800', 'milestones'),
-  ('20261025001900', 'veille')
+  ('20261025001900', 'veille'),
+  ('20261025002000', 'veille_filter')
 on conflict do nothing;
 
 -- Adresse du projet, lue par pg_cron pour appeler les Edge Functions (pas un secret).

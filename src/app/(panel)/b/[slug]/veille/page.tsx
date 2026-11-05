@@ -20,6 +20,7 @@ const STATUS: Record<VeilleItem["status"], { label: string; tone: string }> = {
   sent: { label: "Envoyé", tone: "text-success" },
   failed: { label: "Échec", tone: "text-danger" },
   seen: { label: "Ignoré", tone: "text-faint" },
+  skipped: { label: "Filtrée", tone: "text-faint" },
 };
 
 /** Le message envoyé est du HTML Telegram produit par la fonction (gras, italique, texte échappé) : rendu sans HTML brut. */
@@ -123,7 +124,7 @@ export default async function VeillePage({ params }: PageProps<"/b/[slug]/veille
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader title="Style des messages" description="Consignes ajoutées à chaque explication." />
+          <CardHeader title="Filtre et style" description="Ce qui part dans le groupe, et comment c'est écrit." />
           <SettingsForm businessId={business.id} slug={business.slug} settings={settings} />
         </Card>
 
@@ -157,20 +158,21 @@ export default async function VeillePage({ params }: PageProps<"/b/[slug]/veille
                       {" · "}
                       {item.source_id && sourceName.get(item.source_id) ? `@${sourceName.get(item.source_id)} · ` : ""}
                       {formatDateTime(item.sent_at ?? item.posted_at ?? item.created_at)}
+                      {item.category ? ` · ${item.category}` : ""}
                     </p>
                     <a href={item.url} target="_blank" rel="noreferrer noopener" className="mt-0.5 line-clamp-2 text-[14px] font-medium hover:underline">
                       {item.title || item.url}
                     </a>
-                    {item.error ? <p className="mt-1 text-[12px] text-danger">{item.error}</p> : null}
+                    {item.error ? <p className={cn("mt-1 text-[12px]", item.status === "skipped" ? "text-muted" : "text-danger")}>{item.error}</p> : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
-                    {item.status === "failed" ? (
+                    {item.status === "failed" || item.status === "skipped" ? (
                       <form action={retryItem}>
                         <input type="hidden" name="id" value={item.id} />
                         <input type="hidden" name="businessId" value={business.id} />
                         <input type="hidden" name="slug" value={business.slug} />
                         <Button type="submit" size="sm" variant="secondary">
-                          <RotateCw /> Relancer
+                          <RotateCw /> {item.status === "skipped" ? "Envoyer quand même" : "Relancer"}
                         </Button>
                       </form>
                     ) : null}

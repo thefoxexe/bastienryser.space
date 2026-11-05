@@ -62,16 +62,18 @@ const settingsSchema = z.object({
   businessId: z.string().uuid(),
   slug: z.string().min(1),
   instructions: z.string().max(2000, "Consignes trop longues (2000 caractères au plus)."),
+  filter: z.string().max(1000, "Filtre trop long (1000 caractères au plus)."),
 });
 
 export async function saveSettings(_prev: VeilleState, formData: FormData): Promise<VeilleState> {
   await requireAdmin();
-  const parsed = settingsSchema.safeParse({ businessId: formData.get("businessId"), slug: formData.get("slug"), instructions: formData.get("instructions") ?? "" });
+  const parsed = settingsSchema.safeParse({ businessId: formData.get("businessId"), slug: formData.get("slug"), instructions: formData.get("instructions") ?? "", filter: formData.get("filter") ?? "" });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Données invalides." };
   const supabase = await createClient();
   const { error } = await supabase.from("veille_settings").upsert({
     business_id: parsed.data.businessId,
     instructions: parsed.data.instructions.trim(),
+    filter: parsed.data.filter.trim(),
     disclaimer: formData.get("disclaimer") === "on",
     enabled: formData.get("enabled") === "on",
     updated_at: new Date().toISOString(),

@@ -8,6 +8,7 @@ export type VeilleSettings = {
   chat_title: string | null;
   thread_id: number | null;
   instructions: string;
+  filter: string;
   disclaimer: boolean;
   enabled: boolean;
 };
@@ -20,7 +21,8 @@ export type VeilleItem = {
   url: string;
   title: string | null;
   posted_at: string | null;
-  status: "queued" | "seen" | "processing" | "sent" | "failed";
+  status: "queued" | "seen" | "processing" | "sent" | "failed" | "skipped";
+  category: string | null;
   transcript: string | null;
   message: string | null;
   error: string | null;
@@ -34,11 +36,11 @@ export type VeilleRunner = { configured: boolean; last_run_at: string | null; la
 export async function getVeille(businessId: string) {
   const supabase = await createClient();
   const [{ data: s }, { data: sources }, { data: items }, { data: runner }] = await Promise.all([
-    supabase.from("veille_settings").select("telegram_ref, bot_username, chat_id, chat_title, thread_id, instructions, disclaimer, enabled").eq("business_id", businessId).maybeSingle(),
+    supabase.from("veille_settings").select("telegram_ref, bot_username, chat_id, chat_title, thread_id, instructions, filter, disclaimer, enabled").eq("business_id", businessId).maybeSingle(),
     supabase.from("veille_sources").select("id, handle, enabled, last_checked_at, last_error").eq("business_id", businessId).order("created_at"),
     supabase
       .from("veille_items")
-      .select("id, source_id, url, title, posted_at, status, transcript, message, error, created_at, sent_at")
+      .select("id, source_id, url, title, posted_at, status, category, transcript, message, error, created_at, sent_at")
       .eq("business_id", businessId)
       .neq("status", "seen")
       .order("created_at", { ascending: false })
@@ -52,6 +54,7 @@ export async function getVeille(businessId: string) {
     chat_title: s?.chat_title ?? null,
     thread_id: s?.thread_id ?? null,
     instructions: s?.instructions ?? "",
+    filter: s?.filter ?? "",
     disclaimer: s?.disclaimer ?? true,
     enabled: s?.enabled ?? true,
   };

@@ -67,23 +67,33 @@ def latest(handle):
     return out  # du plus récent au plus ancien
 
 
-def audio_of(url, workdir):
-    """Télécharge l'audio puis le compresse (mono 16 kHz) : quelques Mo au plus, bien sous la limite de Whisper."""
-    opts = {"quiet": True, "no_warnings": True, "format": "bestaudio/best", "outtmpl": os.path.join(workdir, "src.%(ext)s")}
+def media_of(url, workdir):
+    """Télécharge la vidéo (720p au plus), puis en tire l'audio compressé (mono 16 kHz, pour Whisper)
+    et une image du haut de l'écran agrandie (le bandeau où le compte indique la catégorie)."""
+    opts = {"quiet": True, "no_warnings": True, "format": "best[height<=720]/best", "outtmpl": os.path.join(workdir, "src.%(ext)s")}
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=True)
     src = next(os.path.join(workdir, f) for f in os.listdir(workdir) if f.startswith("src."))
-    out = os.path.join(workdir, "audio.mp3")
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-ac", "1", "-ar", "16000", "-b:a", "48k", out], check=True)
-    os.remove(src)
-    with open(out, "rb") as f:
-        data = f.read()
-    os.remove(out)
-    return data, info
+    audio = os.path.join(workdir, "audio.mp3")
+    frame = os.path.join(workdir, "frame.jpg")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", audio], check=True)
+    # Image à 2 s : le tiers haut, doublé en taille pour que le petit texte du bandeau soit lisible.
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "2", "-i", src, "-frames:v", "1", "-vf", "crop=iw:ih/3:0:0,scale=iw*2:-2", "-q:v", "3", frame], check=False)
+    with open(audio, "rb") as f:
+        audio_bytes = f.read()
+    frame_bytes = b""
+    if os.path.exists(frame):
+        with open(frame, "rb") as f:
+            frame_bytes = f.read()
+    return audio_bytes, frame_bytes, info
 
 
-def ingest(fields, data):
-    return call(form={**fields, "action": "ingest", "audio": ("audio.mp3", data, "audio/mpeg")}, timeout=280)
+def ingest(fields, media):
+    audio, frame, _ = media
+    form = {**fields, "action": "ingest", "audio": ("audio.mp3", audio, "audio/mpeg")}
+    if frame:
+        form["frame"] = ("frame.jpg", frame, "image/jpeg")
+    return call(form=form, timeout=280)
 
 
 def main():
@@ -115,13 +125,13 @@ def main():
         for v in list(reversed(fresh))[:MAX_NEW_PER_SOURCE]:  # du plus ancien au plus récent
             with tempfile.TemporaryDirectory() as tmp:
                 try:
-                    data, _ = audio_of(v["url"], tmp)
+                    media = media_of(v["url"], tmp)
                 except Exception as e:
                     msg = f"@{handle} {v['external_id']} : téléchargement impossible ({str(e)[:200]})"
                     print(msg)
                     problems.append(msg)
                     continue
-            result = ingest({"source_id": src["id"], **v}, data)
+            result = ingest({"source_id": src["id"], **v}, media)
             print(f"@{handle} {v['external_id']} :", result)
             if result.get("ok"):
                 sent += 0 if result.get("skipped") else 1
@@ -132,7 +142,8 @@ def main():
     for item in config.get("queued", []):
         with tempfile.TemporaryDirectory() as tmp:
             try:
-                data, info = audio_of(item["url"], tmp)
+                media = media_of(item["url"], tmp)
+                info = media[2]
             except Exception as e:
                 msg = f"Lien {item['url']} : téléchargement impossible ({str(e)[:200]})"
                 print(msg)
@@ -146,7 +157,7 @@ def main():
             "url": item["url"],
             "title": (info.get("title") or info.get("description") or "")[:500],
             "posted_at": datetime.fromtimestamp(ts, timezone.utc).isoformat() if ts else "",
-        }, data)
+        }, media)
         print("Lien", item["url"], ":", result)
         if result.get("ok"):
             sent += 1

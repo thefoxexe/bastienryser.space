@@ -25,6 +25,8 @@ type Settings = {
   chat_title: string | null;
   thread_id: number | null;
   instructions: string;
+  /** Ce qu'on garde (catégorie lue dans le bandeau) ; vide = tout est envoyé. */
+  filter: string;
   disclaimer: boolean;
   enabled: boolean;
 };
@@ -174,6 +176,61 @@ async function explain(s: Settings, title: string | null, transcript: string): P
   }
 }
 
+type Verdict = { categorie: string; garder: boolean; raison: string };
+
+const VERDICT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["categorie", "garder", "raison"],
+  properties: {
+    categorie: { type: "string", description: "Catégorie lue dans le bandeau (ex. « GÉOPOLITIQUE »), ou « inconnue »." },
+    garder: { type: "boolean", description: "true si la vidéo correspond au filtre et doit être envoyée." },
+    raison: { type: "string", description: "Une courte phrase qui justifie la décision." },
+  },
+};
+
+/**
+ * Filtre avant retranscription : Claude lit la catégorie dans le bandeau de la vidéo (image du haut de l'écran)
+ * et la compare à la règle de l'administrateur. Sans image lisible, il s'appuie sur le titre.
+ */
+async function classify(s: Settings, title: string | null, frame: Blob | null): Promise<Verdict> {
+  const key = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!key) throw new Error("ANTHROPIC_API_KEY absente des secrets Supabase.");
+  const content: unknown[] = [];
+  if (frame && frame.size) {
+    const bytes = new Uint8Array(await frame.arrayBuffer());
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: btoa(bin) } });
+  }
+  content.push({
+    type: "text",
+    text:
+      `Règle de filtre de l'administrateur : ${s.filter.trim()}\n\n` +
+      `Titre de la publication : ${title ?? "(aucun)"}\n\n` +
+      "L'image (si présente) est le haut de la vidéo : un bandeau y indique la catégorie, par exemple « PRISMA · GÉOPOLITIQUE ». " +
+      "Lis cette catégorie, puis décide si la vidéo correspond à la règle. Si la catégorie est illisible, décide d'après le titre.",
+  });
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 400,
+      output_config: { effort: "low", format: { type: "json_schema", schema: VERDICT_SCHEMA } },
+      messages: [{ role: "user", content }],
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const data = (await res.json().catch(() => ({}))) as { content?: { type: string; text?: string }[]; error?: { message?: string } };
+  if (!res.ok) throw new Error(`Claude (filtre) : ${data.error?.message ?? `erreur ${res.status}`}`);
+  try {
+    return JSON.parse((data.content ?? []).filter((b) => b.type === "text").map((b) => b.text).join("")) as Verdict;
+  } catch {
+    throw new Error("Réponse du filtre illisible.");
+  }
+}
+
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 function toHtml(e: Explanation, disclaimer: boolean) {
@@ -224,6 +281,7 @@ async function runnerConfig(db: SupabaseClient) {
 
 async function ingest(db: SupabaseClient, form: FormData) {
   const audio = form.get("audio");
+  const frame = form.get("frame");
   if (!(audio instanceof Blob) || !audio.size) return { ok: false, error: "Audio manquant." };
   const itemId = String(form.get("item_id") ?? "");
   const sourceId = String(form.get("source_id") ?? "");
@@ -260,6 +318,21 @@ async function ingest(db: SupabaseClient, form: FormData) {
     .from("veille_items")
     .update({ status: "processing", attempts: item.attempts + 1, external_id: externalId, title, posted_at: postedAt, ...(url ? { url } : {}) })
     .eq("id", item.id);
+
+  // Filtre (comptes surveillés seulement : un lien ajouté à la main est toujours envoyé).
+  if (!itemId && s.filter.trim()) {
+    try {
+      const verdict = await classify(s, title, frame instanceof Blob ? frame : null);
+      await db.from("veille_items").update({ category: verdict.categorie }).eq("id", item.id);
+      if (!verdict.garder) {
+        await db.from("veille_items").update({ status: "skipped", error: verdict.raison }).eq("id", item.id);
+        return { ok: true, skipped: true, filtered: verdict.categorie };
+      }
+    } catch (e) {
+      // Filtre indisponible : on envoie quand même plutôt que de perdre la vidéo.
+      console.error("veille filtre", e);
+    }
+  }
 
   let transcript: string;
   try {

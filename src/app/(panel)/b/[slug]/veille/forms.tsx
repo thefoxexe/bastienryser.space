@@ -47,7 +47,25 @@ export function SettingsForm({ businessId, slug, settings }: { businessId: strin
     <form action={action} className="flex flex-col gap-3 p-5 pt-4 sm:p-6 sm:pt-4">
       <input type="hidden" name="businessId" value={businessId} />
       <input type="hidden" name="slug" value={slug} />
+      <label htmlFor="v-filter" className="text-[13px] font-medium">
+        Filtre
+      </label>
       <Textarea
+        id="v-filter"
+        name="filter"
+        defaultValue={settings.filter}
+        maxLength={1000}
+        className="min-h-20"
+        placeholder="Seulement les vidéos Géopolitique et Info / actualité. Ignorer Trading, Technique et Formation."
+      />
+      <p className="-mt-1 text-[12px] text-muted">
+        La catégorie est lue dans le bandeau en haut de chaque vidéo. Une vidéo écartée n&apos;est ni retranscrite ni envoyée. Vide = tout est envoyé.
+      </p>
+      <label htmlFor="v-instructions" className="mt-1 text-[13px] font-medium">
+        Consignes de rédaction
+      </label>
+      <Textarea
+        id="v-instructions"
         name="instructions"
         defaultValue={settings.instructions}
         maxLength={2000}
