@@ -97,7 +97,7 @@ const INTERVAL_DAYS: Record<string, number> = { day: 1, week: 7, month: 365 / 12
 
 /**
  * Abonnements Stripe en cours (actifs ou en retard de paiement), permission « Subscriptions : lecture ».
- * Montant de chaque ligne : prix unitaire × quantité, moins une réduction en pourcentage encore valable.
+ * Montant de chaque ligne : prix unitaire × quantité, moins les coupons encore valables (pourcentage ou montant). Un abonnement offert ne compte pas.
  */
 export async function stripeSubscriptions(key: string): Promise<SubscriptionsSnapshot> {
   const snap = emptySubscriptions();
@@ -108,14 +108,23 @@ export async function stripeSubscriptions(key: string): Promise<SubscriptionsSna
       if (startingAfter) params.starting_after = startingAfter;
       let body;
       try {
-        body = await stripeGet(key, "subscriptions", params);
+        // Les réductions sont des coupons référencés par identifiant : on demande leur détail (pourcentage ou montant).
+        body = await stripeGet(key, "subscriptions", { ...params, "expand[]": "data.discounts.source.coupon" });
       } catch (e) {
-        if (e instanceof ConnectorError && e.authProblem) throw new ConnectorError("Ajoute le droit « Subscriptions : lecture » à la clé Stripe pour le MRR.", true);
+        if (e instanceof ConnectorError && e.authProblem) throw new ConnectorError("Ajoute les droits « Subscriptions : lecture » et « Coupons : lecture » à la clé Stripe pour le MRR.", true);
         throw e;
       }
+      const now = Date.now() / 1000;
       for (const sub of body.data as Record<string, any>[]) {
-        const coupon = sub.discount?.coupon;
-        const percentOff = coupon && coupon.duration !== "once" && typeof coupon.percent_off === "number" ? coupon.percent_off : 0;
+        // Réductions encore valables : nouveau format (discounts[].source.coupon) et ancien (discount.coupon).
+        const coupons: Record<string, any>[] = [];
+        for (const d of [...(Array.isArray(sub.discounts) ? sub.discounts : []), ...(sub.discount ? [sub.discount] : [])]) {
+          if (typeof d !== "object" || !d) throw new ConnectorError("Réduction Stripe illisible : ajoute le droit « Coupons : lecture » à la clé.", true);
+          const c = d.coupon ?? d.source?.coupon;
+          if (!c || typeof c !== "object") throw new ConnectorError("Réduction Stripe illisible : ajoute le droit « Coupons : lecture » à la clé.", true);
+          if (c.duration === "once" || (d.end && d.end < now)) continue;
+          coupons.push(c);
+        }
         for (const item of (sub.items?.data ?? []) as Record<string, any>[]) {
           const price = item.price ?? item.plan;
           const interval = price?.recurring?.interval ?? price?.interval;
@@ -123,7 +132,14 @@ export async function stripeSubscriptions(key: string): Promise<SubscriptionsSna
           const unit = Number(price?.unit_amount ?? price?.amount);
           if (!interval || !INTERVAL_DAYS[interval] || !Number.isFinite(unit) || unit <= 0) continue;
           const currency = String(price.currency ?? "chf").toLowerCase();
-          const amount = ((unit * Number(item.quantity ?? 1)) / (ZERO_DECIMAL.has(currency) ? 1 : 100)) * (1 - percentOff / 100);
+          const divisor = ZERO_DECIMAL.has(currency) ? 1 : 100;
+          let amount = (unit * Number(item.quantity ?? 1)) / divisor;
+          for (const c of coupons) {
+            if (typeof c.percent_off === "number") amount *= 1 - c.percent_off / 100;
+            else if (typeof c.amount_off === "number" && String(c.currency ?? currency).toLowerCase() === currency) amount -= c.amount_off / divisor;
+          }
+          amount = Math.max(0, amount);
+          if (amount <= 0) continue; // abonnement offert : aucun revenu récurrent
           addSubscription(snap, currency, amount, INTERVAL_DAYS[interval] * count, sub.cancel_at_period_end === true);
         }
       }
@@ -140,7 +156,7 @@ export async function stripeSubscriptionsProbe(key: string) {
   for (const status of ["active", "past_due", "trialing"]) {
     let body;
     try {
-      body = await stripeGet(key, "subscriptions", { limit: "100", status, "expand[]": "data.discounts" });
+      body = await stripeGet(key, "subscriptions", { limit: "100", status, "expand[]": "data.discounts.source.coupon" });
     } catch (e) {
       rows.push({ expand_error: e instanceof Error ? e.message : String(e) });
       body = await stripeGet(key, "subscriptions", { limit: "100", status });
@@ -158,7 +174,7 @@ export async function stripeSubscriptionsProbe(key: string) {
           ? sub.discounts.map((d: any) =>
               typeof d === "string"
                 ? "id"
-                : { end: d.end, coupon: d.coupon ? { percent_off: d.coupon.percent_off, amount_off: d.coupon.amount_off, duration: d.coupon.duration, months: d.coupon.duration_in_months } : null, source: d.source ? { type: d.source.type, coupon: typeof d.source.coupon } : null },
+                : (({ end, c }) => ({ end, percent_off: c?.percent_off, amount_off: c?.amount_off, duration: c?.duration, months: c?.duration_in_months }))({ end: d.end, c: d.coupon ?? (typeof d.source?.coupon === "object" ? d.source.coupon : null) }),
             )
           : null,
         items: (sub.items?.data ?? []).map((i: Record<string, any>) => ({
