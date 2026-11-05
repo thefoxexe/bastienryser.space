@@ -20,6 +20,7 @@ export type MrrSource = {
   /** Montants dans leur devise d'origine, pour vérification. */
   native: { currency: string; monthly: number; split: number }[];
   error: string | null;
+  historyError: string | null;
   at: string | null;
 };
 
@@ -60,6 +61,7 @@ export async function mrrDetail(businesses: Business[]): Promise<MrrDetail> {
         canceling: s.canceling ?? null,
         native: cur.map((k) => ({ currency: k, monthly: s.mrr_monthly?.[k] ?? 0, split: s.mrr_split?.[k] ?? 0 })),
         error: s.mrr_error ?? null,
+        historyError: s.mrr_history_error ?? null,
         at: s.computed_at ?? null,
       };
     });

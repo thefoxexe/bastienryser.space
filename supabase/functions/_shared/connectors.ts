@@ -58,12 +58,12 @@ export function subscriptionPoints(s: SubscriptionsSnapshot, day: string): Daily
 
 export const SUBSCRIPTION_METRICS = ["mrr", "mrr_monthly", "mrr_split"];
 
-/** Période pendant laquelle un abonnement a rapporté : prix ramené à un mois, de `start` à `end` (secondes Unix ; null = en cours). */
+/** Période couverte par un paiement d'abonnement : montant ramené à un mois, de `start` à `end` (secondes Unix ; null = en cours). */
 export type SubscriptionSpan = { currency: string; monthly: number; split: boolean; start: number; end: number | null };
 
 /**
- * Historique du MRR jour par jour, reconstitué depuis les abonnements (actifs et terminés) :
- * un abonnement compte du jour où il devient payant jusqu'au jour où il se termine. Jusqu'à hier ; aujourd'hui vient du relevé en direct.
+ * Historique du MRR jour par jour, reconstitué depuis les paiements d'abonnement réellement encaissés :
+ * chaque paiement compte sur la période qu'il couvre (un mois, un an…), ramené à un mois. Jusqu'à hier ; aujourd'hui vient du relevé en direct.
  */
 export function subscriptionHistory(spans: SubscriptionSpan[]): DailyPoint[] {
   if (!spans.length) return [];
@@ -100,10 +100,12 @@ const dayInZurich = (unixSeconds: number) =>
 // Devises sans décimales chez Stripe (montants déjà en unités).
 const ZERO_DECIMAL = new Set(["bif", "clp", "djf", "gnf", "jpy", "kmf", "krw", "mga", "pyg", "rwf", "ugx", "vnd", "vuv", "xaf", "xof", "xpf"]);
 
-async function stripeGet(key: string, path: string, params: Record<string, string>) {
+async function stripeGet(key: string, path: string, params: Record<string, string>, version?: string) {
   const url = new URL(`https://api.stripe.com/v1/${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(20_000) });
+  const headers: Record<string, string> = { Authorization: `Bearer ${key}` };
+  if (version) headers["Stripe-Version"] = version;
+  const res = await fetch(url, { headers, signal: AbortSignal.timeout(20_000) });
   const body = await res.json().catch(() => ({}));
   if (res.status === 401) throw new ConnectorError("Clé Stripe refusée : vérifie qu'elle est valide et non révoquée.", true);
   if (res.status === 403) throw new ConnectorError(`La clé Stripe n'a pas le droit de lire « ${path} » (403).`, true);
@@ -182,38 +184,39 @@ export async function stripeSubscriptions(key: string): Promise<SubscriptionsSna
   return roundSubscriptions(snap);
 }
 
-/** Tous les abonnements Stripe (terminés compris) et la période où chacun a rapporté, coupons déduits. */
-export async function stripeSubscriptionSpans(key: string): Promise<SubscriptionSpan[]> {
+/**
+ * Factures d'abonnement payées (droit « Invoices : lecture ») : chaque ligne couvre une période (un mois, un an…).
+ * Le montant réellement encaissé, remboursements déduits, est réparti sur cette période. Version d'API figée :
+ * on y lit le paiement lié à la facture (et ce qui en a été remboursé).
+ */
+export async function stripeInvoiceSpans(key: string): Promise<SubscriptionSpan[]> {
   const spans: SubscriptionSpan[] = [];
   let startingAfter: string | undefined;
   for (let page = 0; page < 50; page++) {
-    const params: Record<string, string> = { limit: "100", status: "all", "expand[]": "data.discounts.source.coupon" };
+    const params: Record<string, string> = { limit: "100", status: "paid", "expand[]": "data.charge" };
     if (startingAfter) params.starting_after = startingAfter;
-    const body = await stripeGet(key, "subscriptions", params);
-    for (const sub of body.data as Record<string, any>[]) {
-      if (["incomplete", "incomplete_expired"].includes(sub.status)) continue;
-      const start = Math.max(Number(sub.start_date ?? sub.created), Number(sub.trial_end ?? 0));
-      const end = sub.ended_at ? Number(sub.ended_at) : null;
-      if (end !== null && end <= start) continue; // terminé pendant l'essai : n'a jamais payé
-      const coupons = ([...(Array.isArray(sub.discounts) ? sub.discounts : []), ...(sub.discount ? [sub.discount] : [])] as Record<string, any>[])
-        .map((d) => (typeof d === "object" && d ? (d.coupon ?? d.source?.coupon) : null))
-        .filter((c): c is Record<string, any> => !!c && typeof c === "object" && c.duration !== "once");
-      for (const item of (sub.items?.data ?? []) as Record<string, any>[]) {
-        const price = item.price ?? item.plan;
-        const interval = price?.recurring?.interval ?? price?.interval;
-        const count = Number(price?.recurring?.interval_count ?? price?.interval_count ?? 1);
-        const unit = Number(price?.unit_amount ?? price?.amount);
-        if (!interval || !INTERVAL_DAYS[interval] || !Number.isFinite(unit) || unit <= 0) continue;
-        const currency = String(price.currency ?? "chf").toLowerCase();
-        const divisor = ZERO_DECIMAL.has(currency) ? 1 : 100;
-        let amount = (unit * Number(item.quantity ?? 1)) / divisor;
-        for (const c of coupons) {
-          if (typeof c.percent_off === "number") amount *= 1 - c.percent_off / 100;
-          else if (typeof c.amount_off === "number" && String(c.currency ?? currency).toLowerCase() === currency) amount -= c.amount_off / divisor;
-        }
-        if (amount <= 0) continue;
-        const days = INTERVAL_DAYS[interval] * count;
-        spans.push({ currency, monthly: (amount * 365) / 12 / days, split: days > 31, start, end });
+    let body;
+    try {
+      body = await stripeGet(key, "invoices", params, "2024-06-20");
+    } catch (e) {
+      if (e instanceof ConnectorError && e.authProblem) throw new ConnectorError("Ajoute le droit « Invoices : lecture » à la clé Stripe pour l'historique du MRR.", true);
+      throw e;
+    }
+    for (const inv of body.data as Record<string, any>[]) {
+      if (!inv.subscription || !(inv.amount_paid > 0)) continue;
+      const currency = String(inv.currency ?? "chf").toLowerCase();
+      const divisor = ZERO_DECIMAL.has(currency) ? 1 : 100;
+      const refunded = typeof inv.charge === "object" && inv.charge ? Number(inv.charge.amount_refunded ?? 0) : 0;
+      const net = (inv.amount_paid - refunded - Number(inv.post_payment_credit_notes_amount ?? 0)) / divisor;
+      if (net <= 0) continue;
+      // Lignes d'abonnement avec leur période ; le net de la facture est réparti au prorata de leurs montants.
+      const lines = ((inv.lines?.data ?? []) as Record<string, any>[]).filter((l) => l.period?.start && l.period?.end && l.period.end > l.period.start && Number(l.amount) > 0);
+      const gross = lines.reduce((a, l) => a + Number(l.amount), 0);
+      for (const l of lines) {
+        const days = (l.period.end - l.period.start) / 86400;
+        if (days < 1) continue;
+        const amount = (net * Number(l.amount)) / gross;
+        spans.push({ currency, monthly: (amount * 365) / 12 / days, split: days > 31.5, start: l.period.start, end: l.period.end });
       }
     }
     if (!body.has_more || !body.data.length) break;

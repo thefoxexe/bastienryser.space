@@ -40,9 +40,16 @@ export default async function MrrPage() {
       <Card>
         <CardHeader
           title="MRR jour après jour"
-          description="Reconstitué depuis tous les abonnements, terminés compris (début, fin, prix et coupons), puis relevé chaque heure. L'écart entre les deux courbes est l'annuel payé d'avance."
+          description="Reconstitué depuis les paiements d'abonnement réellement encaissés : chacun compte sur la période qu'il couvre (un mois, ou un an ÷ 12), remboursements déduits. L'écart grisé est l'annuel payé d'avance."
         />
-        <div className="p-5 pt-4 sm:p-6 sm:pt-4">
+        <div className="flex flex-col gap-3 p-5 pt-4 sm:p-6 sm:pt-4">
+          {mrr.sources
+            .filter((s) => s.historyError)
+            .map((s) => (
+              <p key={s.connectorId} className="flex items-center gap-1.5 text-[12px] text-muted">
+                <AlertTriangle className="size-3.5 shrink-0" /> {s.businessName} : {s.historyError}
+              </p>
+            ))}
           {mrr.history.length > 1 ? (
             <MrrChart points={mrr.history} />
           ) : (

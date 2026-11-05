@@ -3,7 +3,7 @@ import {
   ConnectorError,
   plausibleDaily,
   stripeDaily,
-  stripeSubscriptionSpans,
+  stripeInvoiceSpans,
   stripeSubscriptions,
   SUBSCRIPTION_METRICS,
   subscriptionHistory,
@@ -13,14 +13,14 @@ import {
 } from "./connectors.ts";
 import { analyticsData, googleAccessToken, searchConsoleData, searchConsoleQueries } from "./google.ts";
 import { logActivity, readToken } from "./supabase.ts";
-import { whopDaily, whopSubscriptionSpans, whopSubscriptions } from "./whop.ts";
+import { whopDaily, whopPaymentSpans, whopSubscriptions } from "./whop.ts";
 
 export type ConnectorRow = {
   id: string;
   business_id: string;
   kind: "stripe" | "plausible" | "search_console" | "google_analytics" | "whop";
   label: string;
-  config: { site_id?: string; base_url?: string; site_url?: string; property_id?: string; backfilled?: boolean; mrr_history_day?: string };
+  config: { site_id?: string; base_url?: string; site_url?: string; property_id?: string; backfilled?: boolean; mrr_history_day?: string; mrr_history_v?: number };
   credential_ref: string | null;
   status: string;
 };
@@ -51,16 +51,27 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
         await db.from("metric_points").delete().eq("connector_id", c.id).eq("day", today).in("metric", SUBSCRIPTION_METRICS);
         if (rows.length) await db.from("metric_points").upsert(rows, { onConflict: "connector_id,metric,day,unit" });
 
-        // Historique reconstitué depuis les abonnements (terminés compris), une fois par jour.
-        if (c.config.mrr_history_day !== today) {
-          const spans = c.kind === "stripe" ? await stripeSubscriptionSpans(key) : await whopSubscriptionSpans(key);
-          const history = subscriptionHistory(spans).map((p) => ({ connector_id: c.id, business_id: c.business_id, ...p, updated_at: subs.computed_at }));
-          for (let i = 0; i < history.length; i += 1000) {
-            const { error } = await db.from("metric_points").upsert(history.slice(i, i + 1000), { onConflict: "connector_id,metric,day,unit" });
-            if (error) throw new ConnectorError("Enregistrement de l'historique du MRR impossible.");
+        // Historique reconstitué depuis les paiements d'abonnement encaissés, une fois par jour.
+        // Sans le droit de lire les factures Stripe, le MRR du jour reste relevé ; seul l'historique manque.
+        if (c.config.mrr_history_v !== 2 || c.config.mrr_history_day !== today) {
+          let spans;
+          try {
+            spans = c.kind === "stripe" ? await stripeInvoiceSpans(key) : await whopPaymentSpans(key);
+          } catch (e) {
+            snapshot = { ...snapshot, mrr_history_error: e instanceof ConnectorError ? e.message : "Historique du MRR illisible." };
+            spans = null;
           }
-          c.config = { ...c.config, mrr_history_day: today };
-          await db.from("connectors").update({ config: c.config }).eq("id", c.id);
+          if (spans) {
+            const history = subscriptionHistory(spans).map((p) => ({ connector_id: c.id, business_id: c.business_id, ...p, updated_at: subs.computed_at }));
+            // L'historique précédent est remplacé en entier (jusqu'à hier).
+            await db.from("metric_points").delete().eq("connector_id", c.id).lt("day", today).in("metric", SUBSCRIPTION_METRICS);
+            for (let i = 0; i < history.length; i += 1000) {
+              const { error } = await db.from("metric_points").upsert(history.slice(i, i + 1000), { onConflict: "connector_id,metric,day,unit" });
+              if (error) throw new ConnectorError("Enregistrement de l'historique du MRR impossible.");
+            }
+            c.config = { ...c.config, mrr_history_day: today, mrr_history_v: 2 };
+            await db.from("connectors").update({ config: c.config }).eq("id", c.id);
+          }
         }
       } catch (e) {
         snapshot = { mrr_error: e instanceof ConnectorError ? e.message : "Abonnements illisibles." };
@@ -68,8 +79,7 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
     } else if (c.kind === "plausible") points = await plausibleDaily(key, c.config.site_id ?? "", c.config.base_url ?? "https://plausible.io", days);
     else {
       const token = await googleAccessToken(key);
-      const result =
-        c.kind === "search_console" ? await searchConsoleData(token, c.config.site_url ?? "", days) : await analyticsData(token, c.config.property_id ?? "", days);
+      const result = c.kind === "search_console" ? await searchConsoleData(token, c.config.site_url ?? "", days) : await analyticsData(token, c.config.property_id ?? "", days);
       points = result.points;
       snapshot = result.snapshot;
       if (c.kind === "search_console") await syncKeywords(db, c, token);
@@ -163,5 +173,9 @@ async function syncKeywords(db: SupabaseClient, c: ConnectorRow, token: string) 
     if (error) throw new ConnectorError("Enregistrement des mots-clés impossible.");
   }
   // La Search Console garde 16 mois : on fait de même.
-  await db.from("search_queries_daily").delete().eq("connector_id", c.id).lt("day", new Date(Date.now() - 486 * 86400_000).toISOString().slice(0, 10));
+  await db
+    .from("search_queries_daily")
+    .delete()
+    .eq("connector_id", c.id)
+    .lt("day", new Date(Date.now() - 486 * 86400_000).toISOString().slice(0, 10));
 }

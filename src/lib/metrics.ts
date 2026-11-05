@@ -26,6 +26,7 @@ export type Connector = {
     canceling?: number;
     computed_at?: string;
     mrr_error?: string;
+    mrr_history_error?: string;
   };
   status: "connected" | "pending" | "error";
   last_sync_at: string | null;

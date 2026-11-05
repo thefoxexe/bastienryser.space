@@ -189,30 +189,35 @@ export async function whopSubscriptions(key: string): Promise<WhopSubscriptions>
   return roundSubscriptions(snap);
 }
 
-/** Tous les abonnements Whop (terminés compris) et la période où chacun a rapporté. */
-export async function whopSubscriptionSpans(key: string): Promise<SubscriptionSpan[]> {
-  const spans: SubscriptionSpan[] = [];
+/**
+ * Paiements d'abonnement Whop réellement encaissés, chacun réparti sur la période qu'il couvre
+ * (durée de facturation de l'abonnement : 30 jours, 365 jours…). Remboursements déduits.
+ */
+export async function whopPaymentSpans(key: string): Promise<SubscriptionSpan[]> {
+  // Durée de facturation de chaque abonnement (terminés compris).
+  const period = new Map<string, number>();
   let after: string | undefined;
   for (let i = 0; i < 200; i++) {
     const { body } = await whopGet(key, "v1/memberships", { first: "100", ...(after ? { after } : {}) });
     for (const m of (body.data as Raw[] | undefined) ?? []) {
-      const status = String(m.status ?? "");
-      if (["trialing", "drafted", "unresolved"].includes(status)) continue;
-      const price = money(m.renewal_price);
       const days = num(m.billing_period_days);
-      const start = toUnix(m.created_at);
-      if (!price || !days || days <= 0 || start === null) continue;
-      // Terminé : fin de la dernière période payée.
-      const ended = ["canceled", "expired", "completed"].includes(status);
-      const end = ended ? (toUnix(m.current_period_end) ?? toUnix(m.renewal_period_end) ?? toUnix(m.expires_at) ?? toUnix(m.updated_at)) : null;
-      if (end !== null && end <= start) continue;
-      const currency = String((m.renewal_price as Raw | undefined)?.currency ?? m.currency ?? "usd").toLowerCase();
-      spans.push({ currency, monthly: (price * 365) / 12 / days, split: days > 31, start, end });
+      if (m.id && days && days > 0) period.set(String(m.id), days);
     }
     const info = body.page_info as { has_next_page?: boolean; end_cursor?: string } | undefined;
     if (!info?.has_next_page || !info.end_cursor) break;
     after = info.end_cursor;
   }
+  const spans: SubscriptionSpan[] = [];
+  const seen = new Set<string>();
+  await eachPayment(key, (raw) => {
+    const p = normalize(raw);
+    if (!p || !p.recurring || (p.id && seen.has(p.id))) return;
+    if (p.id) seen.add(p.id);
+    const days = period.get(String(raw.membership_id ?? ""));
+    const net = p.amount - p.refunded;
+    if (!days || net <= 0) return;
+    spans.push({ currency: p.currency, monthly: (net * 365) / 12 / days, split: days > 31.5, start: p.paidAt, end: p.paidAt + days * 86400 });
+  });
   return spans;
 }
 
