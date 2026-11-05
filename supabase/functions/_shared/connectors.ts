@@ -58,6 +58,38 @@ export function subscriptionPoints(s: SubscriptionsSnapshot, day: string): Daily
 
 export const SUBSCRIPTION_METRICS = ["mrr", "mrr_monthly", "mrr_split"];
 
+/** Période pendant laquelle un abonnement a rapporté : prix ramené à un mois, de `start` à `end` (secondes Unix ; null = en cours). */
+export type SubscriptionSpan = { currency: string; monthly: number; split: boolean; start: number; end: number | null };
+
+/**
+ * Historique du MRR jour par jour, reconstitué depuis les abonnements (actifs et terminés) :
+ * un abonnement compte du jour où il devient payant jusqu'au jour où il se termine. Jusqu'à hier ; aujourd'hui vient du relevé en direct.
+ */
+export function subscriptionHistory(spans: SubscriptionSpan[]): DailyPoint[] {
+  if (!spans.length) return [];
+  const today = dayInZurich(Date.now() / 1000);
+  const first = dayInZurich(Math.min(...spans.map((s) => s.start)));
+  const out: DailyPoint[] = [];
+  const currencies = [...new Set(spans.map((s) => s.currency))];
+  for (let t = Date.parse(`${first}T12:00:00Z`); ; t += 86400_000) {
+    const day = new Date(t).toISOString().slice(0, 10);
+    if (day >= today) break;
+    const endOfDay = Date.parse(`${day}T23:59:59Z`) / 1000;
+    for (const unit of currencies) {
+      let monthly = 0;
+      let split = 0;
+      for (const s of spans) {
+        if (s.currency !== unit || s.start > endOfDay || (s.end !== null && s.end <= endOfDay)) continue;
+        if (s.split) split += s.monthly;
+        else monthly += s.monthly;
+      }
+      const r = (v: number) => Math.round(v * 100) / 100;
+      out.push({ metric: "mrr", day, unit, value: r(monthly + split) }, { metric: "mrr_monthly", day, unit, value: r(monthly) }, { metric: "mrr_split", day, unit, value: r(split) });
+    }
+  }
+  return out;
+}
+
 const dayInZurich = (unixSeconds: number) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(unixSeconds * 1000));
 
@@ -148,6 +180,46 @@ export async function stripeSubscriptions(key: string): Promise<SubscriptionsSna
     }
   }
   return roundSubscriptions(snap);
+}
+
+/** Tous les abonnements Stripe (terminés compris) et la période où chacun a rapporté, coupons déduits. */
+export async function stripeSubscriptionSpans(key: string): Promise<SubscriptionSpan[]> {
+  const spans: SubscriptionSpan[] = [];
+  let startingAfter: string | undefined;
+  for (let page = 0; page < 50; page++) {
+    const params: Record<string, string> = { limit: "100", status: "all", "expand[]": "data.discounts.source.coupon" };
+    if (startingAfter) params.starting_after = startingAfter;
+    const body = await stripeGet(key, "subscriptions", params);
+    for (const sub of body.data as Record<string, any>[]) {
+      if (["incomplete", "incomplete_expired"].includes(sub.status)) continue;
+      const start = Math.max(Number(sub.start_date ?? sub.created), Number(sub.trial_end ?? 0));
+      const end = sub.ended_at ? Number(sub.ended_at) : null;
+      if (end !== null && end <= start) continue; // terminé pendant l'essai : n'a jamais payé
+      const coupons = ([...(Array.isArray(sub.discounts) ? sub.discounts : []), ...(sub.discount ? [sub.discount] : [])] as Record<string, any>[])
+        .map((d) => (typeof d === "object" && d ? (d.coupon ?? d.source?.coupon) : null))
+        .filter((c): c is Record<string, any> => !!c && typeof c === "object" && c.duration !== "once");
+      for (const item of (sub.items?.data ?? []) as Record<string, any>[]) {
+        const price = item.price ?? item.plan;
+        const interval = price?.recurring?.interval ?? price?.interval;
+        const count = Number(price?.recurring?.interval_count ?? price?.interval_count ?? 1);
+        const unit = Number(price?.unit_amount ?? price?.amount);
+        if (!interval || !INTERVAL_DAYS[interval] || !Number.isFinite(unit) || unit <= 0) continue;
+        const currency = String(price.currency ?? "chf").toLowerCase();
+        const divisor = ZERO_DECIMAL.has(currency) ? 1 : 100;
+        let amount = (unit * Number(item.quantity ?? 1)) / divisor;
+        for (const c of coupons) {
+          if (typeof c.percent_off === "number") amount *= 1 - c.percent_off / 100;
+          else if (typeof c.amount_off === "number" && String(c.currency ?? currency).toLowerCase() === currency) amount -= c.amount_off / divisor;
+        }
+        if (amount <= 0) continue;
+        const days = INTERVAL_DAYS[interval] * count;
+        spans.push({ currency, monthly: (amount * 365) / 12 / days, split: days > 31, start, end });
+      }
+    }
+    if (!body.has_more || !body.data.length) break;
+    startingAfter = body.data[body.data.length - 1].id;
+  }
+  return spans;
 }
 
 /** Relevé anonyme des abonnements (aucun nom ni e-mail) : pour vérifier la lecture du MRR. */

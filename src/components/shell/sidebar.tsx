@@ -165,7 +165,7 @@ export function Sidebar({
       </div>
 
       {/* Barre latérale fixe sur grand écran */}
-      <aside className="material sticky top-0 hidden h-dvh w-[264px] shrink-0 border-r border-border lg:block">{nav}</aside>
+      <aside className="material sticky top-0 hidden h-dvh w-[264px] shrink-0 border-r border-border pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] lg:block">{nav}</aside>
     </>
   );
 }

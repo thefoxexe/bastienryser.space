@@ -1,15 +1,26 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.118.0";
-import { ConnectorError, plausibleDaily, stripeDaily, stripeSubscriptions, SUBSCRIPTION_METRICS, subscriptionPoints, type DailyPoint, type SubscriptionsSnapshot } from "./connectors.ts";
+import {
+  ConnectorError,
+  plausibleDaily,
+  stripeDaily,
+  stripeSubscriptionSpans,
+  stripeSubscriptions,
+  SUBSCRIPTION_METRICS,
+  subscriptionHistory,
+  subscriptionPoints,
+  type DailyPoint,
+  type SubscriptionsSnapshot,
+} from "./connectors.ts";
 import { analyticsData, googleAccessToken, searchConsoleData, searchConsoleQueries } from "./google.ts";
 import { logActivity, readToken } from "./supabase.ts";
-import { whopDaily, whopSubscriptions } from "./whop.ts";
+import { whopDaily, whopSubscriptionSpans, whopSubscriptions } from "./whop.ts";
 
 export type ConnectorRow = {
   id: string;
   business_id: string;
   kind: "stripe" | "plausible" | "search_console" | "google_analytics" | "whop";
   label: string;
-  config: { site_id?: string; base_url?: string; site_url?: string; property_id?: string; backfilled?: boolean };
+  config: { site_id?: string; base_url?: string; site_url?: string; property_id?: string; backfilled?: boolean; mrr_history_day?: string };
   credential_ref: string | null;
   status: string;
 };
@@ -39,6 +50,18 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
         // Un abonnement résilié fait disparaître sa devise : le relevé du jour est remplacé en entier.
         await db.from("metric_points").delete().eq("connector_id", c.id).eq("day", today).in("metric", SUBSCRIPTION_METRICS);
         if (rows.length) await db.from("metric_points").upsert(rows, { onConflict: "connector_id,metric,day,unit" });
+
+        // Historique reconstitué depuis les abonnements (terminés compris), une fois par jour.
+        if (c.config.mrr_history_day !== today) {
+          const spans = c.kind === "stripe" ? await stripeSubscriptionSpans(key) : await whopSubscriptionSpans(key);
+          const history = subscriptionHistory(spans).map((p) => ({ connector_id: c.id, business_id: c.business_id, ...p, updated_at: subs.computed_at }));
+          for (let i = 0; i < history.length; i += 1000) {
+            const { error } = await db.from("metric_points").upsert(history.slice(i, i + 1000), { onConflict: "connector_id,metric,day,unit" });
+            if (error) throw new ConnectorError("Enregistrement de l'historique du MRR impossible.");
+          }
+          c.config = { ...c.config, mrr_history_day: today };
+          await db.from("connectors").update({ config: c.config }).eq("id", c.id);
+        }
       } catch (e) {
         snapshot = { mrr_error: e instanceof ConnectorError ? e.message : "Abonnements illisibles." };
       }

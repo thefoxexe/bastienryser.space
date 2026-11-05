@@ -3,7 +3,7 @@
 // Les montants sont ceux renvoyés par Whop (v1 : objets { amount: "10.00" }, en unités de la devise) ; les remboursements sont déduits à leur date.
 // MRR : prix de renouvellement des abonnements en cours, ramené à un mois.
 
-import { addSubscription, ConnectorError, emptySubscriptions, roundSubscriptions, type DailyPoint, type SubscriptionsSnapshot } from "./connectors.ts";
+import { addSubscription, ConnectorError, emptySubscriptions, roundSubscriptions, type DailyPoint, type SubscriptionSpan, type SubscriptionsSnapshot } from "./connectors.ts";
 
 const BASE = "https://api.whop.com/api";
 
@@ -187,6 +187,33 @@ export async function whopSubscriptions(key: string): Promise<WhopSubscriptions>
     }
   }
   return roundSubscriptions(snap);
+}
+
+/** Tous les abonnements Whop (terminés compris) et la période où chacun a rapporté. */
+export async function whopSubscriptionSpans(key: string): Promise<SubscriptionSpan[]> {
+  const spans: SubscriptionSpan[] = [];
+  let after: string | undefined;
+  for (let i = 0; i < 200; i++) {
+    const { body } = await whopGet(key, "v1/memberships", { first: "100", ...(after ? { after } : {}) });
+    for (const m of (body.data as Raw[] | undefined) ?? []) {
+      const status = String(m.status ?? "");
+      if (["trialing", "drafted", "unresolved"].includes(status)) continue;
+      const price = money(m.renewal_price);
+      const days = num(m.billing_period_days);
+      const start = toUnix(m.created_at);
+      if (!price || !days || days <= 0 || start === null) continue;
+      // Terminé : fin de la dernière période payée.
+      const ended = ["canceled", "expired", "completed"].includes(status);
+      const end = ended ? (toUnix(m.current_period_end) ?? toUnix(m.renewal_period_end) ?? toUnix(m.expires_at) ?? toUnix(m.updated_at)) : null;
+      if (end !== null && end <= start) continue;
+      const currency = String((m.renewal_price as Raw | undefined)?.currency ?? m.currency ?? "usd").toLowerCase();
+      spans.push({ currency, monthly: (price * 365) / 12 / days, split: days > 31, start, end });
+    }
+    const info = body.page_info as { has_next_page?: boolean; end_cursor?: string } | undefined;
+    if (!info?.has_next_page || !info.end_cursor) break;
+    after = info.end_cursor;
+  }
+  return spans;
 }
 
 /** Aperçu pour vérifier le format renvoyé par Whop (champs du premier paiement et sa lecture). */

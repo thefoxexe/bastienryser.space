@@ -38,14 +38,17 @@ export default async function MrrPage() {
       </div>
 
       <Card>
-        <CardHeader title="MRR jour après jour" description="Relevé chaque heure depuis la connexion ; Stripe et Whop ne fournissent pas l'historique avant." />
+        <CardHeader
+          title="MRR jour après jour"
+          description="Reconstitué depuis tous les abonnements, terminés compris (début, fin, prix et coupons), puis relevé chaque heure. L'écart entre les deux courbes est l'annuel payé d'avance."
+        />
         <div className="p-5 pt-4 sm:p-6 sm:pt-4">
           {mrr.history.length > 1 ? (
             <MrrChart points={mrr.history} />
           ) : (
             <p className="text-[13px] text-muted">
-              Premier relevé aujourd&apos;hui{mrr.history[0] ? ` : ${chf(mrr.history[0].monthly)} payés chaque mois, ${chf(mrr.history[0].split)} d'annuel réparti` : ""}. Les deux courbes se
-              dessinent à partir de demain.
+              Premier relevé aujourd&apos;hui{mrr.history[0] ? ` : ${chf(mrr.history[0].monthly)} payés chaque mois, ${chf(mrr.history[0].split)} d'annuel réparti` : ""}. L&apos;historique se
+              reconstitue au prochain passage (chaque heure).
             </p>
           )}
         </div>

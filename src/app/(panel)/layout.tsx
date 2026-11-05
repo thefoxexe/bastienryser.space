@@ -60,8 +60,9 @@ export default async function PanelLayout({ children }: LayoutProps<"/">) {
           alerts: alerts.filter((a) => a.business_id === b.id).length,
         }))}
       />
-      {/* Marge basse : le bouton de l'assistant ne cache jamais la fin d'une page. */}
-      <div className="min-w-0 flex-1 pb-[calc(84px+env(safe-area-inset-bottom))]">{children}</div>
+      {/* Marge basse : le bouton de l'assistant ne cache jamais la fin d'une page.
+          Marge haute en grand écran : en application installée (iPad), la barre d'état recouvre le haut de la page. */}
+      <div className="min-w-0 flex-1 pb-[calc(84px+env(safe-area-inset-bottom))] lg:pt-[env(safe-area-inset-top)]">{children}</div>
       <Assistant />
       <SplashReady />
     </div>
