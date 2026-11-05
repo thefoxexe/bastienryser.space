@@ -37,13 +37,25 @@ export async function googleAccessToken(refreshToken: string): Promise<string> {
 }
 
 async function google<T>(token: string, url: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: body ? "POST" : "GET",
-    headers: { Authorization: `Bearer ${token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(20_000),
-  });
+  // Quota ou surcharge chez Google (429, 503) : jusqu'à 2 nouveaux essais espacés, en respectant Retry-After.
+  let res: Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    res = await fetch(url, {
+      method: body ? "POST" : "GET",
+      headers: { Authorization: `Bearer ${token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(20_000),
+    });
+    if ((res.status !== 429 && res.status !== 503) || attempt === 2) break;
+    const wait = Math.min(Number(res.headers.get("retry-after")) || [3, 8][attempt], 15);
+    await res.body?.cancel();
+    await new Promise((r) => setTimeout(r, wait * 1000));
+  }
+  res = res!;
   const json = await res.json().catch(() => ({}));
+  if (res.status === 429 || res.status === 503) {
+    throw new ConnectorError("Google limite temporairement les demandes : nouvel essai au prochain passage.", false, true);
+  }
   if (res.status === 401) throw new ConnectorError("Connexion Google refusée : reconnecte le compte.", true);
   if (res.status === 403) {
     const reason = json?.error?.message ?? "";

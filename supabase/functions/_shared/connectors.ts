@@ -1,7 +1,8 @@
 // Lecture des chiffres réels chez Stripe et Plausible. Aucune estimation : seules les valeurs renvoyées sont gardées.
 
 export class ConnectorError extends Error {
-  constructor(message: string, public readonly authProblem = false) {
+  /** transient : refus passager du service (quota, surcharge), réglé au passage suivant sans rien faire. */
+  constructor(message: string, public readonly authProblem = false, public readonly transient = false) {
     super(message);
   }
 }

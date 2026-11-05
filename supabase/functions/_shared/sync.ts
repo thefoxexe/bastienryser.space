@@ -70,6 +70,8 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
   } catch (e) {
     const message = e instanceof ConnectorError ? e.message : "Erreur inattendue pendant la synchronisation.";
     console.error("sync", c.id, e);
+    // Refus passager (quota Google) : rien de cassé, le passage suivant reprend. Pas d'alerte ni de statut en erreur.
+    if (e instanceof ConnectorError && e.transient) return { ok: false, points: 0, error: message };
     if (c.status !== "error") {
       await logActivity(db, { business_id: c.business_id, kind: "connector.error", message: `${c.label} : ${message}` });
     }
