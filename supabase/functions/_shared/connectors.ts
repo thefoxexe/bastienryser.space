@@ -134,6 +134,36 @@ export async function stripeSubscriptions(key: string): Promise<SubscriptionsSna
   return roundSubscriptions(snap);
 }
 
+/** Relevé anonyme des abonnements (aucun nom ni e-mail) : pour vérifier la lecture du MRR. */
+export async function stripeSubscriptionsProbe(key: string) {
+  const rows: Record<string, unknown>[] = [];
+  for (const status of ["active", "past_due", "trialing"]) {
+    const body = await stripeGet(key, "subscriptions", { limit: "100", status, "expand[]": "data.latest_invoice" });
+    for (const sub of body.data as Record<string, any>[]) {
+      const inv = sub.latest_invoice;
+      rows.push({
+        status: sub.status,
+        created: sub.created,
+        trial_end: sub.trial_end,
+        cancel_at_period_end: sub.cancel_at_period_end,
+        collection_method: sub.collection_method,
+        discount: sub.discount ? { percent_off: sub.discount.coupon?.percent_off, amount_off: sub.discount.coupon?.amount_off, duration: sub.discount.coupon?.duration } : null,
+        discounts: Array.isArray(sub.discounts) ? sub.discounts.length : null,
+        items: (sub.items?.data ?? []).map((i: Record<string, any>) => ({
+          interval: i.price?.recurring?.interval,
+          count: i.price?.recurring?.interval_count,
+          unit_amount: i.price?.unit_amount,
+          currency: i.price?.currency,
+          quantity: i.quantity,
+          livemode: i.price?.livemode,
+        })),
+        latest_invoice: inv && typeof inv === "object" ? { total: inv.total, amount_paid: inv.amount_paid, status: inv.status, billing_reason: inv.billing_reason, discounts: inv.total_discount_amounts } : inv,
+      });
+    }
+  }
+  return rows;
+}
+
 /** Parcourt une liste Stripe page par page (100 éléments, 50 pages au plus). */
 async function stripeList<T extends { id: string }>(key: string, path: string, since: number, each: (item: T) => void) {
   let startingAfter: string | undefined;

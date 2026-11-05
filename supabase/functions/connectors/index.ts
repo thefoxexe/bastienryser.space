@@ -5,11 +5,12 @@
 //   POST { action: "configure", connector_id, choice }   (choix du site Search Console ou de la propriété GA4)
 //   POST { action: "bluesky", business_id, identifier, password }   (compte Bluesky, par mot de passe d'application)
 //   POST { action: "gsc_export", business_id }   (export Search Console complet, pour une analyse SEO ; admin ou pg_cron)
+//   POST { action: "stripe_probe", business_id }   (relevé anonyme des abonnements Stripe ; admin ou pg_cron)
 //   POST { action: "whop_probe", business_id }   (champs bruts du premier paiement Whop, pour vérifier la lecture ; admin ou pg_cron)
 
 import { upsertAccount } from "../_shared/accounts.ts";
 import { blueskyProfile, blueskySession } from "../_shared/bluesky.ts";
-import { ConnectorError, plausibleTest, stripeTest } from "../_shared/connectors.ts";
+import { ConnectorError, plausibleTest, stripeSubscriptionsProbe, stripeTest } from "../_shared/connectors.ts";
 import { NetworkError } from "../_shared/errors.ts";
 import { googleAccessToken, searchConsoleExport } from "../_shared/google.ts";
 import { adminClient, authorize, isAdminRequest, json, logActivity, readToken, storeToken } from "../_shared/supabase.ts";
@@ -21,7 +22,7 @@ const LABELS = { stripe: "Stripe", plausible: "Plausible", whop: "Whop" } as con
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   const body = await req.json().catch(() => ({}));
-  const allowed = body.action === "gsc_export" || body.action === "whop_probe" ? await authorize(req) : await isAdminRequest(req);
+  const allowed = body.action === "gsc_export" || body.action === "whop_probe" || body.action === "stripe_probe" ? await authorize(req) : await isAdminRequest(req);
   if (!allowed) return json({ error: "unauthorized" }, 401);
   const db = adminClient();
 
@@ -53,6 +54,17 @@ Deno.serve(async (req) => {
       return json({ ok: true, data: await whopProbe(key) });
     } catch (e) {
       return json({ ok: false, error: e instanceof ConnectorError ? e.message : "Whop n'a pas répondu." }, 502);
+    }
+  }
+
+  if (body.action === "stripe_probe") {
+    const { data: c } = await db.from("connectors").select("credential_ref").eq("business_id", body.business_id).eq("kind", "stripe").maybeSingle();
+    const key = c ? await readToken(db, c.credential_ref) : null;
+    if (!key) return json({ ok: false, error: "Stripe n'est pas connecté pour ce business." }, 404);
+    try {
+      return json({ ok: true, data: await stripeSubscriptionsProbe(key) });
+    } catch (e) {
+      return json({ ok: false, error: e instanceof ConnectorError ? e.message : "Stripe n'a pas répondu." }, 502);
     }
   }
 
