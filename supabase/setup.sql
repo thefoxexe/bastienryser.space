@@ -1405,6 +1405,26 @@ alter table public.connectors add constraint connectors_kind_check
   check (kind in ('stripe', 'plausible', 'search_console', 'google_analytics', 'whop'));
 
 -- ===========================================================================
+-- 20261025002200_fx_rates.sql
+-- ===========================================================================
+
+-- Taux de change officiels (BCE, via Frankfurter) : valeur d'une unité de devise en francs suisses, jour ouvré par jour ouvré.
+-- Remplis par l'Edge Function `sync-connectors` ; servent à additionner les encaissements de tous les business en CHF.
+
+create table public.fx_rates (
+  day date not null,
+  currency text not null check (currency ~ '^[a-z]{3}$'),
+  chf numeric not null check (chf > 0),
+  primary key (currency, day)
+);
+
+alter table public.fx_rates enable row level security;
+create policy fx_rates_admin_select on public.fx_rates
+  for select to authenticated using ((select public.is_admin()));
+revoke all on public.fx_rates from anon;
+revoke insert, update, delete, truncate on public.fx_rates from authenticated;
+
+-- ===========================================================================
 -- Configuration du projet
 -- ===========================================================================
 
@@ -1433,7 +1453,8 @@ insert into supabase_migrations.schema_migrations (version, name) values
   ('20261025001800', 'milestones'),
   ('20261025001900', 'veille'),
   ('20261025002000', 'veille_filter'),
-  ('20261025002100', 'whop')
+  ('20261025002100', 'whop'),
+  ('20261025002200', 'fx_rates')
 on conflict do nothing;
 
 -- Adresse du projet, lue par pg_cron pour appeler les Edge Functions (pas un secret).

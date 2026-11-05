@@ -18,6 +18,8 @@ import { KpiStrip } from "@/components/kpi-strip";
 import { TodoCard } from "@/components/todo-card";
 import { listOpenTasks } from "@/lib/projects";
 import { BriefCard } from "@/components/ai/brief-card";
+import { CashSection } from "@/components/cash/cash-section";
+import { cashOverview } from "@/lib/cash";
 import { formatDate, formatNumber, formatTime, TIME_ZONE, zurichDayKey } from "@/lib/format";
 import { NETWORKS } from "@/lib/social/networks";
 import { retryTarget } from "./b/[slug]/reseaux/actions";
@@ -36,7 +38,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     metricsLast30Days(),
     listActivity({ limit: 15 }),
   ]);
-  const sites = await siteStatuses(businesses);
+  const [sites, cash, tasks] = await Promise.all([siteStatuses(businesses), cashOverview(businesses), listOpenTasks({ limit: 6 })]);
 
   const byId = new Map(businesses.map((b) => [b.id, b]));
   const bizMap = new Map(businesses.map((b) => [b.id, { name: b.name, color: b.color }]));
@@ -63,11 +65,19 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
         }
       />
 
-      {/* Chiffres clés, tous business confondus : chaque tuile ouvre son détail */}
-      <BriefCard slug={null} />
-      <KpiStrip businesses={businesses} period={period} base="/" />
+      {/* L'argent d'abord : tous business, en CHF */}
+      <CashSection cash={cash} businesses={businesses} />
 
-      <TodoCard tasks={await listOpenTasks({ limit: 6 })} href={"/projets"} />
+      {/* Tâches et journal, en un coup d'œil */}
+      <div className="grid gap-6 lg:grid-cols-2 [&>*:only-child]:lg:col-span-2">
+        <TodoCard tasks={tasks} href={"/projets"} />
+        <Card>
+          <CardHeader title="Journal d'activité" />
+          <div className="max-h-[360px] overflow-y-auto p-5 pt-4">
+            <ActivityFeed entries={activity.slice(0, 8)} businesses={bizMap} />
+          </div>
+        </Card>
+      </div>
 
       {/* À traiter */}
       {alerts.length ? (
@@ -132,6 +142,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
           </ul>
         </Card>
       ) : null}
+
+      {/* Le reste : audience, recherche, réseaux */}
+      <h2 className="pt-2 text-[22px] font-semibold">Le reste</h2>
+      <BriefCard slug={null} />
+      <KpiStrip businesses={businesses} period={period} base="/" />
 
       {/* Cartes par business */}
       <section className="flex flex-col gap-4">
@@ -214,7 +229,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
         <FourteenDays posts={upcoming} businesses={byId} start={now} />
       </Card>
 
-      <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+      <div className="grid gap-6">
         {/* Chiffres 30 jours */}
         <Card>
           <CardHeader title="Réseaux, 30 derniers jours" description="Chiffres réels fournis par les API. « — » quand le réseau ne donne pas la donnée." />
@@ -259,13 +274,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
           </div>
         </Card>
 
-        {/* Journal */}
-        <Card>
-          <CardHeader title="Journal d'activité" />
-          <div className="p-5 pt-4">
-            <ActivityFeed entries={activity} businesses={bizMap} />
-          </div>
-        </Card>
+
       </div>
     </Page>
   );
