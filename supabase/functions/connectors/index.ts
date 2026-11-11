@@ -18,7 +18,7 @@ import { syncConnector, type ConnectorRow } from "../_shared/sync.ts";
 import { whopProbe, whopTest } from "../_shared/whop.ts";
 import { appTest } from "../_shared/app.ts";
 
-const LABELS = { stripe: "Stripe", plausible: "Plausible", whop: "Whop", app: "Application" } as const;
+const LABELS = { stripe: "Stripe", plausible: "Plausible", whop: "Whop", app: "Supabase" } as const;
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
 
   const { data: existing } = await db.from("connectors").select("id, credential_ref").eq("business_id", business.id).eq("kind", kind).maybeSingle();
   const credentialRef = await storeToken(db, apiKey, `connector:${kind}:${business.id}`, existing?.credential_ref);
-  const label = kind === "plausible" ? `Plausible · ${siteId}` : kind === "app" ? `Application · ${new URL(baseUrl).hostname.split(".")[0]}` : LABELS[kind];
+  const label = kind === "plausible" ? `Plausible · ${siteId}` : kind === "app" ? `Supabase · ${business.name}` : LABELS[kind];
   const row = {
     business_id: business.id,
     kind,

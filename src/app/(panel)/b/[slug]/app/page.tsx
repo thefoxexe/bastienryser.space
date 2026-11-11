@@ -10,7 +10,7 @@ import { getBusiness } from "@/lib/data";
 import { formatDate, formatRelative } from "@/lib/format";
 import type { SeriesPoint } from "@/lib/metrics";
 
-export const metadata: Metadata = { title: "Application" };
+export const metadata: Metadata = { title: "Inscriptions" };
 
 const number = { kind: "number" } as const;
 const sum = (s: SeriesPoint[] | null, last?: number) => (s ? (last ? s.slice(-last) : s).reduce((a, p) => a + p.value, 0) : 0);
@@ -37,7 +37,7 @@ export default async function AppPage({ params }: PageProps<"/b/[slug]/app">) {
   return (
     <>
       <p className="text-[12px] text-faint">
-        Chiffres lus sur l&apos;application{stats.generatedAt ? `, relevé ${formatRelative(stats.generatedAt)}` : ""} · synchronisé chaque heure · comptes internes exclus.
+        Chiffres lus dans la base Supabase de l&apos;application{stats.generatedAt ? `, relevé ${formatRelative(stats.generatedAt)}` : ""} · synchronisé chaque heure · comptes internes exclus.
         {stats.connector.last_error ? <span className="ml-1 text-danger">{stats.connector.last_error}</span> : null}
       </p>
 

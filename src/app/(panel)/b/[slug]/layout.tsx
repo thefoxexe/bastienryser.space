@@ -15,8 +15,8 @@ export default async function BusinessLayout({ children, params }: LayoutProps<"
     { href: base, label: "Aperçu" },
     // Business à devis : les paiements reçus se relèvent dans leur propre onglet.
     ...(business.revenue_model !== "subscriptions" ? [{ href: `${base}/encaissements`, label: "Encaissements" }] : []),
-    // Application branchée (inscriptions, essais, abonnés) : son propre onglet.
-    ...(app ? [{ href: `${base}/app`, label: "App" }] : []),
+    // Base Supabase de l'application branchée (inscriptions, essais, abonnés) : son propre onglet.
+    ...(app ? [{ href: `${base}/app`, label: "Inscriptions" }] : []),
     ...modulesFor(business.modules).map((m) => ({ href: `${base}/${m.basePath}`, label: m.label })),
   ];
 

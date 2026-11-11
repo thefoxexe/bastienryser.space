@@ -13,6 +13,7 @@ import { periodFrom } from "@/lib/finance";
 import { formatNumber } from "@/lib/format";
 import { NETWORKS } from "@/lib/social/networks";
 import { VeilleOverview } from "./veille-overview";
+import { AppSummary } from "@/components/app-summary";
 
 export async function generateMetadata({ params }: PageProps<"/b/[slug]">): Promise<Metadata> {
   const { slug } = await params;
@@ -54,6 +55,7 @@ export default async function BusinessOverview({ params, searchParams }: PagePro
     <Page>
       {/* Le même tableau de bord que l'accueil, avec les seuls chiffres de ce business. */}
       <KpiStrip businesses={[business]} business={business} period={period} base={`/b/${business.slug}`} />
+      <AppSummary businessId={business.id} slug={business.slug} />
 
       <TodoCard tasks={await listOpenTasks({ businessId: business.id, limit: 6 })} href={`/b/${business.slug}/projets`} showBusiness={false} />
 

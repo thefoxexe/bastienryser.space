@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AlertTriangle, CheckCircle2, RefreshCw, Unplug } from "lucide-react";
 import { BrandMark, BrandTile, type Brand } from "@/components/brand-logos";
 import { Badge, Button, Card } from "@/components/ui";
@@ -55,10 +56,10 @@ const CATALOG: CatalogItem[] = [
   },
   {
     kind: "app",
-    name: "Application",
-    tagline: "Inscriptions, essais, abonnés et activité de ton application.",
+    name: "Supabase",
+    tagline: "Inscriptions, essais, abonnés et activité de ton application (base Supabase).",
     data: "Courbes d'inscriptions, d'essais, d'activations et d'activité, entonnoir depuis les visites, et liste des entreprises avec leur formule. Lu chaque heure sur la fonction panel-stats de l'application.",
-    brand: "app",
+    brand: "supabase",
     auth: "key",
     steps: [
       "Déployer la fonction panel-stats sur le projet Supabase de l'application (déjà fait pour Cantia).",
@@ -144,6 +145,11 @@ export default async function ConnectorsPage({ params, searchParams }: PageProps
                         {c.last_sync_at ? `Dernière synchronisation ${formatRelative(c.last_sync_at)}` : "Pas encore synchronisé"} · ajouté {formatRelative(c.created_at)}
                       </p>
                       {c.last_error ? <p className="mt-2 text-danger">{c.last_error}</p> : null}
+                      {item.kind === "app" ? (
+                        <Link href={`/b/${business.slug}/app`} className="mt-2 inline-block font-medium text-text underline">
+                          Voir les inscriptions et les abonnés →
+                        </Link>
+                      ) : null}
                     </div>
                   )}
                   <div className="mt-auto flex flex-wrap items-center gap-2">

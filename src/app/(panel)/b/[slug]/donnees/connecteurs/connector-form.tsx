@@ -69,7 +69,7 @@ export function ConnectorForm({
           required
           autoComplete="off"
           spellCheck={false}
-          placeholder={kind === "stripe" ? "rk_live_…" : kind === "whop" ? "Clé d'entreprise" : kind === "app" ? "La même valeur que le secret de l'application" : "Clé Stats API"}
+          placeholder={kind === "stripe" ? "rk_live_…" : kind === "whop" ? "Clé d'entreprise" : kind === "app" ? "La même valeur que le secret PANEL_STATS_KEY" : "Clé Stats API"}
           className="font-mono text-[13px]"
         />
       </Field>
