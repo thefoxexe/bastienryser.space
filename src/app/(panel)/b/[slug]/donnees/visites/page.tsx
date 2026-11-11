@@ -28,7 +28,7 @@ export default async function VisitsPage({ params, searchParams }: PageProps<"/b
 
   const query = await searchParams;
   const [connectors, sources] = await Promise.all([listConnectors(id), trafficSources(id, period)]);
-  // Une seule source pour les chiffres, jamais additionnée : celle choisie, sinon Plausible, Google Analytics, puis le suivi du site.
+  // Une seule source pour les chiffres, jamais additionnée : celle choisie, sinon Plausible, puis Google Analytics.
   const chosen = sources.find((s) => s.id === query.source) ?? sources[0];
   const visitors = chosen?.visitors ?? null;
   const visits = chosen?.visits ?? null;
@@ -172,7 +172,7 @@ function Comparison({ sources, reference, long, per }: { sources: TrafficSource[
           </table>
         </div>
         <p className="text-[12px] text-faint">
-          Les outils ne voient pas tous les visiteurs : Google Analytics perd ceux qui refusent les cookies ou bloquent les traceurs, un suivi maison peut compter des robots. L&apos;écart
+          Les outils ne voient pas tous les visiteurs : Google Analytics perd ceux qui refusent les cookies ou bloquent les traceurs, Plausible très peu. L&apos;écart
           entre deux courbes est donc normal ; c&apos;est sa variation dans le temps qui alerte.
         </p>
       </div>

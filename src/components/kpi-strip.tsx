@@ -19,12 +19,10 @@ function upcomingWindow() {
 /** Visiteurs par jour : Plausible si le business l'a, sinon Google Analytics (jamais les deux), additionnés entre business. */
 export async function visitorSeries(businesses: { id: string }[], days: number) {
   const perBusiness = await Promise.all(
-    // Une source par business (Plausible, sinon Google Analytics, sinon le suivi du site) : les outils se recoupent, on ne les additionne pas.
+    // Une source par business (Plausible, sinon Google Analytics) : les outils se recoupent, on ne les additionne pas.
+    // Le suivi maison des applications (Supabase) n'est jamais utilisé pour les visiteurs : il compte aussi les robots.
     businesses.map(
-      async (b) =>
-        (await metricSeries({ businessId: b.id, metric: "visitors", days })) ??
-        (await metricSeries({ businessId: b.id, metric: "ga_users", days })) ??
-        (await metricSeries({ businessId: b.id, metric: "app_visitors", days })),
+      async (b) => (await metricSeries({ businessId: b.id, metric: "visitors", days })) ?? (await metricSeries({ businessId: b.id, metric: "ga_users", days })),
     ),
   );
   const present = perBusiness.filter((s): s is SeriesPoint[] => s !== null);

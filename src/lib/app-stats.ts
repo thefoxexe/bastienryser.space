@@ -60,7 +60,8 @@ export async function appStats(businessId: string, days = 90): Promise<AppStats 
   const s = (metric: string, trimTrailing = false) => metricSeries({ businessId, metric: `app_${metric}`, days, trimTrailing });
   const [signups, visitors, active_orgs, trials, activations, cancellations, users] = await Promise.all([
     s("signups"),
-    s("visitors"),
+    // Visiteurs : Plausible, sinon Google Analytics ; jamais le suivi maison de l'application (robots compris).
+    metricSeries({ businessId, metric: "visitors", days }).then(async (v) => v ?? (await metricSeries({ businessId, metric: "ga_users", days }))),
     s("active_orgs"),
     s("sub_trial_started"),
     s("sub_activated"),

@@ -1,7 +1,7 @@
 import "server-only";
 import { metricSeries, type SeriesPoint } from "@/lib/metrics";
 
-export type TrafficSourceId = "plausible" | "ga" | "app";
+export type TrafficSourceId = "plausible" | "ga";
 
 export type TrafficSource = {
   id: TrafficSourceId;
@@ -13,10 +13,10 @@ export type TrafficSource = {
   note: string;
 };
 
+// Seuls Plausible et Google Analytics comptent les visiteurs : le suivi maison des applications (Supabase) compte aussi les robots.
 const SOURCES: { id: TrafficSourceId; label: string; metrics: [string, string, string | null]; note: string }[] = [
   { id: "plausible", label: "Plausible", metrics: ["visitors", "visits", "pageviews"], note: "sans cookies, peu bloqué" },
   { id: "ga", label: "Google Analytics", metrics: ["ga_users", "ga_sessions", "ga_pageviews"], note: "dépend du consentement aux cookies et des bloqueurs" },
-  { id: "app", label: "Suivi du site (Supabase)", metrics: ["app_visitors", "app_visits", null], note: "mesure maison du site, robots possibles" },
 ];
 
 /**
