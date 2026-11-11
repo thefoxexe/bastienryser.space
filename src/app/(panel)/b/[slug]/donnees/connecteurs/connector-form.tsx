@@ -10,9 +10,11 @@ export function ConnectorForm({
   businessId,
   slug,
   defaultSiteId,
+  defaultBaseUrl,
   reconnect,
 }: {
-  kind: "stripe" | "plausible" | "whop";
+  kind: "stripe" | "plausible" | "whop" | "app";
+  defaultBaseUrl?: string;
   businessId: string;
   slug: string;
   defaultSiteId?: string;
@@ -50,9 +52,13 @@ export function ConnectorForm({
             <Input id={`${kind}-base`} name="baseUrl" defaultValue="https://plausible.io" autoComplete="off" />
           </Field>
         </div>
+      ) : kind === "app" ? (
+        <Field label="Adresse de la fonction panel-stats" htmlFor="app-url">
+          <Input id="app-url" name="baseUrl" type="url" defaultValue={defaultBaseUrl} placeholder="https://….supabase.co/functions/v1/panel-stats" required autoComplete="off" />
+        </Field>
       ) : null}
       <Field
-        label={kind === "stripe" ? "Clé restreinte Stripe" : kind === "whop" ? "Clé d'API Whop" : "Clé d'API Plausible"}
+        label={kind === "stripe" ? "Clé restreinte Stripe" : kind === "whop" ? "Clé d'API Whop" : kind === "app" ? "Clé PANEL_STATS_KEY" : "Clé d'API Plausible"}
         htmlFor={`${kind}-key`}
         hint="Testée puis chiffrée dans le coffre de la base. Elle n'est plus jamais affichée."
       >
@@ -63,7 +69,7 @@ export function ConnectorForm({
           required
           autoComplete="off"
           spellCheck={false}
-          placeholder={kind === "stripe" ? "rk_live_…" : kind === "whop" ? "Clé d'entreprise" : "Clé Stats API"}
+          placeholder={kind === "stripe" ? "rk_live_…" : kind === "whop" ? "Clé d'entreprise" : kind === "app" ? "La même valeur que le secret de l'application" : "Clé Stats API"}
           className="font-mono text-[13px]"
         />
       </Field>

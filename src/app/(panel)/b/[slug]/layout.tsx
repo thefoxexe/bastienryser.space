@@ -4,15 +4,19 @@ import { ButtonLink } from "@/components/ui";
 import { LinkTabs } from "@/components/ui/tabs";
 import { getBusiness } from "@/lib/data";
 import { modulesFor } from "@/modules/registry";
+import { appConnector } from "@/lib/app-stats";
 
 export default async function BusinessLayout({ children, params }: LayoutProps<"/b/[slug]">) {
   const { slug } = await params;
   const business = await getBusiness(slug);
   const base = `/b/${business.slug}`;
+  const app = await appConnector(business.id);
   const tabs = [
     { href: base, label: "Aperçu" },
     // Business à devis : les paiements reçus se relèvent dans leur propre onglet.
     ...(business.revenue_model !== "subscriptions" ? [{ href: `${base}/encaissements`, label: "Encaissements" }] : []),
+    // Application branchée (inscriptions, essais, abonnés) : son propre onglet.
+    ...(app ? [{ href: `${base}/app`, label: "App" }] : []),
     ...modulesFor(business.modules).map((m) => ({ href: `${base}/${m.basePath}`, label: m.label })),
   ];
 

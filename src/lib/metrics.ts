@@ -7,7 +7,7 @@ export type SeriesPoint = { day: string; value: number };
 export type Connector = {
   id: string;
   business_id: string;
-  kind: "stripe" | "plausible" | "search_console" | "google_analytics" | "whop";
+  kind: "stripe" | "plausible" | "search_console" | "google_analytics" | "whop" | "app";
   label: string;
   config: { site_id?: string; base_url?: string; site_url?: string; property_id?: string; options?: { value: string; label: string }[] };
   snapshot: {
@@ -27,6 +27,10 @@ export type Connector = {
     computed_at?: string;
     mrr_error?: string;
     mrr_history_error?: string;
+    /** Application : relevé du jour (totaux et entreprises), voir src/lib/app-stats.ts. */
+    totals?: Record<string, unknown>;
+    organizations?: Record<string, unknown>[];
+    generated_at?: string;
   };
   status: "connected" | "pending" | "error";
   last_sync_at: string | null;
@@ -101,6 +105,7 @@ export function sourceOf(metric: string): Connector["kind"] {
   if (["revenue", "payments", "refunds", "fees"].includes(metric)) return "stripe";
   if (metric.startsWith("search_")) return "search_console";
   if (metric.startsWith("ga_")) return "google_analytics";
+  if (metric.startsWith("app_")) return "app";
   return "plausible";
 }
 

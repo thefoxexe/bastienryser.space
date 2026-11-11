@@ -1438,6 +1438,16 @@ alter table public.ledger_entries add column if not exists client text
   check (client is null or length(btrim(client)) between 1 and 120);
 
 -- ===========================================================================
+-- 20261025002400_app_connector.sql
+-- ===========================================================================
+
+-- Connecteur « Application » : statistiques d'une application maison (ex. Cantia), lues sur sa fonction `panel-stats`
+-- avec une clé secrète (Vault). Séries quotidiennes dans metric_points (métriques app_*), totaux et entreprises dans snapshot.
+alter table public.connectors drop constraint connectors_kind_check;
+alter table public.connectors add constraint connectors_kind_check
+  check (kind in ('stripe', 'plausible', 'search_console', 'google_analytics', 'whop', 'app'));
+
+-- ===========================================================================
 -- Configuration du projet
 -- ===========================================================================
 
@@ -1468,7 +1478,8 @@ insert into supabase_migrations.schema_migrations (version, name) values
   ('20261025002000', 'veille_filter'),
   ('20261025002100', 'whop'),
   ('20261025002200', 'fx_rates'),
-  ('20261025002300', 'revenue_model')
+  ('20261025002300', 'revenue_model'),
+  ('20261025002400', 'app_connector')
 on conflict do nothing;
 
 -- Adresse du projet, lue par pg_cron pour appeler les Edge Functions (pas un secret).

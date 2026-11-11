@@ -16,8 +16,9 @@ import { googleAccessToken, searchConsoleExport } from "../_shared/google.ts";
 import { adminClient, authorize, isAdminRequest, json, logActivity, readToken, storeToken } from "../_shared/supabase.ts";
 import { syncConnector, type ConnectorRow } from "../_shared/sync.ts";
 import { whopProbe, whopTest } from "../_shared/whop.ts";
+import { appTest } from "../_shared/app.ts";
 
-const LABELS = { stripe: "Stripe", plausible: "Plausible", whop: "Whop" } as const;
+const LABELS = { stripe: "Stripe", plausible: "Plausible", whop: "Whop", app: "Application" } as const;
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -129,10 +130,11 @@ Deno.serve(async (req) => {
   const kind = body.kind as keyof typeof LABELS;
   const apiKey = String(body.api_key ?? "").trim();
   const siteId = String(body.site_id ?? "").trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
-  const baseUrl = String(body.base_url ?? "").trim() || "https://plausible.io";
+  const baseUrl = String(body.base_url ?? "").trim() || (kind === "app" ? "" : "https://plausible.io");
   if (!(kind in LABELS)) return json({ ok: false, error: "Ce connecteur se branche avec « Connecter avec Google »." }, 400);
   if (!apiKey) return json({ ok: false, error: "Colle la clé d'API." }, 400);
   if (kind === "plausible" && !URL.canParse(baseUrl)) return json({ ok: false, error: "Adresse Plausible invalide." }, 400);
+  if (kind === "app" && !URL.canParse(baseUrl)) return json({ ok: false, error: "Adresse de l'application invalide." }, 400);
 
   const { data: business } = await db.from("businesses").select("id, name").eq("id", body.business_id).maybeSingle();
   if (!business) return json({ ok: false, error: "Business introuvable." }, 404);
@@ -140,6 +142,7 @@ Deno.serve(async (req) => {
   try {
     if (kind === "stripe") await stripeTest(apiKey);
     else if (kind === "whop") await whopTest(apiKey);
+    else if (kind === "app") await appTest(baseUrl, apiKey);
     else await plausibleTest(apiKey, siteId, baseUrl);
   } catch (e) {
     return json({ ok: false, error: e instanceof ConnectorError ? e.message : "Test de connexion impossible." });
@@ -147,12 +150,12 @@ Deno.serve(async (req) => {
 
   const { data: existing } = await db.from("connectors").select("id, credential_ref").eq("business_id", business.id).eq("kind", kind).maybeSingle();
   const credentialRef = await storeToken(db, apiKey, `connector:${kind}:${business.id}`, existing?.credential_ref);
-  const label = kind === "plausible" ? `Plausible · ${siteId}` : LABELS[kind];
+  const label = kind === "plausible" ? `Plausible · ${siteId}` : kind === "app" ? `Application · ${new URL(baseUrl).hostname.split(".")[0]}` : LABELS[kind];
   const row = {
     business_id: business.id,
     kind,
     label,
-    config: kind === "plausible" ? { site_id: siteId, base_url: baseUrl } : {},
+    config: kind === "plausible" ? { site_id: siteId, base_url: baseUrl } : kind === "app" ? { base_url: baseUrl } : {},
     credential_ref: credentialRef,
     status: "connected",
     last_error: null,

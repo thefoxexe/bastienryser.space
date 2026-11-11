@@ -54,6 +54,19 @@ const CATALOG: CatalogItem[] = [
     ],
   },
   {
+    kind: "app",
+    name: "Application",
+    tagline: "Inscriptions, essais, abonnés et activité de ton application.",
+    data: "Courbes d'inscriptions, d'essais, d'activations et d'activité, entonnoir depuis les visites, et liste des entreprises avec leur formule. Lu chaque heure sur la fonction panel-stats de l'application.",
+    brand: "app",
+    auth: "key",
+    steps: [
+      "Déployer la fonction panel-stats sur le projet Supabase de l'application (déjà fait pour Cantia).",
+      "Créer son secret PANEL_STATS_KEY (Edge Functions → Secrets).",
+      "Coller ci-dessous l'adresse de la fonction et la même clé.",
+    ],
+  },
+  {
     kind: "plausible",
     name: "Plausible Analytics",
     tagline: "Fréquentation du site, sans cookies.",
@@ -146,7 +159,7 @@ export default async function ConnectorsPage({ params, searchParams }: PageProps
                     {item.auth === "google" ? (
                       <GoogleButton kind={item.kind} businessId={business.id} label="Reconnecter" variant="secondary" />
                     ) : (
-                      <ConnectorForm kind={item.kind as "stripe" | "plausible"} businessId={business.id} slug={business.slug} defaultSiteId={c.config.site_id} reconnect />
+                      <ConnectorForm kind={item.kind as "stripe" | "plausible" | "app"} businessId={business.id} slug={business.slug} defaultSiteId={c.config.site_id} defaultBaseUrl={c.config.base_url} reconnect />
                     )}
                     <form action={disconnectConnector} className="ml-auto">
                       <input type="hidden" name="connectorId" value={c.id} />
@@ -172,7 +185,7 @@ export default async function ConnectorsPage({ params, searchParams }: PageProps
                       <GoogleButton kind={item.kind} businessId={business.id} label="Connecter avec Google" />
                     ) : (
                       <ConnectorForm
-                        kind={item.kind as "stripe" | "plausible"}
+                        kind={item.kind as "stripe" | "plausible" | "app"}
                         businessId={business.id}
                         slug={business.slug}
                         defaultSiteId={business.websites[0]?.replace(/^https?:\/\//, "").replace(/\/.*$/, "")}
