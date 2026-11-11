@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Edge Functions Supabase (Deno), vérifiées avec `deno check` / `deno lint`.
     "supabase/**",
+    "integrations/**",
   ]),
 ]);
 
