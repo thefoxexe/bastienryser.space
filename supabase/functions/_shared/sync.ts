@@ -14,14 +14,15 @@ import {
 import { analyticsData, googleAccessToken, searchConsoleData, searchConsoleQueries } from "./google.ts";
 import { logActivity, readToken } from "./supabase.ts";
 import { appData } from "./app.ts";
+import { cloudflareData } from "./cloudflare.ts";
 import { whopDaily, whopPaymentSpans, whopSubscriptions } from "./whop.ts";
 
 export type ConnectorRow = {
   id: string;
   business_id: string;
-  kind: "stripe" | "plausible" | "search_console" | "google_analytics" | "whop" | "app";
+  kind: "stripe" | "plausible" | "search_console" | "google_analytics" | "whop" | "app" | "cloudflare";
   label: string;
-  config: { site_id?: string; base_url?: string; site_url?: string; property_id?: string; backfilled?: boolean; mrr_history_day?: string; mrr_history_v?: number };
+  config: { site_id?: string; base_url?: string; account_id?: string; domain?: string; site_url?: string; property_id?: string; backfilled?: boolean; mrr_history_day?: string; mrr_history_v?: number };
   credential_ref: string | null;
   status: string;
 };
@@ -77,6 +78,11 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
       } catch (e) {
         snapshot = { mrr_error: e instanceof ConnectorError ? e.message : "Abonnements illisibles." };
       }
+    } else if (c.kind === "cloudflare") {
+      // Cloudflare garde environ 6 mois de Web Analytics : premier passage sur 180 jours.
+      const result = await cloudflareData(key, c.config.account_id ?? "", c.config.domain ?? "", c.config.backfilled ? 40 : 180);
+      points = result.points;
+      snapshot = result.snapshot;
     } else if (c.kind === "app") {
       // L'application renvoie tout son historique à chaque passage : il remplace l'ancien.
       const result = await appData(c.config.base_url ?? "", key);

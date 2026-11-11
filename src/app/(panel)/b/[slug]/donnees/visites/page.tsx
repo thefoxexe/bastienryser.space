@@ -28,24 +28,25 @@ export default async function VisitsPage({ params, searchParams }: PageProps<"/b
 
   const query = await searchParams;
   const [connectors, sources] = await Promise.all([listConnectors(id), trafficSources(id, period)]);
-  // Une seule source pour les chiffres, jamais additionnée : celle choisie, sinon Plausible, puis Google Analytics.
+  // Une seule source pour les chiffres, jamais additionnée : celle choisie, sinon Cloudflare, puis Google Analytics.
   const chosen = sources.find((s) => s.id === query.source) ?? sources[0];
   const visitors = chosen?.visitors ?? null;
   const visits = chosen?.visits ?? null;
   const pageviews = chosen?.pageviews ?? null;
   const source = chosen?.label ?? "";
   const ga = connectors.find((c) => c.kind === "google_analytics" && c.status === "connected");
+  const cf = connectors.find((c) => c.kind === "cloudflare" && c.status === "connected");
   const long = period > 90;
   const per = long ? "semaine" : "jour";
   const t = { visitors: total(visitors), visits: total(visits), pageviews: total(pageviews) };
 
-  if (!visitors) {
+  if (!visits) {
     return (
       <Card>
         <EmptyState
           icon={<PlugZap />}
           title="Aucune source de visites"
-          description="Connecte Google Analytics ou Plausible pour suivre la fréquentation, jour après jour."
+          description="Connecte Cloudflare Web Analytics (sans cookies) ou Google Analytics pour suivre la fréquentation, jour après jour."
           action={<ButtonLink href={`${base}/connecteurs`} size="sm">Connecter</ButtonLink>}
         />
       </Card>
@@ -72,14 +73,21 @@ export default async function VisitsPage({ params, searchParams }: PageProps<"/b
             ))}
           </div>
         ) : (
-          <p className="text-[13px] text-muted">D&apos;après {source}. Chaque visiteur n&apos;est compté qu&apos;une fois par jour.</p>
+          <p className="text-[13px] text-muted">D&apos;après {source}.</p>
         )}
         <PeriodChips base={`${base}/visites`} current={period} extra={query.source && typeof query.source === "string" ? { source: query.source } : {}} />
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiTile label={`Visiteurs · ${periodShort(period)}`} amount={t.visitors} format={{ kind: "number" }} trend={visitors.map((p) => p.value)} empty="" href={base} />
-        <KpiTile label={`Visites · ${periodShort(period)}`} amount={t.visits} format={{ kind: "number" }} trend={visits?.map((p) => p.value)} empty="Pas de donnée" href={base} />
+        <KpiTile label={`Visites · ${periodShort(period)}`} amount={t.visits} format={{ kind: "number" }} trend={visits.map((p) => p.value)} empty="" href={base} />
+        <KpiTile
+          label={`Visiteurs · ${periodShort(period)}`}
+          amount={t.visitors}
+          format={{ kind: "number" }}
+          trend={visitors?.map((p) => p.value)}
+          empty={chosen.id === "cloudflare" ? "Non compté sans cookies" : "Pas de donnée"}
+          href={base}
+        />
         <KpiTile label={`Pages vues · ${periodShort(period)}`} amount={t.pageviews} format={{ kind: "number" }} trend={pageviews?.map((p) => p.value)} empty="Pas de donnée" href={base} />
         <KpiTile
           label="Pages par visite"
@@ -92,9 +100,9 @@ export default async function VisitsPage({ params, searchParams }: PageProps<"/b
       </div>
 
       <Card>
-        <CardHeader title="Visiteurs" description={`Visiteurs uniques par ${per}.`} />
+        <CardHeader title="Visites" description={`Visites par ${per}, d'après ${source}.`} />
         <div className="p-5 pt-6 sm:p-6">
-          <AreaChart markers={marks} points={long ? weekly(visitors) : visitors} format={{ kind: "number" }} label={`Visiteurs par ${per}`} />
+          <AreaChart markers={marks} points={long ? weekly(visits) : visits} format={{ kind: "number" }} label={`Visites par ${per}`} />
         </div>
       </Card>
 
@@ -105,6 +113,18 @@ export default async function VisitsPage({ params, searchParams }: PageProps<"/b
           <CardHeader title="Pages vues" description={`Pages affichées par ${per}.`} />
           <div className="p-5 pt-6 sm:p-6">
             <AreaChart markers={marks} points={long ? weekly(pageviews) : pageviews} format={{ kind: "number" }} label={`Pages vues par ${per}`} height={160} />
+          </div>
+        </Card>
+      ) : null}
+
+      {cf && (cf.snapshot.hosts ?? []).length ? (
+        <Card>
+          <CardHeader title="Sous-domaines, provenance et pays" description="30 derniers jours, d'après Cloudflare." />
+          <div className="grid gap-8 p-5 pt-6 sm:p-6 lg:grid-cols-2">
+            <Bars title="Sous-domaines" unit="visites" rows={(cf.snapshot.hosts ?? []).map((h) => ({ key: h.key, value: h.visits }))} />
+            <Bars title="Sites d'où l'on vient" unit="visites" rows={(cf.snapshot.referrers ?? []).map((r) => ({ key: r.key, value: r.value }))} />
+            <Ranking title="Pages les plus vues" columns={["Vues"]} rows={(cf.snapshot.pages ?? []).map((p) => ({ id: p.key, label: p.key, values: [p.views ?? 0] }))} />
+            <Bars title="Pays" unit="visites" rows={(cf.snapshot.countries ?? []).map((c) => ({ key: c.key, value: c.value }))} />
           </div>
         </Card>
       ) : null}
@@ -125,7 +145,7 @@ export default async function VisitsPage({ params, searchParams }: PageProps<"/b
 const nf = (v: number) => Math.round(v).toLocaleString("fr-CH");
 
 /**
- * Croisement des sources : les mêmes visiteurs vus par deux outils. Chaque ligne à part, jamais additionnées ;
+ * Croisement des sources : les mêmes visites vues par deux outils. Chaque ligne à part, jamais additionnées ;
  * l'écart est calculé sur les seuls jours où les deux ont mesuré (sinon une source plus récente fausserait tout).
  */
 function Comparison({ sources, reference, long, per }: { sources: TrafficSource[]; reference: TrafficSourceId; long: boolean; per: string }) {
@@ -133,22 +153,22 @@ function Comparison({ sources, reference, long, per }: { sources: TrafficSource[
   const ordered = [ref, ...sources.filter((s) => s.id !== reference)];
   return (
     <Card>
-      <CardHeader title="Comparaison des sources" description={`Visiteurs par ${per}, chaque outil sur sa propre ligne : les chiffres se recoupent, ils ne s'additionnent pas.`} />
+      <CardHeader title="Comparaison des sources" description={`Visites par ${per}, chaque outil sur sa propre ligne : les chiffres se recoupent, ils ne s'additionnent pas.`} />
       <div className="flex flex-col gap-5 p-5 pt-6 sm:p-6">
-        <MultiLineChart series={ordered.map((s) => ({ label: s.label, points: long ? weekly(s.visitors) : s.visitors }))} format={{ kind: "number" }} />
+        <MultiLineChart series={ordered.map((s) => ({ label: s.label, points: long ? weekly(s.visits) : s.visits }))} format={{ kind: "number" }} />
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-[13px]">
             <thead>
               <tr className="text-left text-[12px] text-muted">
                 <th className="py-2 pr-3 font-normal">Source</th>
-                <th className="px-3 py-2 text-right font-normal">Visiteurs</th>
                 <th className="px-3 py-2 text-right font-normal">Visites</th>
+                <th className="px-3 py-2 text-right font-normal">Pages vues</th>
                 <th className="py-2 pl-3 text-right font-normal">Par rapport à {ref.label}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {ordered.map((s) => {
-                const o = s.id === ref.id ? null : overlap(s.visitors, ref.visitors);
+                const o = s.id === ref.id ? null : overlap(s.visits, ref.visits);
                 const ratio = o && o.b > 0 ? o.a / o.b : null;
                 return (
                   <tr key={s.id}>
@@ -156,8 +176,8 @@ function Comparison({ sources, reference, long, per }: { sources: TrafficSource[
                       <span className="font-medium">{s.label}</span>
                       <span className="block text-[11px] text-muted">{s.note}</span>
                     </td>
-                    <td className="tabular px-3 py-2.5 text-right font-semibold">{nf(s.visitors.reduce((a, p) => a + p.value, 0))}</td>
-                    <td className="tabular px-3 py-2.5 text-right">{s.visits ? nf(s.visits.reduce((a, p) => a + p.value, 0)) : "—"}</td>
+                    <td className="tabular px-3 py-2.5 text-right font-semibold">{nf(s.visits.reduce((a, p) => a + p.value, 0))}</td>
+                    <td className="tabular px-3 py-2.5 text-right">{s.pageviews ? nf(s.pageviews.reduce((a, p) => a + p.value, 0)) : "—"}</td>
                     <td className="tabular py-2.5 pl-3 text-right text-muted">
                       {s.id === ref.id
                         ? "référence"
@@ -172,7 +192,7 @@ function Comparison({ sources, reference, long, per }: { sources: TrafficSource[
           </table>
         </div>
         <p className="text-[12px] text-faint">
-          Les outils ne voient pas tous les visiteurs : Google Analytics perd ceux qui refusent les cookies ou bloquent les traceurs, Plausible très peu. L&apos;écart
+          Les outils ne voient pas tous les visiteurs : Google Analytics perd ceux qui refusent les cookies, Cloudflare (sans cookies) seulement ceux qui bloquent les scripts. L&apos;écart
           entre deux courbes est donc normal ; c&apos;est sa variation dans le temps qui alerte.
         </p>
       </div>

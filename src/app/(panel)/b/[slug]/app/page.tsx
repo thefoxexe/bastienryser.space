@@ -27,7 +27,7 @@ export default async function AppPage({ params }: PageProps<"/b/[slug]/app">) {
   const real = orgs.length;
   const signups30 = sum(series.signups, 30);
   const funnel = [
-    { label: "Visiteurs", value: sum(series.visitors, 30) },
+    { label: "Visites du site", value: sum(series.visitors, 30) },
     { label: "Inscriptions", value: signups30 },
     { label: "Essais démarrés", value: sum(series.trials, 30) },
     { label: "Abonnements activés", value: sum(series.activations, 30) },
@@ -52,7 +52,7 @@ export default async function AppPage({ params }: PageProps<"/b/[slug]/app">) {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
         <Card>
-          <CardHeader title="Entonnoir, 30 derniers jours" description="Des visiteurs (Plausible ou Google Analytics) jusqu'à l'abonnement payé." />
+          <CardHeader title="Entonnoir, 30 derniers jours" description="Des visites (Cloudflare ou Google Analytics) jusqu'à l'abonnement payé." />
           <ol className="flex flex-col gap-3 p-5 pt-4 sm:p-6 sm:pt-4">
             {funnel.map((f, i) => (
               <li key={f.label} className="flex flex-col gap-1">
@@ -69,7 +69,7 @@ export default async function AppPage({ params }: PageProps<"/b/[slug]/app">) {
               </li>
             ))}
             <p className="pt-1 text-[12px] text-muted">
-              Visiteur → abonné : <span className="font-medium text-text">{pct(funnel[3].value, funnel[0].value)}</span> · inscription → abonné :{" "}
+              Visite → abonné : <span className="font-medium text-text">{pct(funnel[3].value, funnel[0].value)}</span> · inscription → abonné :{" "}
               <span className="font-medium text-text">{pct(funnel[3].value, funnel[1].value)}</span>
             </p>
           </ol>
@@ -83,7 +83,7 @@ export default async function AppPage({ params }: PageProps<"/b/[slug]/app">) {
       <div className="grid gap-6 lg:grid-cols-3">
         {(
           [
-            ["Visiteurs du site (Plausible ou Analytics)", series.visitors],
+            ["Visites du site (Cloudflare ou Analytics)", series.visitors],
             ["Entreprises actives", series.active_orgs],
             ["Abonnements activés", series.activations],
           ] as const

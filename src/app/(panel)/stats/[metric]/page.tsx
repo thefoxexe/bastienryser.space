@@ -18,7 +18,7 @@ import { NETWORKS } from "@/lib/social/networks";
 
 const METRICS = {
   finances: { title: "Finances", description: "Encaissements, charges et résultat de tous les business réunis." },
-  visites: { title: "Visites", description: "Visiteurs de tous les sites, jour après jour." },
+  visites: { title: "Visites", description: "Visites de tous les sites, jour après jour." },
   recherche: { title: "Recherche Google", description: "Clics venus de Google sur tous les sites." },
   reseaux: { title: "Réseaux sociaux", description: "Posts publiés, portée et abonnés sur 30 jours." },
 } as const;
@@ -76,9 +76,9 @@ export default async function StatsPage({ params, searchParams }: PageProps<"/st
     });
   } else if (m === "visites") {
     const [all, each] = await Promise.all([visitorSeries(businesses, period), Promise.all(businesses.map((b) => visitorSeries([b], period)))]);
-    if (all) chart = { points: long ? weekly(all) : all, format: number, label: `Visiteurs par ${per}`, title: `Visiteurs par ${per}` };
-    tiles = [{ label: `Visiteurs · ${periodShort(period)}`, amount: sum(all), format: number, hint: "Plausible ou Google Analytics, selon le site" }];
-    columns = ["Visiteurs"];
+    if (all) chart = { points: long ? weekly(all) : all, format: number, label: `Visites par ${per}`, title: `Visites par ${per}` };
+    tiles = [{ label: `Visites · ${periodShort(period)}`, amount: sum(all), format: number, hint: "Cloudflare ou Google Analytics, selon le site" }];
+    columns = ["Visites"];
     rows = businesses.map((b, i) => ({
       id: b.id,
       name: b.name,

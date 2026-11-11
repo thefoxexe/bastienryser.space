@@ -68,13 +68,17 @@ const CATALOG: CatalogItem[] = [
     ],
   },
   {
-    kind: "plausible",
-    name: "Plausible Analytics",
-    tagline: "Fréquentation du site, sans cookies.",
-    data: "Visiteurs, visites et pages vues par jour, synchronisés chaque heure.",
-    brand: "plausible",
+    kind: "cloudflare",
+    name: "Cloudflare Web Analytics",
+    tagline: "Visites et pages vues, sans cookies, robots écartés.",
+    data: "Visites et pages vues par jour, domaine et sous-domaines réunis (ex. cantia.ch, partner.cantia.ch) ; pages, provenance, pays et appareils sur 30 jours. Synchronisé chaque heure.",
+    brand: "cloudflare",
     auth: "key",
-    steps: ["Plausible → Paramètres du compte → Clés d'API → Nouvelle clé (Stats API).", "Indiquer le domaine exactement comme dans Plausible, puis coller la clé."],
+    steps: [
+      "Cloudflare → Web Analytics → ajouter le site, avec l'extrait JavaScript (sans changer le DNS).",
+      "Profil → API Tokens → Create Token → droit « Account Analytics : Read ».",
+      "Coller l'identifiant du compte (page d'accueil du tableau de bord), le domaine et le jeton.",
+    ],
   },
 ];
 
@@ -165,7 +169,7 @@ export default async function ConnectorsPage({ params, searchParams }: PageProps
                     {item.auth === "google" ? (
                       <GoogleButton kind={item.kind} businessId={business.id} label="Reconnecter" variant="secondary" />
                     ) : (
-                      <ConnectorForm kind={item.kind as "stripe" | "plausible" | "app"} businessId={business.id} slug={business.slug} defaultSiteId={c.config.site_id} defaultBaseUrl={c.config.base_url} reconnect />
+                      <ConnectorForm kind={item.kind as "stripe" | "app" | "cloudflare"} businessId={business.id} slug={business.slug} defaultSiteId={c.config.site_id} defaultBaseUrl={c.config.base_url} defaultAccountId={c.config.account_id} defaultDomain={c.config.domain} reconnect />
                     )}
                     <form action={disconnectConnector} className="ml-auto">
                       <input type="hidden" name="connectorId" value={c.id} />
@@ -191,7 +195,7 @@ export default async function ConnectorsPage({ params, searchParams }: PageProps
                       <GoogleButton kind={item.kind} businessId={business.id} label="Connecter avec Google" />
                     ) : (
                       <ConnectorForm
-                        kind={item.kind as "stripe" | "plausible" | "app"}
+                        kind={item.kind as "stripe" | "app" | "cloudflare"}
                         businessId={business.id}
                         slug={business.slug}
                         defaultSiteId={business.websites[0]?.replace(/^https?:\/\//, "").replace(/\/.*$/, "")}

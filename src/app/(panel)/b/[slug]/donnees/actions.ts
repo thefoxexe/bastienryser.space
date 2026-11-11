@@ -28,6 +28,8 @@ export async function connectConnector(_prev: ConnectState, formData: FormData):
       api_key: formData.get("apiKey"),
       site_id: formData.get("siteId"),
       base_url: formData.get("baseUrl"),
+      account_id: formData.get("accountId"),
+      domain: formData.get("domain"),
     },
     45_000,
   );

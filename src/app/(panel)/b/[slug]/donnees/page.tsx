@@ -24,11 +24,11 @@ export default async function DataOverview({ params, searchParams }: PageProps<"
   const base = `/b/${business.slug}/donnees`;
   const days = period;
 
-  const [connectors, plVisitors, plPageviews, gaUsers, gaPageviews, clicks, impressions, position, finance, sites] = await Promise.all([
+  const [connectors, cfVisits, cfPageviews, gaSessions, gaPageviews, clicks, impressions, position, finance, sites] = await Promise.all([
     listConnectors(business.id),
-    metricSeries({ businessId: business.id, metric: "visitors", days }),
-    metricSeries({ businessId: business.id, metric: "pageviews", days }),
-    metricSeries({ businessId: business.id, metric: "ga_users", days }),
+    metricSeries({ businessId: business.id, metric: "cf_visits", days }),
+    metricSeries({ businessId: business.id, metric: "cf_pageviews", days }),
+    metricSeries({ businessId: business.id, metric: "ga_sessions", days }),
     metricSeries({ businessId: business.id, metric: "ga_pageviews", days }),
     metricSeries({ businessId: business.id, metric: "search_clicks", trimTrailing: true, days: Math.max(days, 28) }),
     metricSeries({ businessId: business.id, metric: "search_impressions", trimTrailing: true, days: Math.max(days, 28) }),
@@ -36,10 +36,10 @@ export default async function DataOverview({ params, searchParams }: PageProps<"
     financeSummary(business.id, period),
     siteStatuses([{ id: business.id, websites: business.websites }], business.id),
   ]);
-  // Plausible en priorité pour la fréquentation, sinon Google Analytics (jamais additionnés : ce seraient les mêmes visiteurs).
-  const visitors = plVisitors ?? gaUsers;
-  const pageviews = plPageviews ?? gaPageviews;
-  const visitorsSource = plVisitors ? "Plausible" : "Google Analytics";
+  // Cloudflare (sans cookies) en priorité pour la fréquentation, sinon Google Analytics (jamais additionnés : ce seraient les mêmes visites).
+  const visitors = cfVisits ?? gaSessions;
+  const pageviews = cfVisits ? cfPageviews : gaPageviews;
+  const visitorsSource = cfVisits ? "Cloudflare" : "Google Analytics";
   const gsc = connectors.find((c) => c.kind === "search_console" && c.status === "connected");
   const ga = connectors.find((c) => c.kind === "google_analytics" && c.status === "connected");
   const totalClicks = sum(clicks);
@@ -60,7 +60,7 @@ export default async function DataOverview({ params, searchParams }: PageProps<"
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiTile
-          label={`Visiteurs · ${periodShort(period)}`}
+          label={`Visites · ${periodShort(period)}`}
           amount={visitors ? sum(visitors) : null}
           format={{ kind: "number" }}
           trend={visitors?.map((p) => p.value)}
@@ -97,12 +97,12 @@ export default async function DataOverview({ params, searchParams }: PageProps<"
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader title="Visiteurs" description={`Visiteurs uniques par ${long ? "semaine" : "jour"}, d'après ${visitorsSource}.`} />
+          <CardHeader title="Visites" description={`Visites par ${long ? "semaine" : "jour"}, d'après ${visitorsSource}.`} />
           <div className="p-5 pt-6 sm:p-6">
             {visitors ? (
-              <AreaChart markers={marks} points={long ? weekly(visitors) : visitors} format={{ kind: "number" }} label={long ? "Visiteurs par semaine" : "Visiteurs par jour"} />
+              <AreaChart markers={marks} points={long ? weekly(visitors) : visitors} format={{ kind: "number" }} label={long ? "Visites par semaine" : "Visites par jour"} />
             ) : (
-              <EmptyState icon={<PlugZap />} title="Aucune source de visites" description="Connecte Google Analytics ou Plausible pour suivre la fréquentation de ton site." action={<ButtonLink href={`${base}/connecteurs`} size="sm">Connecter</ButtonLink>} />
+              <EmptyState icon={<PlugZap />} title="Aucune source de visites" description="Connecte Cloudflare Web Analytics (sans cookies) ou Google Analytics pour suivre la fréquentation de ton site." action={<ButtonLink href={`${base}/connecteurs`} size="sm">Connecter</ButtonLink>} />
             )}
           </div>
         </Card>

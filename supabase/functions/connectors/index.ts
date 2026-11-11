@@ -17,8 +17,9 @@ import { adminClient, authorize, isAdminRequest, json, logActivity, readToken, s
 import { syncConnector, type ConnectorRow } from "../_shared/sync.ts";
 import { whopProbe, whopTest } from "../_shared/whop.ts";
 import { appTest } from "../_shared/app.ts";
+import { cleanDomain, cloudflareTest } from "../_shared/cloudflare.ts";
 
-const LABELS = { stripe: "Stripe", plausible: "Plausible", whop: "Whop", app: "Supabase" } as const;
+const LABELS = { stripe: "Stripe", plausible: "Plausible", whop: "Whop", app: "Supabase", cloudflare: "Cloudflare" } as const;
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -134,6 +135,8 @@ Deno.serve(async (req) => {
   if (!(kind in LABELS)) return json({ ok: false, error: "Ce connecteur se branche avec « Connecter avec Google »." }, 400);
   if (!apiKey) return json({ ok: false, error: "Colle la clé d'API." }, 400);
   if (kind === "plausible" && !URL.canParse(baseUrl)) return json({ ok: false, error: "Adresse Plausible invalide." }, 400);
+  const accountId = String(body.account_id ?? "").trim();
+  const domain = cleanDomain(String(body.domain ?? ""));
   if (kind === "app" && !URL.canParse(baseUrl)) return json({ ok: false, error: "Adresse de l'application invalide." }, 400);
 
   const { data: business } = await db.from("businesses").select("id, name").eq("id", body.business_id).maybeSingle();
@@ -143,6 +146,7 @@ Deno.serve(async (req) => {
     if (kind === "stripe") await stripeTest(apiKey);
     else if (kind === "whop") await whopTest(apiKey);
     else if (kind === "app") await appTest(baseUrl, apiKey);
+    else if (kind === "cloudflare") await cloudflareTest(apiKey, accountId, domain);
     else await plausibleTest(apiKey, siteId, baseUrl);
   } catch (e) {
     return json({ ok: false, error: e instanceof ConnectorError ? e.message : "Test de connexion impossible." });
@@ -150,12 +154,12 @@ Deno.serve(async (req) => {
 
   const { data: existing } = await db.from("connectors").select("id, credential_ref").eq("business_id", business.id).eq("kind", kind).maybeSingle();
   const credentialRef = await storeToken(db, apiKey, `connector:${kind}:${business.id}`, existing?.credential_ref);
-  const label = kind === "plausible" ? `Plausible · ${siteId}` : kind === "app" ? `Supabase · ${business.name}` : LABELS[kind];
+  const label = kind === "plausible" ? `Plausible · ${siteId}` : kind === "app" ? `Supabase · ${business.name}` : kind === "cloudflare" ? `Cloudflare · ${domain}` : LABELS[kind];
   const row = {
     business_id: business.id,
     kind,
     label,
-    config: kind === "plausible" ? { site_id: siteId, base_url: baseUrl } : kind === "app" ? { base_url: baseUrl } : {},
+    config: kind === "plausible" ? { site_id: siteId, base_url: baseUrl } : kind === "app" ? { base_url: baseUrl } : kind === "cloudflare" ? { account_id: accountId, domain } : {},
     credential_ref: credentialRef,
     status: "connected",
     last_error: null,

@@ -7,9 +7,9 @@ export type SeriesPoint = { day: string; value: number };
 export type Connector = {
   id: string;
   business_id: string;
-  kind: "stripe" | "plausible" | "search_console" | "google_analytics" | "whop" | "app";
+  kind: "stripe" | "plausible" | "search_console" | "google_analytics" | "whop" | "app" | "cloudflare";
   label: string;
-  config: { site_id?: string; base_url?: string; site_url?: string; property_id?: string; options?: { value: string; label: string }[] };
+  config: { site_id?: string; base_url?: string; account_id?: string; domain?: string; site_url?: string; property_id?: string; options?: { value: string; label: string }[] };
   snapshot: {
     period?: string;
     queries?: { key: string; clicks: number; impressions: number; position: number }[];
@@ -27,6 +27,11 @@ export type Connector = {
     computed_at?: string;
     mrr_error?: string;
     mrr_history_error?: string;
+    /** Cloudflare : sous-domaines, provenance, pays et appareils sur 30 jours. */
+    hosts?: { key: string; visits: number; views: number }[];
+    referrers?: { key: string; value: number }[];
+    countries?: { key: string; value: number }[];
+    devices?: { key: string; value: number }[];
     /** Application : relevé du jour (totaux et entreprises), voir src/lib/app-stats.ts. */
     totals?: Record<string, unknown>;
     organizations?: Record<string, unknown>[];
@@ -106,6 +111,7 @@ export function sourceOf(metric: string): Connector["kind"] {
   if (metric.startsWith("search_")) return "search_console";
   if (metric.startsWith("ga_")) return "google_analytics";
   if (metric.startsWith("app_")) return "app";
+  if (metric.startsWith("cf_")) return "cloudflare";
   return "plausible";
 }
 

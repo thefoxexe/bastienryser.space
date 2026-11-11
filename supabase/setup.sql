@@ -1448,6 +1448,16 @@ alter table public.connectors add constraint connectors_kind_check
   check (kind in ('stripe', 'plausible', 'search_console', 'google_analytics', 'whop', 'app'));
 
 -- ===========================================================================
+-- 20261025002500_cloudflare.sql
+-- ===========================================================================
+
+-- Cloudflare Web Analytics : visites et pages vues sans cookies (jeton d'API en lecture dans Vault).
+-- Remplace Plausible dans l'interface ; l'ancien type reste accepté pour ne rien casser.
+alter table public.connectors drop constraint connectors_kind_check;
+alter table public.connectors add constraint connectors_kind_check
+  check (kind in ('stripe', 'plausible', 'search_console', 'google_analytics', 'whop', 'app', 'cloudflare'));
+
+-- ===========================================================================
 -- Configuration du projet
 -- ===========================================================================
 
@@ -1479,7 +1489,8 @@ insert into supabase_migrations.schema_migrations (version, name) values
   ('20261025002100', 'whop'),
   ('20261025002200', 'fx_rates'),
   ('20261025002300', 'revenue_model'),
-  ('20261025002400', 'app_connector')
+  ('20261025002400', 'app_connector'),
+  ('20261025002500', 'cloudflare')
 on conflict do nothing;
 
 -- Adresse du projet, lue par pg_cron pour appeler les Edge Functions (pas un secret).

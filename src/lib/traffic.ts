@@ -1,39 +1,47 @@
 import "server-only";
 import { metricSeries, type SeriesPoint } from "@/lib/metrics";
 
-export type TrafficSourceId = "plausible" | "ga";
+export type TrafficSourceId = "cloudflare" | "ga";
 
 export type TrafficSource = {
   id: TrafficSourceId;
   label: string;
-  /** Visiteurs uniques par jour, visites (sessions) et pages vues : null si la source ne les fournit pas. */
-  visitors: SeriesPoint[];
-  visits: SeriesPoint[] | null;
+  /** Visites par jour : la mesure que les deux outils ont en commun, celle qu'on compare. */
+  visits: SeriesPoint[];
   pageviews: SeriesPoint[] | null;
+  /** Visiteurs uniques : Google Analytics seulement (Cloudflare, sans cookies, ne reconnaît pas un visiteur qui revient). */
+  visitors: SeriesPoint[] | null;
   note: string;
 };
 
-// Seuls Plausible et Google Analytics comptent les visiteurs : le suivi maison des applications (Supabase) compte aussi les robots.
-const SOURCES: { id: TrafficSourceId; label: string; metrics: [string, string, string | null]; note: string }[] = [
-  { id: "plausible", label: "Plausible", metrics: ["visitors", "visits", "pageviews"], note: "sans cookies, peu bloqué" },
-  { id: "ga", label: "Google Analytics", metrics: ["ga_users", "ga_sessions", "ga_pageviews"], note: "dépend du consentement aux cookies et des bloqueurs" },
+// Seuls Cloudflare et Google Analytics comptent la fréquentation : le suivi maison des applications (Supabase) compte aussi les robots.
+const SOURCES: { id: TrafficSourceId; label: string; visits: string; pageviews: string; visitors: string | null; note: string }[] = [
+  { id: "cloudflare", label: "Cloudflare", visits: "cf_visits", pageviews: "cf_pageviews", visitors: null, note: "sans cookies, robots écartés" },
+  { id: "ga", label: "Google Analytics", visits: "ga_sessions", pageviews: "ga_pageviews", visitors: "ga_users", note: "perd les visiteurs qui refusent les cookies" },
 ];
 
 /**
- * Toutes les sources de fréquentation branchées pour un business, chacune à part.
- * Elles mesurent les mêmes visiteurs : on les compare, on ne les additionne jamais.
+ * Les sources de fréquentation branchées pour un business, chacune à part.
+ * Elles mesurent les mêmes visites : on les compare, on ne les additionne jamais.
  */
 export async function trafficSources(businessId: string, days: number): Promise<TrafficSource[]> {
   const out = await Promise.all(
     SOURCES.map(async (s) => {
-      const [visitors, visits, pageviews] = await Promise.all(
-        s.metrics.map((m) => (m ? metricSeries({ businessId, metric: m, days }) : Promise.resolve(null))),
-      );
-      if (!visitors || !visitors.some((p) => p.value > 0)) return null;
-      return { id: s.id, label: s.label, visitors, visits, pageviews, note: s.note } satisfies TrafficSource;
+      const [visits, pageviews, visitors] = await Promise.all([
+        metricSeries({ businessId, metric: s.visits, days }),
+        metricSeries({ businessId, metric: s.pageviews, days }),
+        s.visitors ? metricSeries({ businessId, metric: s.visitors, days }) : Promise.resolve(null),
+      ]);
+      if (!visits || !visits.some((p) => p.value > 0)) return null;
+      return { id: s.id, label: s.label, visits, pageviews, visitors, note: s.note } satisfies TrafficSource;
     }),
   );
   return out.filter((s): s is TrafficSource => s !== null);
+}
+
+/** Visites par jour d'un business : Cloudflare, sinon Google Analytics (jamais les deux). */
+export async function visitSeries(businessId: string, days: number) {
+  return (await metricSeries({ businessId, metric: "cf_visits", days })) ?? (await metricSeries({ businessId, metric: "ga_sessions", days }));
 }
 
 /** Jours où les deux sources ont mesuré quelque chose : la comparaison n'a de sens que là. */

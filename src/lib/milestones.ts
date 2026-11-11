@@ -65,7 +65,7 @@ export async function milestoneImpacts(businessId: string, list: Milestone[]): P
     .from("metric_points")
     .select("metric,day,value")
     .eq("business_id", businessId)
-    .in("metric", ["search_clicks", "search_impressions", "search_position", "visitors", "ga_users"])
+    .in("metric", ["search_clicks", "search_impressions", "search_position", "cf_visits", "ga_sessions"])
     .gte("day", from);
 
   const series = new Map<string, Map<string, number>>();
@@ -77,8 +77,8 @@ export async function milestoneImpacts(businessId: string, list: Milestone[]): P
   const clicks = series.get("search_clicks");
   const impressions = series.get("search_impressions");
   const positions = series.get("search_position");
-  // Plausible en priorité, sinon Google Analytics, jamais additionnés.
-  const visitors = series.get("visitors") ?? series.get("ga_users");
+  // Visites : Cloudflare en priorité, sinon Google Analytics, jamais additionnés.
+  const visitors = series.get("cf_visits") ?? series.get("ga_sessions");
   const lastSearch = clicks ? [...clicks.keys()].sort().pop() : undefined;
   const lastVisit = visitors ? [...visitors.keys()].sort().pop() : undefined;
   const lastDay = [lastSearch, lastVisit].filter(Boolean).sort().pop();

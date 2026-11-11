@@ -1,3 +1,4 @@
+import { visitSeries } from "@/lib/traffic";
 import { formatValue } from "@/components/charts/format";
 import { KpiTile } from "@/components/kpi-tile";
 import { PeriodChips } from "@/components/period-chips";
@@ -16,15 +17,11 @@ function upcomingWindow() {
   return { from: new Date(now - 3600_000).toISOString(), to: new Date(now + 14 * 86400_000).toISOString() };
 }
 
-/** Visiteurs par jour : Plausible si le business l'a, sinon Google Analytics (jamais les deux), additionnés entre business. */
+/** Visites par jour : Cloudflare si le business l'a, sinon Google Analytics (jamais les deux), additionnées entre business. */
 export async function visitorSeries(businesses: { id: string }[], days: number) {
-  const perBusiness = await Promise.all(
-    // Une source par business (Plausible, sinon Google Analytics) : les outils se recoupent, on ne les additionne pas.
-    // Le suivi maison des applications (Supabase) n'est jamais utilisé pour les visiteurs : il compte aussi les robots.
-    businesses.map(
-      async (b) => (await metricSeries({ businessId: b.id, metric: "visitors", days })) ?? (await metricSeries({ businessId: b.id, metric: "ga_users", days })),
-    ),
-  );
+  // Une source par business : les outils se recoupent, on ne les additionne pas.
+  // Le suivi maison des applications (Supabase) n'est jamais utilisé : il compte aussi les robots.
+  const perBusiness = await Promise.all(businesses.map((b) => visitSeries(b.id, days)));
   const present = perBusiness.filter((s): s is SeriesPoint[] => s !== null);
   return present.length ? present[0].map((p, i) => ({ day: p.day, value: present.reduce((a, s) => a + (s[i]?.value ?? 0), 0) })) : null;
 }
@@ -89,7 +86,7 @@ export async function KpiStrip({ businesses, business, period, base }: { busines
       </div>
       <section aria-label="Chiffres clés" className="animate-rise grid grid-cols-2 gap-3 [animation-delay:40ms] md:grid-cols-3 2xl:grid-cols-6">
         <KpiTile
-          label={`Visiteurs · ${periodShort(period)}`}
+          label={`Visites · ${periodShort(period)}`}
           amount={visitors ? sum(visitors) : null}
           format={{ kind: "number" }}
           trend={visitors?.map((p) => p.value)}

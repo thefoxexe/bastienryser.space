@@ -1,5 +1,6 @@
 import "server-only";
 import { listConnectors, metricSeries, type Connector, type SeriesPoint } from "@/lib/metrics";
+import { visitSeries } from "@/lib/traffic";
 
 /** Entreprise inscrite sur l'application (relevé de panel-stats : jamais d'e-mail ni de coordonnées). */
 export type AppOrg = {
@@ -60,8 +61,8 @@ export async function appStats(businessId: string, days = 90): Promise<AppStats 
   const s = (metric: string, trimTrailing = false) => metricSeries({ businessId, metric: `app_${metric}`, days, trimTrailing });
   const [signups, visitors, active_orgs, trials, activations, cancellations, users] = await Promise.all([
     s("signups"),
-    // Visiteurs : Plausible, sinon Google Analytics ; jamais le suivi maison de l'application (robots compris).
-    metricSeries({ businessId, metric: "visitors", days }).then(async (v) => v ?? (await metricSeries({ businessId, metric: "ga_users", days }))),
+    // Visites : Cloudflare, sinon Google Analytics ; jamais le suivi maison de l'application (robots compris).
+    visitSeries(businessId, days),
     s("active_orgs"),
     s("sub_trial_started"),
     s("sub_activated"),

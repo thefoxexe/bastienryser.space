@@ -98,7 +98,7 @@ export async function businessDigest(business: Biz, period = 28): Promise<Digest
 
   const [connectors, points, finance, alerts, sites, social, milestones] = await Promise.all([
     listConnectors(business.id),
-    seriesSum(business.id, ["visitors", "ga_users", "search_clicks", "search_impressions", "search_position"], prevFrom, to),
+    seriesSum(business.id, ["cf_visits", "ga_sessions", "search_clicks", "search_impressions", "search_position"], prevFrom, to),
     financeSummary(business.id, period),
     listAlerts(),
     siteStatuses([{ id: business.id, websites: business.websites }], business.id),
@@ -114,21 +114,21 @@ export async function businessDigest(business: Biz, period = 28): Promise<Digest
     if (c.status === "error") signals.push(`Le connecteur ${c.label} est en erreur : ${c.last_error ?? "sans message"}.`);
   }
 
-  // Visites : Plausible s'il est branché, sinon Google Analytics (jamais additionnés).
+  // Visites : Cloudflare s'il est branché, sinon Google Analytics (jamais additionnés).
   let visits: Digest["visits"] = null;
-  const plausible = has("plausible");
+  const cloudflare = has("cloudflare");
   const ga = has("google_analytics");
-  if (plausible || ga) {
-    const metric = plausible ? "visitors" : "ga_users";
-    visits = { source: plausible ? "Plausible" : "Google Analytics", visitors: sum(metric, from, to), previous: sum(metric, prevFrom, before) };
-    if (ga && !plausible && visits.visitors === 0 && visits.previous === 0) {
+  if (cloudflare || ga) {
+    const metric = cloudflare ? "cf_visits" : "ga_sessions";
+    visits = { source: cloudflare ? "Cloudflare" : "Google Analytics", visitors: sum(metric, from, to), previous: sum(metric, prevFrom, before) };
+    if (ga && !cloudflare && visits.visitors === 0 && visits.previous === 0) {
       const property = ga.config.options?.find((o) => o.value === ga.config.property_id)?.label ?? ga.config.property_id ?? "inconnue";
       signals.push(
         `Google Analytics est connecté mais n'a compté aucune visite en ${period * 2} jours. La propriété choisie (« ${property} ») n'est probablement pas celle du site : la changer dans Données › Connecteurs.`,
       );
     }
     const change = pct(visits.visitors, visits.previous);
-    if (change !== null && change <= -30 && visits.previous >= 20) signals.push(`Les visiteurs baissent de ${-change} % par rapport aux ${period} jours précédents.`);
+    if (change !== null && change <= -30 && visits.previous >= 20) signals.push(`Les visites baissent de ${-change} % par rapport aux ${period} jours précédents.`);
   }
 
   // Recherche Google.
