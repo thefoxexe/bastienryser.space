@@ -3,9 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { ArrowUp, Loader2, Mic, Square, Volume2, VolumeX, X } from "lucide-react";
-import type { Brief } from "@/app/(panel)/ai-actions";
 import { AiAvatar, type AvatarState } from "@/components/ai/avatar";
-import { BRIEF_EVENT } from "@/components/ai/brief-card";
 import { cn } from "@/components/ui/cn";
 
 type Message = { role: "user" | "assistant"; content: string; error?: boolean };
@@ -18,7 +16,14 @@ function Rich({ text }: { text: string }) {
   const blocks: ReactNode[] = [];
   let list: string[] = [];
   const flush = () => {
-    if (list.length) blocks.push(<ul key={blocks.length} className="ml-4 list-disc space-y-1">{list.map((l, i) => <li key={i}>{inline(l)}</li>)}</ul>);
+    if (list.length)
+      blocks.push(
+        <ul key={blocks.length} className="ml-4 list-disc space-y-1">
+          {list.map((l, i) => (
+            <li key={i}>{inline(l)}</li>
+          ))}
+        </ul>,
+      );
     list = [];
   };
   for (const line of text.split("\n")) {
@@ -34,7 +39,11 @@ function Rich({ text }: { text: string }) {
 }
 
 /** Texte lisible à voix haute : sans balisage. */
-const spoken = (text: string) => text.replace(/\*\*/g, "").replace(/^\s*[-•]\s+/gm, "").replace(/#+\s*/g, "");
+const spoken = (text: string) =>
+  text
+    .replace(/\*\*/g, "")
+    .replace(/^\s*[-•]\s+/gm, "")
+    .replace(/#+\s*/g, "");
 
 export function Assistant() {
   const pathname = usePathname();
@@ -60,29 +69,6 @@ export function Assistant() {
   useEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
-
-  useEffect(() => {
-    if (!open) stopSpeaking();
-  }, [open]);
-
-  // Un clic sur le brief ouvre l'assistant, qui le détaille (et le lit) ; on enchaîne ensuite avec des questions.
-  const speakRef = useRef<(text: string) => void>(() => {});
-  useEffect(() => {
-    speakRef.current = speak;
-  });
-  useEffect(() => {
-    const onBrief = (e: Event) => {
-      const brief = (e as CustomEvent<Brief>).detail;
-      const text = `${brief.headline}\n${brief.points.map((p) => `- ${p.text}`).join("\n")}\n\nTu veux que je creuse un point ?`;
-      unlockAudio();
-      setOpen(true);
-      setMessages((m) => [...m, { role: "user", content: "Détaille-moi le brief du jour." }, { role: "assistant", content: text }]);
-      // À l'oral : un résumé naturel, pas la lecture de la liste.
-      speakRef.current(brief.spoken || brief.headline);
-    };
-    window.addEventListener(BRIEF_EVENT, onBrief);
-    return () => window.removeEventListener(BRIEF_EVENT, onBrief);
-  }, []);
 
   // Lecture par Web Audio, débloquée pendant un geste de l'utilisateur : sinon iOS refuse le son qui arrive après coup.
   const audioCtx = useRef<AudioContext | null>(null);
@@ -226,7 +212,8 @@ export function Assistant() {
         type="button"
         onClick={() => {
           unlockAudio();
-          setOpen((o) => !o);
+          if (open) stopSpeaking();
+          setOpen(!open);
         }}
         aria-label={open ? "Fermer l'assistant" : "Ouvrir l'assistant"}
         aria-expanded={open}
@@ -252,10 +239,24 @@ export function Assistant() {
                 {recording ? "Je t'écoute…" : transcribing ? "Je transcris…" : busy ? "Je regarde tes chiffres…" : speaking ? "Je parle" : slug ? `Sur ${slug}` : "Tous les business"}
               </p>
             </div>
-            <button type="button" onClick={toggleVoice} className="grid size-8 place-items-center rounded-full text-muted transition hover:bg-fill hover:text-text" aria-label={voice ? "Couper la voix" : "Activer la voix"} title={voice ? "Couper la voix" : "Activer la voix"}>
+            <button
+              type="button"
+              onClick={toggleVoice}
+              className="grid size-8 place-items-center rounded-full text-muted transition hover:bg-fill hover:text-text"
+              aria-label={voice ? "Couper la voix" : "Activer la voix"}
+              title={voice ? "Couper la voix" : "Activer la voix"}
+            >
               {voice ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
             </button>
-            <button type="button" onClick={() => setOpen(false)} className="grid size-8 place-items-center rounded-full text-muted transition hover:bg-fill hover:text-text" aria-label="Fermer">
+            <button
+              type="button"
+              onClick={() => {
+                stopSpeaking();
+                setOpen(false);
+              }}
+              className="grid size-8 place-items-center rounded-full text-muted transition hover:bg-fill hover:text-text"
+              aria-label="Fermer"
+            >
               <X className="size-4" />
             </button>
           </header>
@@ -309,10 +310,7 @@ export function Assistant() {
               type="button"
               onClick={toggleRecording}
               disabled={busy || transcribing}
-              className={cn(
-                "grid size-10 shrink-0 place-items-center rounded-full transition disabled:opacity-40",
-                recording ? "bg-ink text-ink-text" : "bg-fill text-text hover:bg-fill-strong",
-              )}
+              className={cn("grid size-10 shrink-0 place-items-center rounded-full transition disabled:opacity-40", recording ? "bg-ink text-ink-text" : "bg-fill text-text hover:bg-fill-strong")}
               aria-label={recording ? "Arrêter et envoyer" : "Parler"}
               title={recording ? "Arrêter et envoyer" : "Parler"}
             >
@@ -332,7 +330,12 @@ export function Assistant() {
               className="max-h-32 min-h-10 flex-1 resize-none rounded-[20px] bg-fill px-4 py-2.5 text-[16px] outline-none placeholder:text-faint sm:text-[14px]"
               aria-label="Ta question"
             />
-            <button type="submit" disabled={!input.trim() || busy} className="grid size-10 shrink-0 place-items-center rounded-full bg-ink text-ink-text transition disabled:opacity-30" aria-label="Envoyer">
+            <button
+              type="submit"
+              disabled={!input.trim() || busy}
+              className="grid size-10 shrink-0 place-items-center rounded-full bg-ink text-ink-text transition disabled:opacity-30"
+              aria-label="Envoyer"
+            >
               <ArrowUp className="size-4" />
             </button>
           </form>

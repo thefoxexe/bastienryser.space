@@ -42,7 +42,7 @@ async function weeklySummary(db: SupabaseClient): Promise<Payload> {
   if (cashed) parts.push(`${nf.format(cashed)} CHF encaissés`);
   return {
     title: "Ta semaine en bref",
-    body: parts.length ? `${parts.join(", ")}. Viens voir le détail et le brief.` : "Ton point de la semaine est prêt : viens voir le brief.",
+    body: parts.length ? `${parts.join(", ")}. Viens voir le détail.` : "Ton point de la semaine est prêt : viens voir le détail.",
     url: "/",
     tag: "weekly",
   };

@@ -17,7 +17,6 @@ import { periodFrom } from "@/lib/finance";
 import { KpiStrip } from "@/components/kpi-strip";
 import { TodoCard } from "@/components/todo-card";
 import { listOpenTasks } from "@/lib/projects";
-import { BriefCard } from "@/components/ai/brief-card";
 import { CashSection } from "@/components/cash/cash-section";
 import { cashOverview } from "@/lib/cash";
 import { formatDate, formatNumber, formatTime, TIME_ZONE, zurichDayKey } from "@/lib/format";
@@ -145,7 +144,6 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
 
       {/* Le reste : audience, recherche, réseaux */}
       <h2 className="pt-2 text-[22px] font-semibold">Le reste</h2>
-      <BriefCard slug={null} />
       <KpiStrip businesses={businesses} period={period} base="/" />
 
       {/* Cartes par business */}

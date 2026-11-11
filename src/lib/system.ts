@@ -195,7 +195,7 @@ export async function runSystemChecks(): Promise<CheckGroup[]> {
     {
       label: "IA (Claude)",
       status: process.env.ANTHROPIC_API_KEY ? "ok" : "warning",
-      detail: process.env.ANTHROPIC_API_KEY ? "Clé configurée côté serveur." : "ANTHROPIC_API_KEY absente : brief du jour, assistant et bouton IA désactivés.",
+      detail: process.env.ANTHROPIC_API_KEY ? "Clé configurée côté serveur." : "ANTHROPIC_API_KEY absente : assistant et bouton IA désactivés.",
       fix: "Ajouter la clé dans Vercel → Settings → Environment Variables, puis redéployer.",
     },
     {

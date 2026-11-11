@@ -4,7 +4,6 @@ import { ActivityFeed } from "@/components/activity-feed";
 import { KpiStrip } from "@/components/kpi-strip";
 import { TodoCard } from "@/components/todo-card";
 import { listOpenTasks } from "@/lib/projects";
-import { BriefCard } from "@/components/ai/brief-card";
 import { NetworkChip } from "@/components/network-icon";
 import { PostRow } from "@/components/posts/post-row";
 import { Page } from "@/components/shell/page";
@@ -54,7 +53,6 @@ export default async function BusinessOverview({ params, searchParams }: PagePro
   return (
     <Page>
       {/* Le même tableau de bord que l'accueil, avec les seuls chiffres de ce business. */}
-      <BriefCard slug={business.slug} />
       <KpiStrip businesses={[business]} business={business} period={period} base={`/b/${business.slug}`} />
 
       <TodoCard tasks={await listOpenTasks({ businessId: business.id, limit: 6 })} href={`/b/${business.slug}/projets`} showBusiness={false} />
