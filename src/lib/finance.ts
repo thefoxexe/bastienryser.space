@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { fxLookup } from "@/lib/cash";
 import { lastDays, listConnectors, type SeriesPoint } from "@/lib/metrics";
 
 /** Périodes proposées partout (accueil, données, finances). */
@@ -44,7 +45,7 @@ export type FinanceSummary = {
   otherCurrencies: string[];
 };
 
-/** Chiffres réels de la période : Stripe et écritures saisies, dans la devise principale. */
+/** Chiffres réels de la période : Stripe, Whop et écritures saisies, tous business confondus si besoin, convertis en CHF. */
 export async function financeSummary(businessId: string | undefined, period: number): Promise<FinanceSummary> {
   const supabase = await createClient();
   const days = lastDays(period);
@@ -58,11 +59,22 @@ export async function financeSummary(businessId: string | undefined, period: num
   }
   const [{ data: points }, { data: entries }, connectors] = await Promise.all([pointsQ, entriesQ, listConnectors(businessId)]);
 
-  // Devise principale : celle qui pèse le plus sur la période (CHF par défaut).
-  const weight = new Map<string, number>();
-  for (const p of points ?? []) if (p.unit) weight.set(p.unit, (weight.get(p.unit) ?? 0) + Math.abs(Number(p.value)));
-  for (const e of entries ?? []) weight.set(e.currency, (weight.get(e.currency) ?? 0) + Number(e.amount));
-  const currency = [...weight.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "chf";
+  // Tout est ramené en CHF, au taux officiel BCE du jour de chaque montant (Whop en euros, Stripe en francs…).
+  // Une devise sans taux connu n'est pas additionnée : elle est signalée, jamais convertie au hasard.
+  const currency = "chf";
+  const used = new Set<string>();
+  for (const p of points ?? []) if (p.unit) used.add(p.unit.toLowerCase());
+  for (const e of entries ?? []) used.add(e.currency.toLowerCase());
+  const { rateOn } = await fxLookup([...used], new Date(Date.parse(`${days[0]}T00:00:00Z`) - 10 * 86400_000).toISOString().slice(0, 10));
+  const unconverted = new Set<string>();
+  const toChf = (value: number, cur: string, day: string) => {
+    const rate = rateOn(cur.toLowerCase(), day);
+    if (rate === null) {
+      unconverted.add(cur.toLowerCase());
+      return null;
+    }
+    return value * rate;
+  };
 
   const income = new Map<string, number>();
   const expenses = new Map<string, number>();
@@ -70,12 +82,12 @@ export async function financeSummary(businessId: string | undefined, period: num
   const totals = { income: 0, expenses: 0, net: 0, stripe: 0, manualIncome: 0, manualExpenses: 0, fees: 0, refunds: 0, payments: 0 };
 
   for (const p of points ?? []) {
-    const v = Number(p.value);
     if (p.metric === "payments") {
-      totals.payments += v;
+      totals.payments += Number(p.value);
       continue;
     }
-    if (p.unit !== currency) continue;
+    const v = toChf(Number(p.value), p.unit, p.day);
+    if (v === null) continue;
     if (p.metric === "revenue") {
       add(income, p.day, v);
       totals.stripe += v;
@@ -85,8 +97,8 @@ export async function financeSummary(businessId: string | undefined, period: num
     } else if (p.metric === "refunds") totals.refunds += v;
   }
   for (const e of entries ?? []) {
-    if (e.currency !== currency) continue;
-    const v = Number(e.amount);
+    const v = toChf(Number(e.amount), e.currency, e.day);
+    if (v === null) continue;
     if (e.kind === "income") {
       add(income, e.day, v);
       totals.manualIncome += v;
@@ -109,7 +121,7 @@ export async function financeSummary(businessId: string | undefined, period: num
     totals,
     hasStripe: connectors.some((c) => c.kind === "stripe" || c.kind === "whop"),
     hasEntries: (entries ?? []).length > 0,
-    otherCurrencies: [...weight.keys()].filter((c) => c !== currency),
+    otherCurrencies: [...unconverted],
   };
 }
 

@@ -34,7 +34,7 @@ export default async function FinancesPage({ params, searchParams }: PageProps<"
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-2xl text-[13px] text-muted">
-          Encaissements Stripe et écritures saisies, en {summary.currency.toUpperCase()}. Un remboursement compte en négatif le jour où il a lieu ; les frais Stripe
+          Encaissements Stripe et Whop et écritures saisies, en CHF (taux BCE du jour de chaque montant). Un remboursement compte en négatif le jour où il a lieu ; les frais Stripe
           sont des charges.
         </p>
         <PeriodChips base={`${base}/finances`} current={period} />
@@ -64,7 +64,7 @@ export default async function FinancesPage({ params, searchParams }: PageProps<"
           )}
           {summary.otherCurrencies.length ? (
             <p className="mt-3 text-[12px] text-faint">
-              Montants en {summary.otherCurrencies.map((c) => c.toUpperCase()).join(", ")} non additionnés (aucune conversion n&apos;est inventée).
+              Montants en {summary.otherCurrencies.map((c) => c.toUpperCase()).join(", ")} non additionnés : aucun taux de change disponible.
             </p>
           ) : null}
         </div>
