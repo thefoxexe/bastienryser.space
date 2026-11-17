@@ -98,10 +98,14 @@ export async function searchConsoleData(token: string, siteUrl: string, days = 4
   const range = { startDate: isoDay(start), endDate: isoDay(end) };
   const last28 = { startDate: isoDay(new Date(end.getTime() - 28 * 86400_000)), endDate: isoDay(end) };
 
-  const [daily, queries, pages] = await Promise.all([
+  const last90 = { startDate: isoDay(new Date(end.getTime() - 90 * 86400_000)), endDate: isoDay(end) };
+  const [daily, queries, pages, worldPairs, worldPages] = await Promise.all([
     gscQuery(token, siteUrl, { ...range, dimensions: ["date"], rowLimit: 1000 }),
     gscQuery(token, siteUrl, { ...last28, dimensions: ["query"], rowLimit: 10 }),
     gscQuery(token, siteUrl, { ...last28, dimensions: ["page"], rowLimit: 10 }),
+    // Carte du site (monde en 3D) : quelle page sort sur quelle recherche, et toutes les pages vues par Google, sur 90 jours.
+    gscQuery(token, siteUrl, { ...last90, dimensions: ["query", "page"], rowLimit: 1500 }).catch(() => [] as GscRow[]),
+    gscQuery(token, siteUrl, { ...last90, dimensions: ["page"], rowLimit: 500 }).catch(() => [] as GscRow[]),
   ]);
 
   // Google omet les jours sans donnée ; la Search Console a 2 à 3 jours de décalage.
@@ -111,7 +115,21 @@ export async function searchConsoleData(token: string, siteUrl: string, days = 4
     { metric: "search_position", day: r.keys[0], unit: "", value: Math.round(r.position * 10) / 10 },
   ]);
   const row = (r: GscRow) => ({ key: r.keys[0], clicks: r.clicks, impressions: r.impressions, position: Math.round(r.position * 10) / 10 });
-  return { points, snapshot: { period: "28 jours", queries: queries.map(row), pages: pages.map(row) } };
+  const r1 = (v: number) => Math.round(v * 10) / 10;
+  return {
+    points,
+    snapshot: {
+      period: "28 jours",
+      queries: queries.map(row),
+      pages: pages.map(row),
+      // Lignes compactes : [recherche, page, clics, impressions, position] et [page, clics, impressions, position].
+      world: {
+        period: "90 jours",
+        pairs: worldPairs.map((r) => [r.keys[0], r.keys[1], r.clicks, r.impressions, r1(r.position)]),
+        pages: worldPages.map((r) => [r.keys[0], r.clicks, r.impressions, r1(r.position)]),
+      },
+    },
+  };
 }
 
 /** Toutes les lignes d'une requête Search Console (pagination par 25 000, plafonnée). */
