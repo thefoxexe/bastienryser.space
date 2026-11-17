@@ -12,7 +12,7 @@ export default async function UniversePage() {
   const worlds = await allWorlds(await listBusinesses());
   return (
     <Page>
-      <PageHeader eyebrow="Google" title="Ton univers" description="Chaque site est une planète, à sa taille réelle sur Google (affichages des 90 derniers jours). Touche une planète pour y plonger." />
+      <PageHeader eyebrow="Google" title="Ton univers" description="Chaque site est un nuage de ses recherches Google, à sa taille réelle (affichages des 90 derniers jours). Touche un nuage pour y plonger." />
       <div className="h-[calc(100dvh-260px)] min-h-[480px] overflow-hidden rounded-[22px] bg-[#050607]">
         <Universe worlds={worlds} full />
       </div>

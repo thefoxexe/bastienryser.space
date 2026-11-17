@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { World } from "@/lib/web-world";
-import { createPlanet, lights, makeRenderer, R, stars, type Planet } from "./engine";
+import { createCluster, makeRenderer, stars, type Cluster } from "./engine";
 
 const nf = (v: number) => new Intl.NumberFormat("fr-CH", { notation: v >= 10000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(v);
 
-/** Tous les sites en orbite, chacun une planète à sa taille réelle sur Google ; un clic plonge dans son monde. */
+/** Tous les sites en orbite, chacun un nuage de recherches à sa taille réelle sur Google ; un clic plonge dedans. */
 export default function Universe({ worlds, full = false }: { worlds: World[]; full?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -22,26 +22,25 @@ export default function Universe({ worlds, full = false }: { worlds: World[]; fu
     const renderer = makeRenderer(w, h);
     el.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    lights(scene);
     if (full) scene.add(stars());
     const camera = new THREE.PerspectiveCamera(40, w / h, 1, 800);
-    camera.position.set(0, full ? 52 : 46, full ? 132 : 136);
-    camera.lookAt(0, -9, 0);
+    camera.position.set(0, full ? 50 : 46, full ? 128 : 134);
+    camera.lookAt(0, -15, 0);
 
     // Les planètes sur une orbite commune, taille selon les affichages Google (racine, pour garder les petits visibles).
     const orbit = new THREE.Group();
     scene.add(orbit);
     const max = Math.max(1, ...worlds.map((x) => x.totals.impressions));
     const ring = 46 + worlds.length * 3;
-    const planets: { planet: Planet; holder: THREE.Group; scale: number }[] = worlds.map((world, i) => {
-      const planet = createPlanet(world, "mini", renderer.getPixelRatio());
+    const planets: { planet: Cluster; holder: THREE.Group; scale: number }[] = worlds.map((world, i) => {
+      const planet = createCluster(world, { words: 10, dots: 200, pixelRatio: renderer.getPixelRatio(), titles: false });
       const holder = new THREE.Group();
-      const scale = 0.32 + 0.68 * Math.sqrt(world.totals.impressions / max);
+      const scale = ((0.5 + 0.5 * Math.sqrt(world.totals.impressions / max)) * 19) / planet.radius;
       holder.scale.setScalar(scale);
       const a = (i / worlds.length) * Math.PI * 2;
       holder.position.set(Math.cos(a) * ring, 0, Math.sin(a) * ring);
       holder.add(planet.group);
-      planet.core.userData.index = i;
+      planet.hit.userData.index = i;
       orbit.add(holder);
       return { planet, holder, scale };
     });
@@ -57,7 +56,7 @@ export default function Universe({ worlds, full = false }: { worlds: World[]; fu
       controls.enablePan = false;
       controls.minDistance = 30;
       controls.maxDistance = 220;
-      controls.target.set(0, -9, 0);
+      controls.target.set(0, -15, 0);
     }
 
     const raycaster = new THREE.Raycaster();
@@ -67,7 +66,7 @@ export default function Universe({ worlds, full = false }: { worlds: World[]; fu
       const r = renderer.domElement.getBoundingClientRect();
       mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       raycaster.setFromCamera(mouse, camera);
-      const hit = raycaster.intersectObjects(planets.map((p) => p.planet.core))[0];
+      const hit = raycaster.intersectObjects(planets.map((p) => p.planet.hit))[0];
       return hit ? (hit.object.userData.index as number) : null;
     };
     const onMove = (e: PointerEvent) => {
@@ -104,7 +103,7 @@ export default function Universe({ worlds, full = false }: { worlds: World[]; fu
         const label = labelRefs.current[i];
         if (!label) return;
         p.holder.getWorldPosition(v);
-        v.y -= R * p.holder.scale.x * 1.35;
+        v.y -= p.planet.radius * p.holder.scale.x * 1.05;
         v.project(camera);
         label.style.transform = `translate(-50%, 0) translate(${((v.x + 1) / 2) * el.clientWidth}px, ${((1 - v.y) / 2) * el.clientHeight}px)`;
         label.style.opacity = v.z < 1 ? "1" : "0";

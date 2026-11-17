@@ -17,15 +17,15 @@ export default async function WorldPage({ params }: PageProps<"/b/[slug]/monde">
         <>
           <WorldExplorer world={world} />
           <p className="text-[12px] text-faint">
-            Chiffres réels de la Search Console sur 90 jours ; pages lues dans le sitemap du site. Fais tourner la planète, zoome, survole ou touche une bulle pour ses chiffres.
+            Chiffres réels de la Search Console sur 90 jours ; pages lues dans le sitemap du site. Fais tourner le nuage, zoome, survole ou touche un mot pour ses chiffres.
           </p>
         </>
       ) : (
         <Card>
           <EmptyState
             icon={<Globe2 />}
-            title="Pas encore de monde"
-            description="Connecte la Search Console de ce site : sa planète se dessine au passage suivant."
+            title="Pas encore de nuage"
+            description="Connecte la Search Console de ce site : son nuage de recherches se dessine au passage suivant."
             action={<ButtonLink href={`/b/${business.slug}/donnees/connecteurs`} size="sm">Connecter</ButtonLink>}
           />
         </Card>

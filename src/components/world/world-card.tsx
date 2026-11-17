@@ -6,7 +6,7 @@ import type { World } from "@/lib/web-world";
 
 const nf = (v: number) => new Intl.NumberFormat("fr-CH", { notation: v >= 100000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(v);
 
-/** Aperçu d'un business : sa petite planète qui tourne et ses chiffres Google ; un clic ouvre le monde. */
+/** Aperçu d'un business : son petit nuage de recherches qui tourne et ses chiffres Google ; un clic l'ouvre en grand. */
 export function PlanetCard({ world }: { world: World }) {
   const href = `/b/${world.slug}/monde`;
   const t = world.totals;
@@ -17,7 +17,7 @@ export function PlanetCard({ world }: { world: World }) {
       </div>
       <Link href={href} className="group flex flex-col justify-between gap-5 p-5 sm:p-6">
         <div>
-          <p className="text-[13px] text-muted">Ton monde sur Google · {world.period}</p>
+          <p className="text-[13px] text-muted">Tes recherches Google · {world.period}</p>
           <h2 className="mt-0.5 text-[20px] font-semibold tracking-[-0.02em]">{world.domain}</h2>
         </div>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
@@ -41,7 +41,7 @@ export function PlanetCard({ world }: { world: World }) {
   );
 }
 
-/** Accueil : tous les sites en orbite ; un clic sur une planète plonge dans son monde. */
+/** Accueil : tous les sites en orbite, chacun son nuage ; un clic plonge dedans. */
 export function UniverseCard({ worlds }: { worlds: World[] }) {
   if (!worlds.length) return null;
   const total = worlds.reduce((a, w) => a + w.totals.impressions, 0);
@@ -51,7 +51,7 @@ export function UniverseCard({ worlds }: { worlds: World[] }) {
         <div>
           <h2 className="text-[17px] font-semibold">Ton univers sur Google</h2>
           <p className="text-[13px] text-muted">
-            {nf(total)} affichages sur 90 jours, {worlds.length} site{worlds.length > 1 ? "s" : ""}. Touche une planète pour y plonger.
+            {nf(total)} affichages sur 90 jours, {worlds.length} site{worlds.length > 1 ? "s" : ""}. Touche un nuage pour y plonger.
           </p>
         </div>
         <Link href="/monde" className="flex items-center gap-0.5 text-[13px] font-medium text-muted hover:text-text">

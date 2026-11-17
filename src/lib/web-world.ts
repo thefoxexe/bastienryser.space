@@ -7,7 +7,7 @@ import type { Business } from "@/lib/types";
  * Google les montre (satellites). Chiffres réels de la Search Console sur 90 jours ; pages lues dans le sitemap.
  */
 
-export type WorldQuery = { q: string; clicks: number; impressions: number; position: number; page: string };
+export type WorldQuery = { q: string; clicks: number; impressions: number; position: number; page: string; section: string };
 export type WorldPage = { path: string; url: string; section: string; clicks: number; impressions: number; position: number | null; inGoogle: boolean };
 export type WorldSection = { name: string; clicks: number; impressions: number; pages: number };
 export type World = {
@@ -127,9 +127,10 @@ export function buildWorld(business: Pick<Business, "slug" | "name" | "color">, 
 
   const pageList = [...pages.values()].map(({ weighted, ...p }) => ({ ...p, position: p.impressions ? Math.round((weighted / p.impressions) * 10) / 10 : null }));
   const pathByKey = new Map([...pages.entries()].map(([k, v]) => [k, v.path]));
+  const sectionByKey = new Map([...pages.entries()].map(([k, v]) => [k, v.section]));
 
   const queryList: WorldQuery[] = [...queries.values()]
-    .map((e) => ({ q: e.q, clicks: e.clicks, impressions: e.impressions, position: Math.round((e.weighted / Math.max(e.impressions, 1)) * 10) / 10, page: pathByKey.get(e.best.key) ?? "/" }))
+    .map((e) => ({ q: e.q, clicks: e.clicks, impressions: e.impressions, position: Math.round((e.weighted / Math.max(e.impressions, 1)) * 10) / 10, page: pathByKey.get(e.best.key) ?? "/", section: sectionByKey.get(e.best.key) ?? "accueil" }))
     .sort((a, b) => b.impressions - a.impressions);
 
   // Rubriques (continents) : toutes les pages, vues ou non par Google.

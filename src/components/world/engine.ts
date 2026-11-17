@@ -1,27 +1,24 @@
-// Moteur 3D des « mondes » (three.js, sans React) : une planète par site, ses rubriques en continents,
-// ses pages en tours (hauteur = affichages Google) et ses recherches en satellites
-// (taille = affichages, altitude = position Google, vert = a rapporté des clics).
+// Moteur 3D des nuages de recherches (three.js, sans React).
+// Un amas par rubrique du site ; chaque recherche Google est un mot (taille = affichages,
+// distance au cœur de l'amas = position Google, vert = a rapporté des clics).
 
 import * as THREE from "three";
-import type { World, WorldPage, WorldQuery } from "@/lib/web-world";
+import type { World, WorldQuery } from "@/lib/web-world";
 
-export const R = 10;
 export const GREEN = new THREE.Color("#28c157");
 
-export type Item = { kind: "query"; data: WorldQuery; pos: THREE.Vector3 } | { kind: "page"; data: WorldPage; pos: THREE.Vector3 };
-export type Label = { text: string; sub?: string; pos: THREE.Vector3; kind: "section" | "query" | "page"; weight: number };
-export type Planet = {
+export type Item = { data: WorldQuery; pos: THREE.Vector3 };
+export type Cluster = {
   group: THREE.Group;
-  core: THREE.Mesh;
-  points: THREE.Points;
+  /** Sphère invisible qui englobe le nuage (clic dans l'univers). */
+  hit: THREE.Mesh;
+  radius: number;
   items: Item[];
-  labels: Label[];
-  sectionDirs: Map<string, THREE.Vector3>;
-  pageDirs: Map<string, THREE.Vector3>;
+  centers: Map<string, THREE.Vector3>;
   dispose: () => void;
 };
 
-/** Hasard reproductible : le même site donne toujours la même planète. */
+/** Hasard reproductible : le même site donne toujours le même nuage. */
 function seeded(text: string) {
   let h = 1779033703 ^ text.length;
   for (let i = 0; i < text.length; i++) {
@@ -35,22 +32,19 @@ function seeded(text: string) {
   };
 }
 
-/** Points répartis régulièrement sur la sphère (spirale de Fibonacci). */
 function fibonacci(i: number, n: number) {
+  if (n === 1) return new THREE.Vector3(0, 0, 0);
   const y = 1 - ((i + 0.5) / n) * 2;
   const r = Math.sqrt(1 - y * y);
   const t = i * Math.PI * (3 - Math.sqrt(5));
-  return new THREE.Vector3(Math.cos(t) * r, y * 0.92, Math.sin(t) * r).normalize();
+  return new THREE.Vector3(Math.cos(t) * r, y * 0.7, Math.sin(t) * r);
 }
 
-/** Direction voisine de `dir`, à `angle` radians dans une direction tirée au hasard. */
-function around(dir: THREE.Vector3, angle: number, rand: () => number) {
-  const helper = Math.abs(dir.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
-  const t1 = new THREE.Vector3().crossVectors(dir, helper).normalize();
-  const t2 = new THREE.Vector3().crossVectors(dir, t1).normalize();
-  const a = rand() * Math.PI * 2;
-  const offset = t1.multiplyScalar(Math.cos(a)).add(t2.multiplyScalar(Math.sin(a)));
-  return dir.clone().multiplyScalar(Math.cos(angle)).add(offset.multiplyScalar(Math.sin(angle))).normalize();
+function randomDir(rand: () => number) {
+  const u = rand() * 2 - 1;
+  const t = rand() * Math.PI * 2;
+  const r = Math.sqrt(1 - u * u);
+  return new THREE.Vector3(r * Math.cos(t), u * 0.85, r * Math.sin(t));
 }
 
 const POINT_VERTEX = `
@@ -72,7 +66,7 @@ const POINT_FRAGMENT = `
     float d = length(c);
     if (d > 0.5) discard;
     float core = smoothstep(0.22, 0.0, d);
-    float halo = smoothstep(0.5, 0.0, d) * 0.45;
+    float halo = smoothstep(0.5, 0.0, d) * 0.4;
     gl_FragColor = vec4(vColor, core + halo);
   }
 `;
@@ -88,45 +82,17 @@ export function pointMaterial(scale: number) {
   });
 }
 
-/** Halo d'atmosphère (effet de Fresnel) autour de la planète. */
-function atmosphere(radius: number, color: THREE.Color, intensity: number) {
-  return new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 64, 64),
-    new THREE.ShaderMaterial({
-      uniforms: { uColor: { value: color }, uIntensity: { value: intensity } },
-      vertexShader: `
-        varying vec3 vNormal; varying vec3 vView;
-        void main() {
-          vNormal = normalize(normalMatrix * normal);
-          vec4 mv = modelViewMatrix * vec4(position, 1.0);
-          vView = normalize(-mv.xyz);
-          gl_Position = projectionMatrix * mv;
-        }`,
-      fragmentShader: `
-        uniform vec3 uColor; uniform float uIntensity;
-        varying vec3 vNormal; varying vec3 vView;
-        void main() {
-          float f = pow(1.0 - max(dot(vNormal, vView), 0.0), 3.4);
-          gl_FragColor = vec4(uColor, f * uIntensity);
-        }`,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    }),
-  );
-}
-
 /** Ciel étoilé discret (fond des vues plein écran). */
-export function stars(count = 1400, radius = 240) {
+export function stars(count = 1200, radius = 260) {
   const rand = seeded("stars");
   const pos = new Float32Array(count * 3);
   const size = new Float32Array(count);
   const col = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
-    const v = new THREE.Vector3(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1).normalize().multiplyScalar(radius * (0.6 + rand() * 0.4));
+    const v = randomDir(rand).normalize().multiplyScalar(radius * (0.6 + rand() * 0.4));
     pos.set([v.x, v.y, v.z], i * 3);
-    size[i] = 0.6 + rand() * 1.4;
-    const b = 0.35 + rand() * 0.4;
+    size[i] = 0.5 + rand() * 1.2;
+    const b = 0.25 + rand() * 0.35;
     col.set([b, b, b], i * 3);
   }
   const g = new THREE.BufferGeometry();
@@ -136,155 +102,121 @@ export function stars(count = 1400, radius = 240) {
   return new THREE.Points(g, pointMaterial(1));
 }
 
-/** Altitude d'une recherche : 1re position → au ras du sol, 50e position et au-delà → très haut dans le ciel. */
-const altitude = (position: number) => R + 0.7 + Math.pow(Math.min(Math.max(position, 1), 60) / 60, 0.75) * 7.5;
+/** Mot en 3D : texte net (dessiné en double résolution), toujours face à la caméra. */
+function word(text: string, height: number, color: string, weight = 600, opacity = 1) {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d")!;
+  const px = 64;
+  const font = `${weight} ${px}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif`;
+  ctx.font = font;
+  const w = Math.ceil(ctx.measureText(text).width) + 24;
+  canvas.width = w;
+  canvas.height = px + 24;
+  ctx.font = font;
+  ctx.fillStyle = color;
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 12, canvas.height / 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, opacity });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set((height * canvas.width) / canvas.height, height, 1);
+  return { sprite, dispose: () => (texture.dispose(), material.dispose()) };
+}
 
-export function createPlanet(world: World, detail: "mini" | "full", pixelRatio: number): Planet {
+const colorOf = (q: WorldQuery) => (q.clicks > 0 ? "#3ddc6f" : q.position <= 10 ? "#f4f5f7" : q.position <= 30 ? "#a3a8ae" : "#676b71");
+
+/**
+ * Nuage d'un site. `words` : nombre de recherches écrites en toutes lettres (les autres sont des points lumineux).
+ */
+export function createCluster(world: World, opts: { words: number; dots: number; pixelRatio: number; titles: boolean }): Cluster {
   const rand = seeded(world.domain || world.slug);
   const group = new THREE.Group();
   const disposables: { dispose: () => void }[] = [];
   const track = <T extends { dispose: () => void }>(o: T) => (disposables.push(o), o);
 
-  // Noyau sombre et atmosphère fine.
-  const core = new THREE.Mesh(
-    track(new THREE.SphereGeometry(R, 72, 72)),
-    track(new THREE.MeshStandardMaterial({ color: "#0b0c0e", roughness: 0.9, metalness: 0.1, emissive: "#040505" })),
-  );
-  group.add(core);
-  const atmo = atmosphere(R * 1.07, new THREE.Color("#7fe3a0"), detail === "mini" ? 0.75 : 0.6);
-  track(atmo.geometry);
-  track(atmo.material as THREE.Material);
-  group.add(atmo);
+  // Amas : les rubriques qui ont des recherches, les plus fortes d'abord ; les petites réunies dans « autres ».
+  const queries = world.queries.slice(0, opts.dots);
+  const bySection = new Map<string, WorldQuery[]>();
+  for (const q of queries) bySection.set(q.section, [...(bySection.get(q.section) ?? []), q]);
+  const ranked = [...bySection.entries()].sort((a, b) => b[1].reduce((s, q) => s + q.impressions, 0) - a[1].reduce((s, q) => s + q.impressions, 0));
+  const groups = ranked.slice(0, 9);
+  const rest = ranked.slice(9).flatMap(([, list]) => list);
+  if (rest.length) groups.push(["autres", rest]);
 
-  // Continents : une zone par rubrique autour de l'équateur, la plus vue face à la caméra au départ.
-  const sections = world.sections.filter((s) => world.pages.some((p) => p.section === s.name));
-  const sectionDirs = new Map<string, THREE.Vector3>();
-  sections.forEach((s, i) => {
-    const lon = i * 2.39996;
-    const lat = i === 0 ? 0.12 : ((((i * 0.618034) % 1) - 0.5) * 1.15);
-    sectionDirs.set(s.name, new THREE.Vector3(Math.sin(lon) * Math.cos(lat), Math.sin(lat), Math.cos(lon) * Math.cos(lat)));
-  });
-  const capOf = (pages: number) => Math.min(0.62, 0.12 + Math.sqrt(pages) * 0.05);
+  const spread = groups.length === 1 ? 0 : 12 + groups.length * 2.2;
+  const centers = new Map<string, THREE.Vector3>();
+  // L'amas le plus vu au centre, les autres en couronne autour.
+  groups.forEach(([name], i) => centers.set(name, i === 0 ? new THREE.Vector3() : fibonacci(i - 1, Math.max(groups.length - 1, 1)).multiplyScalar(spread)));
 
-  // Surface en trame de points : plus dense et plus claire sur les continents (façon globe en direct).
-  {
-    const n = detail === "mini" ? 2200 : 5200;
-    const caps = sections.map((s) => ({ dir: sectionDirs.get(s.name)!, cap: capOf(Math.min(s.pages, 60)) * 1.5 + 0.08, strong: s.impressions > 0 }));
-    const pos = new Float32Array(n * 3);
-    const size = new Float32Array(n);
-    const col = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) {
-      const d = fibonacci(i, n);
-      let land = 0;
-      for (const c of caps) {
-        const angle = d.angleTo(c.dir);
-        if (angle < c.cap) land = Math.max(land, (1 - angle / c.cap) * (c.strong ? 1 : 0.45));
-      }
-      const v = d.multiplyScalar(R * 1.004);
-      pos.set([v.x, v.y, v.z], i * 3);
-      size[i] = land > 0 ? 0.55 + land * 0.35 : 0.42;
-      const c = land > 0 ? new THREE.Color("#ffffff").lerp(GREEN, 0.25 + land * 0.4).multiplyScalar(0.28 + land * 0.55) : new THREE.Color("#ffffff").multiplyScalar(0.09);
-      col.set([c.r, c.g, c.b], i * 3);
-    }
-    const g = track(new THREE.BufferGeometry());
-    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    g.setAttribute("size", new THREE.BufferAttribute(size, 1));
-    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
-    group.add(new THREE.Points(g, track(pointMaterial(pixelRatio))));
-  }
-
-  // Pages : tours posées dans leur continent.
-  const pages = detail === "mini" ? world.pages.filter((p) => p.inGoogle).slice(0, 60) : world.pages;
-  const pageDirs = new Map<string, THREE.Vector3>();
-  const items: Item[] = [];
-  const maxPage = Math.max(1, ...pages.map((p) => p.impressions));
-  const tower = track(new THREE.BoxGeometry(0.11, 1, 0.11));
-  tower.translate(0, 0.5, 0);
-  const towers = new THREE.InstancedMesh(tower, track(new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.9 })), pages.length);
-  const counts = new Map<string, number>();
-  pages.forEach((p, i) => {
-    const center = sectionDirs.get(p.section) ?? fibonacci(i, pages.length);
-    const total = world.sections.find((s) => s.name === p.section)?.pages ?? 1;
-    const n = counts.get(p.section) ?? 0;
-    counts.set(p.section, n + 1);
-    // La page la plus vue au centre du continent, les autres autour.
-    const dir = n === 0 ? center.clone() : around(center, capOf(Math.min(total, 60)) * Math.sqrt(rand()), rand);
-    pageDirs.set(p.path, dir);
-    const height = p.inGoogle ? 0.18 + (Math.log10(1 + p.impressions) / Math.log10(1 + maxPage)) * 2.2 : 0.12;
-    const m = new THREE.Matrix4().compose(
-      dir.clone().multiplyScalar(R),
-      new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir),
-      new THREE.Vector3(1, height, 1),
-    );
-    towers.setMatrixAt(i, m);
-    towers.setColorAt(i, p.inGoogle ? (p.clicks > 0 ? GREEN : new THREE.Color("#e9eaec")) : new THREE.Color("#4a4d52"));
-    items.push({ kind: "page", data: p, pos: dir.clone().multiplyScalar(R + height) });
-  });
-  group.add(towers);
-
-  // Recherches : satellites au-dessus de leur page.
-  const queries = world.queries.slice(0, detail === "mini" ? 260 : 600);
   const maxImpr = Math.max(1, ...queries.map((q) => q.impressions));
-  const qPos = new Float32Array(queries.length * 3);
-  const qSize = new Float32Array(queries.length);
-  const qCol = new Float32Array(queries.length * 3);
-  const tethers: number[] = [];
-  queries.forEach((q, i) => {
-    const base = pageDirs.get(q.page) ?? sectionDirs.values().next().value ?? new THREE.Vector3(0, 1, 0);
-    const dir = around(base, 0.025 + rand() * 0.11, rand);
-    const pos = dir.clone().multiplyScalar(altitude(q.position));
-    qPos.set([pos.x, pos.y, pos.z], i * 3);
-    qSize[i] = 0.7 + Math.sqrt(q.impressions / maxImpr) * 5.5;
-    const c = q.clicks > 0 ? GREEN.clone().lerp(new THREE.Color("#ffffff"), 0.15) : new THREE.Color(q.position <= 10 ? "#f2f3f5" : q.position <= 30 ? "#9ea3aa" : "#5c6066");
-    qCol.set([c.r, c.g, c.b], i * 3);
-    items.push({ kind: "query", data: q, pos });
-    if (detail === "full") {
-      const foot = base.clone().multiplyScalar(R);
-      tethers.push(pos.x, pos.y, pos.z, foot.x, foot.y, foot.z);
+  const items: Item[] = [];
+  const pos = new Float32Array(queries.length * 3);
+  const size = new Float32Array(queries.length);
+  const col = new Float32Array(queries.length * 3);
+  const links: number[] = [];
+  // Mots écrits : les plus vus, mais pas plus de 22 par amas (le reste en points lumineux).
+  const perGroup = new Map<string, number>();
+  const written = new Set(
+    queries.slice(0, opts.words * 2).filter((q) => {
+      const n = perGroup.get(q.section) ?? 0;
+      if (n >= 22) return false;
+      perGroup.set(q.section, n + 1);
+      return true;
+    }).slice(0, opts.words),
+  );
+  let k = 0;
+  let radius = 0;
+
+  for (const [name, list] of groups) {
+    const center = centers.get(name)!;
+    const r = 3.2 + Math.sqrt(list.length) * 1.5;
+    for (const q of list) {
+      // Plus la position Google est bonne, plus la recherche est près du cœur de l'amas.
+      const depth = 0.18 + 0.82 * Math.pow(Math.min(Math.max(q.position, 1), 60) / 60, 0.55);
+      const p = randomDir(rand).multiplyScalar(r * depth * (0.85 + rand() * 0.3)).add(center);
+      items.push({ data: q, pos: p });
+      radius = Math.max(radius, p.length());
+      pos.set([p.x, p.y, p.z], k * 3);
+      size[k] = written.has(q) ? 0 : 0.6 + Math.sqrt(q.impressions / maxImpr) * 3.4;
+      const c = new THREE.Color(colorOf(q));
+      col.set([c.r, c.g, c.b], k * 3);
+      links.push(p.x, p.y, p.z, center.x, center.y, center.z);
+      k++;
+      if (written.has(q)) {
+        // Échelle logarithmique : une recherche dominante n'écrase pas toutes les autres.
+        const h = 0.5 + (Math.log(1 + q.impressions) / Math.log(1 + maxImpr)) * 1.45;
+        const w = track(word(q.q, h, colorOf(q), q.clicks > 0 || q.position <= 10 ? 600 : 500));
+        w.sprite.position.copy(p);
+        group.add(w.sprite);
+      }
     }
-  });
-  const pg = track(new THREE.BufferGeometry());
-  pg.setAttribute("position", new THREE.BufferAttribute(qPos, 3));
-  pg.setAttribute("size", new THREE.BufferAttribute(qSize, 1));
-  pg.setAttribute("color", new THREE.BufferAttribute(qCol, 3));
-  const points = new THREE.Points(pg, track(pointMaterial(pixelRatio)));
-  group.add(points);
-  if (tethers.length) {
-    const lg = track(new THREE.BufferGeometry());
-    lg.setAttribute("position", new THREE.Float32BufferAttribute(tethers, 3));
-    group.add(new THREE.LineSegments(lg, track(new THREE.LineBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.035 }))));
+    // Cœur de l'amas : lueur et nom de la rubrique.
+    const glow = track(word("●", 1.4, "#3ddc6f", 400, 0.5));
+    glow.sprite.position.copy(center);
+    group.add(glow.sprite);
+    if (opts.titles) {
+      const title = track(word(name.toUpperCase(), 0.62, "#ffffff", 700, 0.55));
+      title.sprite.position.copy(center).add(new THREE.Vector3(0, -0.9, 0));
+      group.add(title.sprite);
+    }
   }
 
-  // Étiquettes : rubriques, recherches et pages qui comptent le plus.
-  const labels: Label[] = [];
-  if (detail === "full") {
-    sections.slice(0, 12).forEach((s) => labels.push({ kind: "section", text: s.name, sub: `${s.pages} page${s.pages > 1 ? "s" : ""}`, pos: sectionDirs.get(s.name)!.clone().multiplyScalar(R + 0.4), weight: s.impressions }));
-    queries.slice(0, 12).forEach((q) => {
-      const it = items.find((x) => x.kind === "query" && x.data === q)!;
-      labels.push({ kind: "query", text: q.q, sub: `pos. ${q.position.toLocaleString("fr-CH")}`, pos: it.pos, weight: q.impressions });
-    });
-  }
+  const g = track(new THREE.BufferGeometry());
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setAttribute("size", new THREE.BufferAttribute(size, 1));
+  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  group.add(new THREE.Points(g, track(pointMaterial(opts.pixelRatio))));
+  const lg = track(new THREE.BufferGeometry());
+  lg.setAttribute("position", new THREE.Float32BufferAttribute(links, 3));
+  group.add(new THREE.LineSegments(lg, track(new THREE.LineBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.06 }))));
 
-  return {
-    group,
-    core,
-    points,
-    items,
-    labels,
-    sectionDirs,
-    pageDirs,
-    dispose: () => disposables.forEach((d) => d.dispose()),
-  };
-}
+  radius = Math.max(radius + 1.5, 6);
+  const hit = new THREE.Mesh(track(new THREE.SphereGeometry(radius, 16, 16)), track(new THREE.MeshBasicMaterial({ visible: false })));
+  group.add(hit);
 
-export function lights(scene: THREE.Scene) {
-  scene.add(new THREE.AmbientLight("#ffffff", 0.55));
-  const sun = new THREE.DirectionalLight("#ffffff", 1.4);
-  sun.position.set(30, 20, 40);
-  scene.add(sun);
-  const rim = new THREE.DirectionalLight("#7fe3a0", 0.5);
-  rim.position.set(-40, -10, -30);
-  scene.add(rim);
+  return { group, hit, radius, items, centers, dispose: () => disposables.forEach((d) => d.dispose()) };
 }
 
 export function makeRenderer(width: number, height: number) {
