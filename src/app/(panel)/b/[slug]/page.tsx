@@ -14,6 +14,8 @@ import { formatNumber } from "@/lib/format";
 import { NETWORKS } from "@/lib/social/networks";
 import { VeilleOverview } from "./veille-overview";
 import { AppSummary } from "@/components/app-summary";
+import { PlanetCard } from "@/components/world/world-card";
+import { businessWorld } from "@/lib/web-world";
 
 export async function generateMetadata({ params }: PageProps<"/b/[slug]">): Promise<Metadata> {
   const { slug } = await params;
@@ -38,12 +40,13 @@ export default async function BusinessOverview({ params, searchParams }: PagePro
 
   const base = `/b/${business.slug}/reseaux`;
 
-  const [upcoming, recent, accounts, metrics, activity] = await Promise.all([
+  const [upcoming, recent, accounts, metrics, activity, world] = await Promise.all([
     listPosts({ businessId: business.id, statuses: ["scheduled"], order: "scheduled_asc", limit: 5 }),
     listPosts({ businessId: business.id, statuses: ["published", "partial", "failed", "publishing"], limit: 5 }),
     listAccounts(business.id),
     metricsLast30Days(business.id),
     listActivity({ businessId: business.id, limit: 8 }),
+    businessWorld(business),
   ]);
 
   const sum = (key: "reach" | "interactions" | "followers") => {
@@ -56,6 +59,7 @@ export default async function BusinessOverview({ params, searchParams }: PagePro
       {/* Le même tableau de bord que l'accueil, avec les seuls chiffres de ce business. */}
       <KpiStrip businesses={[business]} business={business} period={period} base={`/b/${business.slug}`} />
       <AppSummary businessId={business.id} slug={business.slug} />
+      {world ? <PlanetCard world={world} /> : null}
 
       <TodoCard tasks={await listOpenTasks({ businessId: business.id, limit: 6 })} href={`/b/${business.slug}/projets`} showBusiness={false} />
 

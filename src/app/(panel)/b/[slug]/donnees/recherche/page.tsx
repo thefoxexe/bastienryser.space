@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Globe2, Search } from "lucide-react";
 import { AreaChart } from "@/components/charts/area-chart";
 import { formatValue } from "@/components/charts/format";
 import { PositionChart } from "@/components/charts/position-chart";
@@ -71,6 +71,9 @@ export default async function SearchPage({ params, searchParams }: PageProps<"/b
           comptent toutes les sources (Google, accès direct, réseaux, liens), mesurées par un autre outil.
         </p>
         <div className="flex flex-wrap items-center gap-2">
+          <Link href={`/b/${business.slug}/monde`} className="flex h-9 items-center gap-1.5 rounded-full bg-fill px-3.5 text-[13px] font-medium hover:bg-fill-strong">
+            <Globe2 className="size-3.5" /> Voir en 3D
+          </Link>
           <ExportMenu slug={business.slug} />
           <PeriodChips base={`${base}/recherche`} current={period} />
         </div>

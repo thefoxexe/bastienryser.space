@@ -19,6 +19,8 @@ import { TodoCard } from "@/components/todo-card";
 import { listOpenTasks } from "@/lib/projects";
 import { CashSection } from "@/components/cash/cash-section";
 import { cashOverview } from "@/lib/cash";
+import { UniverseCard } from "@/components/world/world-card";
+import { allWorlds } from "@/lib/web-world";
 import { formatDate, formatNumber, formatTime, TIME_ZONE, zurichDayKey } from "@/lib/format";
 import { NETWORKS } from "@/lib/social/networks";
 import { retryTarget } from "./b/[slug]/reseaux/actions";
@@ -37,7 +39,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     metricsLast30Days(),
     listActivity({ limit: 15 }),
   ]);
-  const [sites, cash, tasks] = await Promise.all([siteStatuses(businesses), cashOverview(businesses), listOpenTasks({ limit: 6 })]);
+  const [sites, cash, tasks, worlds] = await Promise.all([siteStatuses(businesses), cashOverview(businesses), listOpenTasks({ limit: 6 }), allWorlds(businesses)]);
 
   const byId = new Map(businesses.map((b) => [b.id, b]));
   const bizMap = new Map(businesses.map((b) => [b.id, { name: b.name, color: b.color }]));
@@ -274,6 +276,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
 
 
       </div>
+
+      {/* Tout en bas : l'univers des sites sur Google */}
+      <UniverseCard worlds={worlds} />
     </Page>
   );
 }
