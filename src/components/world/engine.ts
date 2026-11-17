@@ -8,8 +8,12 @@ import type { World, WorldQuery } from "@/lib/web-world";
 export const GREEN = new THREE.Color("#28c157");
 
 export type Item = { data: WorldQuery; pos: THREE.Vector3 };
+/** Mot affiché : son importance (affichages) et son opacité de base, pour le désencombrement. */
+export type Word = { sprite: THREE.Sprite; weight: number; base: number };
+
 export type Cluster = {
   group: THREE.Group;
+  words: Word[];
   /** Sphère invisible qui englobe le nuage (clic dans l'univers). */
   hit: THREE.Mesh;
   radius: number;
@@ -119,7 +123,7 @@ function word(text: string, height: number, color: string, weight = 600, opacity
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
-  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, opacity });
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, opacity, fog: true });
   const sprite = new THREE.Sprite(material);
   sprite.scale.set((height * canvas.width) / canvas.height, height, 1);
   return { sprite, dispose: () => (texture.dispose(), material.dispose()) };
@@ -158,6 +162,7 @@ export function createCluster(world: World, opts: { words: number; dots: number;
   const links: number[] = [];
   // Mots écrits : les plus vus, mais pas plus de 22 par amas (le reste en points lumineux).
   const perGroup = new Map<string, number>();
+  const words: Word[] = [];
   const written = new Set(
     queries.slice(0, opts.words * 2).filter((q) => {
       const n = perGroup.get(q.section) ?? 0;
@@ -186,10 +191,11 @@ export function createCluster(world: World, opts: { words: number; dots: number;
       k++;
       if (written.has(q)) {
         // Échelle logarithmique : une recherche dominante n'écrase pas toutes les autres.
-        const h = 0.5 + (Math.log(1 + q.impressions) / Math.log(1 + maxImpr)) * 1.45;
+        const h = 0.75 + (Math.log(1 + q.impressions) / Math.log(1 + maxImpr)) * 1.7;
         const w = track(word(q.q, h, colorOf(q), q.clicks > 0 || q.position <= 10 ? 600 : 500));
         w.sprite.position.copy(p);
         group.add(w.sprite);
+        words.push({ sprite: w.sprite, weight: q.impressions, base: 1 });
       }
     }
     // Cœur de l'amas : lueur et nom de la rubrique.
@@ -197,9 +203,11 @@ export function createCluster(world: World, opts: { words: number; dots: number;
     glow.sprite.position.copy(center);
     group.add(glow.sprite);
     if (opts.titles) {
-      const title = track(word(name.toUpperCase(), 0.62, "#ffffff", 700, 0.55));
-      title.sprite.position.copy(center).add(new THREE.Vector3(0, -0.9, 0));
+      const title = track(word(name.charAt(0).toUpperCase() + name.slice(1), 1.15, "#ffffff", 700, 0.85));
+      title.sprite.position.copy(center).add(new THREE.Vector3(0, -1.3, 0));
       group.add(title.sprite);
+      // Les rubriques passent avant tous les mots.
+      words.push({ sprite: title.sprite, weight: Number.MAX_SAFE_INTEGER - words.length, base: 0.85 });
     }
   }
 
@@ -210,13 +218,14 @@ export function createCluster(world: World, opts: { words: number; dots: number;
   group.add(new THREE.Points(g, track(pointMaterial(opts.pixelRatio))));
   const lg = track(new THREE.BufferGeometry());
   lg.setAttribute("position", new THREE.Float32BufferAttribute(links, 3));
-  group.add(new THREE.LineSegments(lg, track(new THREE.LineBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.06 }))));
+  group.add(new THREE.LineSegments(lg, track(new THREE.LineBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.04 }))));
 
   radius = Math.max(radius + 1.5, 6);
   const hit = new THREE.Mesh(track(new THREE.SphereGeometry(radius, 16, 16)), track(new THREE.MeshBasicMaterial({ visible: false })));
   group.add(hit);
 
-  return { group, hit, radius, items, centers, dispose: () => disposables.forEach((d) => d.dispose()) };
+  words.sort((a, b) => b.weight - a.weight);
+  return { group, words, hit, radius, items, centers, dispose: () => disposables.forEach((d) => d.dispose()) };
 }
 
 export function makeRenderer(width: number, height: number) {
@@ -225,4 +234,35 @@ export function makeRenderer(width: number, height: number) {
   renderer.setSize(width, height);
   renderer.setClearColor(0x000000, 0);
   return renderer;
+}
+
+/**
+ * Désencombrement à chaque image : les mots sont posés du plus important au moins important ;
+ * un mot qui en recouvrirait un déjà posé s'efface (en douceur), et revient quand on tourne le nuage.
+ */
+export function declutter(words: Word[], camera: THREE.PerspectiveCamera, width: number, height: number) {
+  const placed: { x0: number; x1: number; y0: number; y1: number }[] = [];
+  const v = new THREE.Vector3();
+  const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+  for (const w of words) {
+    w.sprite.getWorldPosition(v);
+    const dist = v.distanceTo(camera.position);
+    v.project(camera);
+    let target = 0;
+    if (v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1) {
+      const hPx = (w.sprite.scale.y / (2 * dist * tanHalf)) * height * 0.62;
+      const wPx = (w.sprite.scale.x / (2 * dist * tanHalf)) * height * 0.92;
+      const x = ((v.x + 1) / 2) * width;
+      const y = ((1 - v.y) / 2) * height;
+      const box = { x0: x - wPx / 2 - 3, x1: x + wPx / 2 + 3, y0: y - hPx / 2 - 2, y1: y + hPx / 2 + 2 };
+      const clash = hPx < 7 || placed.some((p) => box.x0 < p.x1 && box.x1 > p.x0 && box.y0 < p.y1 && box.y1 > p.y0);
+      if (!clash) {
+        placed.push(box);
+        target = w.base;
+      }
+    }
+    const m = w.sprite.material as THREE.SpriteMaterial;
+    m.opacity += (target - m.opacity) * 0.25;
+    w.sprite.visible = m.opacity > 0.02;
+  }
 }

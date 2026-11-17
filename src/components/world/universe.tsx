@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { World } from "@/lib/web-world";
-import { createCluster, makeRenderer, stars, type Cluster } from "./engine";
+import { createCluster, declutter, makeRenderer, stars, type Cluster } from "./engine";
 
 const nf = (v: number) => new Intl.NumberFormat("fr-CH", { notation: v >= 10000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(v);
 
@@ -44,6 +44,7 @@ export default function Universe({ worlds, full = false }: { worlds: World[]; fu
       orbit.add(holder);
       return { planet, holder, scale };
     });
+    const allWords = planets.flatMap((p) => p.planet.words).sort((a, b) => b.weight - a.weight);
     const circle = new THREE.LineLoop(
       new THREE.BufferGeometry().setFromPoints(Array.from({ length: 160 }, (_, i) => new THREE.Vector3(Math.cos((i / 160) * Math.PI * 2) * ring, 0, Math.sin((i / 160) * Math.PI * 2) * ring))),
       new THREE.LineBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.08 }),
@@ -109,6 +110,7 @@ export default function Universe({ worlds, full = false }: { worlds: World[]; fu
         label.style.opacity = v.z < 1 ? "1" : "0";
       });
       controls?.update();
+      declutter(allWords, camera, el.clientWidth, el.clientHeight);
       renderer.render(scene, camera);
     };
     loop();
