@@ -1,10 +1,12 @@
-import { AlertTriangle, CheckCircle2, Clock, Link2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { AlertTriangle, Banknote, CheckCircle2, Clock, Link2, Plus, RefreshCw, Trash2, Undo2 } from "lucide-react";
 import type { ActivityEntry } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 
 function iconFor(kind: string) {
   if (kind.endsWith(".failed") || kind.includes("error") || kind === "site.down") return <AlertTriangle className="text-danger" />;
   if (kind === "site.up") return <CheckCircle2 className="text-text" />;
+  if (kind === "payment.received") return <Banknote className="text-green" />;
+  if (kind === "payment.refunded") return <Undo2 className="text-muted" />;
   if (kind.endsWith(".published")) return <CheckCircle2 className="text-text" />;
   if (kind.endsWith(".scheduled")) return <Clock className="text-muted" />;
   if (kind.includes("refreshed") || kind.includes("retry")) return <RefreshCw className="text-muted" />;

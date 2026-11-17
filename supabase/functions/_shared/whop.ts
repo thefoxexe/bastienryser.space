@@ -3,7 +3,7 @@
 // Les montants sont ceux renvoyés par Whop (v1 : objets { amount: "10.00" }, en unités de la devise) ; les remboursements sont déduits à leur date.
 // MRR : prix de renouvellement des abonnements en cours, ramené à un mois.
 
-import { addSubscription, ConnectorError, emptySubscriptions, roundSubscriptions, type DailyPoint, type SubscriptionSpan, type SubscriptionsSnapshot } from "./connectors.ts";
+import { addSubscription, ConnectorError, emptySubscriptions, roundSubscriptions, type DailyPoint, type PaymentEvent, type SubscriptionSpan, type SubscriptionsSnapshot } from "./connectors.ts";
 
 const BASE = "https://api.whop.com/api";
 
@@ -55,7 +55,18 @@ export type WhopPayment = {
   refundedAt: number | null;
   /** Paiement d'abonnement (création, renouvellement ou changement de formule). */
   recurring: boolean;
+  /** Nature lisible : nouvel abonnement, renouvellement, achat unique… */
+  label: string;
   status: string;
+};
+
+const REASON_LABEL: Record<string, string> = {
+  subscription_create: "Nouvel abonnement",
+  subscription_cycle: "Renouvellement",
+  subscription: "Renouvellement",
+  subscription_update: "Changement de formule",
+  one_time: "Achat unique",
+  manual: "Paiement manuel",
 };
 
 const RECURRING = ["subscription_create", "subscription_cycle", "subscription_update", "subscription"];
@@ -81,6 +92,7 @@ export function normalize(p: Raw): WhopPayment | null {
     refunded,
     refundedAt: refunded ? (toUnix(p.refunded_at) ?? paidAt) : null,
     recurring: RECURRING.includes(String(p.billing_reason ?? "").toLowerCase()),
+    label: REASON_LABEL[String(p.billing_reason ?? "").toLowerCase()] ?? "Paiement",
     status: substatus || status,
   };
 }
@@ -129,7 +141,7 @@ export async function whopTest(key: string) {
 const dayInZurich = (unixSeconds: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich" }).format(new Date(unixSeconds * 1000));
 
 /** Encaissements par jour : revenus nets (remboursements déduits à leur date), nombre de paiements, remboursements, frais Whop, part récurrente. */
-export async function whopDaily(key: string, days: number): Promise<DailyPoint[]> {
+export async function whopDaily(key: string, days: number, events?: PaymentEvent[]): Promise<DailyPoint[]> {
   const since = Math.floor(Date.now() / 1000) - days * 86400;
   const totals = new Map<string, number>();
   const add = (metric: string, day: string, unit: string, v: number) => {
@@ -143,6 +155,7 @@ export async function whopDaily(key: string, days: number): Promise<DailyPoint[]
     if (!p || (p.id && seen.has(p.id))) return;
     if (p.id) seen.add(p.id);
     if (p.paidAt >= since) {
+      if (p.amount > 0) events?.push({ id: p.id, kind: "payment", amount: p.amount, currency: p.currency, at: p.paidAt, label: p.label });
       const day = dayInZurich(p.paidAt);
       add("revenue", day, p.currency, p.amount);
       add("payments", day, "", 1);
@@ -150,6 +163,7 @@ export async function whopDaily(key: string, days: number): Promise<DailyPoint[]
       if (p.recurring) add("recurring", day, p.currency, p.amount);
     }
     if (p.refunded && p.refundedAt !== null && p.refundedAt >= since) {
+      events?.push({ id: `${p.id}:refund`, kind: "refund", amount: p.refunded, currency: p.currency, at: p.refundedAt, label: "Remboursement" });
       const day = dayInZurich(p.refundedAt);
       add("revenue", day, p.currency, -p.refunded);
       add("refunds", day, p.currency, p.refunded);

@@ -9,11 +9,13 @@ import {
   subscriptionHistory,
   subscriptionPoints,
   type DailyPoint,
+  type PaymentEvent,
   type SubscriptionsSnapshot,
 } from "./connectors.ts";
 import { analyticsData, googleAccessToken, searchConsoleData, searchConsoleQueries } from "./google.ts";
 import { logActivity, readToken } from "./supabase.ts";
 import { appData } from "./app.ts";
+import { notifyPayments } from "./payment-notify.ts";
 import { cloudflareData } from "./cloudflare.ts";
 import { whopDaily, whopPaymentSpans, whopSubscriptions } from "./whop.ts";
 
@@ -22,7 +24,7 @@ export type ConnectorRow = {
   business_id: string;
   kind: "stripe" | "plausible" | "search_console" | "google_analytics" | "whop" | "app" | "cloudflare";
   label: string;
-  config: { site_id?: string; base_url?: string; account_id?: string; domain?: string; site_url?: string; property_id?: string; backfilled?: boolean; mrr_history_day?: string; mrr_history_v?: number };
+  config: { site_id?: string; base_url?: string; account_id?: string; domain?: string; site_url?: string; property_id?: string; backfilled?: boolean; mrr_history_day?: string; mrr_history_v?: number; notified_until?: number };
   credential_ref: string | null;
   status: string;
 };
@@ -40,8 +42,9 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
     const days = c.config.backfilled ? 40 : c.kind === "whop" ? 3650 : 400;
     let points: DailyPoint[];
     let snapshot: Record<string, unknown> | null = null;
+    const events: PaymentEvent[] = [];
     if (c.kind === "stripe" || c.kind === "whop") {
-      points = c.kind === "stripe" ? await stripeDaily(key, days) : await whopDaily(key, days);
+      points = c.kind === "stripe" ? await stripeDaily(key, days, events) : await whopDaily(key, days, events);
       // MRR du jour, gardé jour après jour (ni Stripe ni Whop ne fournissent son historique).
       // Sans le droit de lire les abonnements, les encaissements restent synchronisés.
       try {
@@ -117,6 +120,17 @@ export async function syncConnector(db: SupabaseClient, c: ConnectorRow): Promis
         { onConflict: "connector_id,metric,day,unit" },
       );
       if (error) throw new ConnectorError("Enregistrement des chiffres impossible.");
+    }
+
+    // Nouveaux paiements : notification sur l'app (jamais au premier passage, jamais en double).
+    if (c.kind === "stripe" || c.kind === "whop") {
+      try {
+        await notifyPayments(db, c as ConnectorRow & { config: Record<string, unknown> }, events);
+        const { data: fresh } = await db.from("connectors").select("config").eq("id", c.id).maybeSingle();
+        if (fresh?.config) c.config = fresh.config as ConnectorRow["config"];
+      } catch (e) {
+        console.error("notify payments", c.id, e);
+      }
     }
 
     await db

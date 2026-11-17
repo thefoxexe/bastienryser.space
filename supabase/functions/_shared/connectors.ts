@@ -9,6 +9,9 @@ export class ConnectorError extends Error {
 
 export type DailyPoint = { metric: string; day: string; unit: string; value: number };
 
+/** Paiement ou remboursement individuel, pour les notifications (jamais le nom ni l'e-mail du client). */
+export type PaymentEvent = { id: string; kind: "payment" | "refund"; amount: number; currency: string; at: number; label: string };
+
 /**
  * Abonnements en cours, ramenés à un mois (par devise).
  * monthly : facturés chaque mois (ou plus souvent), l'argent tombe vraiment chaque mois.
@@ -267,6 +270,15 @@ export async function stripeSubscriptionsProbe(key: string) {
   return rows;
 }
 
+/** Nature d'un encaissement Stripe d'après sa description (« Subscription creation »…). */
+function stripeLabel(description: string | null) {
+  const d = (description ?? "").toLowerCase();
+  if (d.includes("subscription creation")) return "Nouvel abonnement";
+  if (d.includes("subscription update")) return "Changement de formule";
+  if (d.includes("subscription") || d.includes("invoice")) return "Renouvellement";
+  return "Paiement";
+}
+
 /** Parcourt une liste Stripe page par page (100 éléments, 50 pages au plus). */
 async function stripeList<T extends { id: string }>(key: string, path: string, since: number, each: (item: T) => void) {
   let startingAfter: string | undefined;
@@ -286,7 +298,7 @@ async function stripeList<T extends { id: string }>(key: string, path: string, s
  * - refunds : montant remboursé ; fees : frais Stripe ; payments : nombre de paiements.
  * Source : les transactions du solde (permission « Balance : lecture »). Sans elle, repli sur paiements + remboursements.
  */
-export async function stripeDaily(key: string, days = 40): Promise<DailyPoint[]> {
+export async function stripeDaily(key: string, days = 40, events?: PaymentEvent[]): Promise<DailyPoint[]> {
   const since = Math.floor(Date.now() / 1000) - days * 86400;
   const totals = new Map<string, number>();
   const add = (metric: string, day: string, unit: string, v: number) => {
@@ -297,10 +309,12 @@ export async function stripeDaily(key: string, days = 40): Promise<DailyPoint[]>
   const units = (currency: string) => (ZERO_DECIMAL.has(currency) ? 1 : 100);
 
   try {
-    type Txn = { id: string; created: number; currency: string; amount: number; fee: number; reporting_category: string };
+    type Txn = { id: string; created: number; currency: string; amount: number; fee: number; reporting_category: string; description: string | null };
     await stripeList<Txn>(key, "balance_transactions", since, (t) => {
       const day = dayInZurich(t.created);
       const f = units(t.currency);
+      if (t.reporting_category === "charge") events?.push({ id: t.id, kind: "payment", amount: t.amount / f, currency: t.currency, at: t.created, label: stripeLabel(t.description) });
+      if (t.reporting_category === "refund") events?.push({ id: t.id, kind: "refund", amount: -t.amount / f, currency: t.currency, at: t.created, label: "Remboursement" });
       switch (t.reporting_category) {
         case "charge":
           add("revenue", day, t.currency, t.amount / f);
@@ -330,6 +344,7 @@ export async function stripeDaily(key: string, days = 40): Promise<DailyPoint[]>
     await stripeList<Charge>(key, "charges", since, (c) => {
       if (c.status !== "succeeded" || !c.paid) return;
       const day = dayInZurich(c.created);
+      events?.push({ id: c.id, kind: "payment", amount: c.amount_captured / units(c.currency), currency: c.currency, at: c.created, label: "Paiement" });
       add("revenue", day, c.currency, c.amount_captured / units(c.currency));
       add("payments", day, "", 1);
     });
@@ -338,6 +353,7 @@ export async function stripeDaily(key: string, days = 40): Promise<DailyPoint[]>
       await stripeList<Refund>(key, "refunds", since, (r) => {
         if (r.status === "failed" || r.status === "canceled") return;
         const day = dayInZurich(r.created);
+        events?.push({ id: r.id, kind: "refund", amount: r.amount / units(r.currency), currency: r.currency, at: r.created, label: "Remboursement" });
         add("revenue", day, r.currency, -r.amount / units(r.currency));
         add("refunds", day, r.currency, r.amount / units(r.currency));
       });
