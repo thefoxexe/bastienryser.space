@@ -2,6 +2,7 @@
 // - pg_cron (chaque lundi) : résumé de la semaine envoyé à tous les appareils abonnés.
 // - Admin : { action: "key" } renvoie la clé publique VAPID (générée au premier appel, privée rangée dans le Vault),
 //           { action: "test" } envoie une notification d'essai.
+// - Admin ou pg_cron : { action: "sample_payment" } envoie un exemple de notification de paiement.
 // Les chiffres viennent de metric_points et ledger_entries : jamais d'estimation.
 
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.118.0";
@@ -53,6 +54,18 @@ Deno.serve(async (req) => {
   const cron = await isCronRequest(req);
   if (!cron && !(await isAdminRequest(req))) return json({ error: "unauthorized" }, 401);
   const body = (await req.json().catch(() => ({}))) as { action?: string };
+
+  // Aperçu d'une notification de paiement, clairement marquée comme exemple (admin ou pg_cron).
+  if (body.action === "sample_payment") {
+    return json(
+      await sendAll(db, {
+        title: "Exemple · Golden Bulls · +49,99 €",
+        body: "Renouvellement · Whop\nCe mois : 312,40 € · 7 paiements",
+        url: "/",
+        tag: `sample-payment-${Date.now()}`,
+      }),
+    );
+  }
 
   try {
     if (!cron && body.action === "key") return json({ publicKey: (await vapidKeys(db)).publicKey });
