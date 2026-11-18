@@ -19,7 +19,7 @@ import { TodoCard } from "@/components/todo-card";
 import { listOpenTasks } from "@/lib/projects";
 import { CashSection } from "@/components/cash/cash-section";
 import { cashOverview } from "@/lib/cash";
-import { UniverseCard } from "@/components/world/world-card";
+import { SitesSearchCard } from "@/components/search-map/cards";
 import { allWorlds } from "@/lib/web-world";
 import { formatDate, formatNumber, formatTime, TIME_ZONE, zurichDayKey } from "@/lib/format";
 import { NETWORKS } from "@/lib/social/networks";
@@ -277,8 +277,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
 
       </div>
 
-      {/* Tout en bas : l'univers des sites sur Google */}
-      <UniverseCard worlds={worlds} />
+      {/* Tout en bas : les recherches Google de chaque site, en trois groupes */}
+      <SitesSearchCard worlds={worlds} />
     </Page>
   );
 }

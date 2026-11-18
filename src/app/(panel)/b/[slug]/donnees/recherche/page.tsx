@@ -72,7 +72,7 @@ export default async function SearchPage({ params, searchParams }: PageProps<"/b
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <Link href={`/b/${business.slug}/monde`} className="flex h-9 items-center gap-1.5 rounded-full bg-fill px-3.5 text-[13px] font-medium hover:bg-fill-strong">
-            <Globe2 className="size-3.5" /> Voir en 3D
+            <Globe2 className="size-3.5" /> Carte des recherches
           </Link>
           <ExportMenu slug={business.slug} />
           <PeriodChips base={`${base}/recherche`} current={period} />

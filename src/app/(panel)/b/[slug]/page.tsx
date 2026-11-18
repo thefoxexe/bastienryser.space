@@ -14,7 +14,7 @@ import { formatNumber } from "@/lib/format";
 import { NETWORKS } from "@/lib/social/networks";
 import { VeilleOverview } from "./veille-overview";
 import { AppSummary } from "@/components/app-summary";
-import { PlanetCard } from "@/components/world/world-card";
+import { SearchMapCard } from "@/components/search-map/cards";
 import { businessWorld } from "@/lib/web-world";
 
 export async function generateMetadata({ params }: PageProps<"/b/[slug]">): Promise<Metadata> {
@@ -59,7 +59,7 @@ export default async function BusinessOverview({ params, searchParams }: PagePro
       {/* Le même tableau de bord que l'accueil, avec les seuls chiffres de ce business. */}
       <KpiStrip businesses={[business]} business={business} period={period} base={`/b/${business.slug}`} />
       <AppSummary businessId={business.id} slug={business.slug} />
-      {world ? <PlanetCard world={world} /> : null}
+      {world ? <SearchMapCard world={world} /> : null}
 
       <TodoCard tasks={await listOpenTasks({ businessId: business.id, limit: 6 })} href={`/b/${business.slug}/projets`} showBusiness={false} />
 

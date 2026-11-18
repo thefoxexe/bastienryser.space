@@ -506,3 +506,25 @@
     animation: none;
   }
 }
+
+/* Bulles de la carte des recherches : elles apparaissent en grossissant, une à une. */
+@keyframes pop {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.pop-in {
+  animation: pop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop-in {
+    animation: none;
+  }
+}
